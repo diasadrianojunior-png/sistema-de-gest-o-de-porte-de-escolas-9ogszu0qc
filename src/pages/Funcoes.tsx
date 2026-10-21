@@ -36,7 +36,14 @@ import {
   ShieldAlert,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
-import { getCargos, getFuncoes, createFuncao, updateFuncao, deleteFuncao } from '@/services/apoio'
+import {
+  getCargos,
+  createCargo,
+  getFuncoes,
+  createFuncao,
+  updateFuncao,
+  deleteFuncao,
+} from '@/services/apoio'
 import { Cargo, Funcao } from '@/types/gestao-escolar'
 
 export default function Funcoes() {
@@ -52,6 +59,11 @@ export default function Funcoes() {
   const [funcaoFormNome, setFuncaoFormNome] = useState('')
   const [selectedCargoIds, setSelectedCargoIds] = useState<string[]>([])
   const [searchChecklist, setSearchChecklist] = useState('')
+
+  // Diálogo de criação rápida de cargo a partir de Funções
+  const [openNovoCargoDialog, setOpenNovoCargoDialog] = useState(false)
+  const [novoCargoNome, setNovoCargoNome] = useState('')
+  const [salvandoCargo, setSalvandoCargo] = useState(false)
 
   // Diálogo de visualização
   const [openViewDialog, setOpenViewDialog] = useState(false)
@@ -119,6 +131,51 @@ export default function Funcoes() {
   // Desmarcar todos os cargos
   const handleDeselectAllCargos = () => {
     setSelectedCargoIds([])
+  }
+
+  // Abrir diálogo de criação rápida de cargo inline
+  const handleOpenNovoCargoInline = () => {
+    setNovoCargoNome('')
+    setOpenNovoCargoDialog(true)
+  }
+
+  // Salvar novo cargo criado inline a partir de Funções
+  const handleSaveNovoCargoInline = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const nomeLimpo = novoCargoNome.trim()
+    if (!nomeLimpo) {
+      toast({
+        title: 'Atenção',
+        description: 'Informe o nome do cargo.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      setSalvandoCargo(true)
+      const novoCargo = await createCargo({ nome: nomeLimpo })
+      toast({
+        title: 'Cargo cadastrado com sucesso!',
+        description: `O cargo "${novoCargo.nome}" (${novoCargo.codigo || 'CAR-XXXX'}) foi criado e já está selecionado.`,
+      })
+      // Recarregar lista de cargos da base
+      const listaAtualizada = await getCargos()
+      setCargos(listaAtualizada)
+      // Marcar automaticamente o novo cargo na lista de selecionados da função
+      setSelectedCargoIds((prev) => (prev.includes(novoCargo.id) ? prev : [...prev, novoCargo.id]))
+      // Fechar modal de cargo sem fechar o modal da função
+      setOpenNovoCargoDialog(false)
+      setNovoCargoNome('')
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao cadastrar cargo',
+        description: err.message || 'Não foi possível cadastrar o novo cargo.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSalvandoCargo(false)
+    }
   }
 
   // Salvar (criar ou atualizar)
@@ -411,11 +468,12 @@ export default function Funcoes() {
 
             {/* Campo 3: Checklist de Cargos que podem exercer */}
             <div className="flex-1 flex flex-col min-h-0 space-y-2 border-t pt-3">
+              {/* Barra superior do atributo: Título e Botão "+ Novo cargo" */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0">
                 <div>
                   <Label className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                     <Briefcase className="w-3.5 h-3.5 text-blue-600" />
-                    Quais cargos podem exercer esta função
+                    Cargos que podem exercer
                   </Label>
                   <p className="text-[11px] text-slate-500">
                     Selecione os cargos habilitados ({selectedCargoIds.length} de {cargos.length}{' '}
@@ -423,13 +481,24 @@ export default function Funcoes() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenNovoCargoInline}
+                    className="h-7 text-xs px-2.5 gap-1.5 bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:text-blue-800 font-medium"
+                    title="Criar novo cargo diretamente sem sair do cadastro de funções"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Novo cargo
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={handleSelectAllCargos}
-                    className="h-7 text-xs px-2.5 gap-1 text-slate-700"
+                    className="h-7 text-xs px-2 gap-1 text-slate-700"
                   >
                     <CheckSquare className="w-3 h-3 text-blue-600" />
                     Marcar todos
@@ -439,7 +508,7 @@ export default function Funcoes() {
                     variant="outline"
                     size="sm"
                     onClick={handleDeselectAllCargos}
-                    className="h-7 text-xs px-2.5 gap-1 text-slate-700"
+                    className="h-7 text-xs px-2 gap-1 text-slate-700"
                   >
                     <Square className="w-3 h-3 text-slate-400" />
                     Desmarcar todos
@@ -614,6 +683,68 @@ export default function Funcoes() {
               Fechar
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIÁLOGO: CRIAÇÃO RÁPIDA DE CARGO INLINE */}
+      <Dialog open={openNovoCargoDialog} onOpenChange={setOpenNovoCargoDialog}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Briefcase className="w-5 h-5 text-blue-600" />
+              Novo Cargo
+            </DialogTitle>
+            <DialogDescription>
+              Cadastre um novo cargo de apoio. Ele será salvo na base e marcado automaticamente no
+              checklist desta função.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveNovoCargoInline} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="inline-cargo-codigo"
+                className="text-xs font-semibold uppercase tracking-wider text-slate-600"
+              >
+                Identificador do Sistema (Automático)
+              </Label>
+              <Input
+                id="inline-cargo-codigo"
+                value="Gerado automaticamente ao salvar (ex: CAR-0001)"
+                disabled
+                className="bg-slate-100 font-mono text-xs text-slate-600 cursor-not-allowed"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="inline-cargo-nome" className="text-xs font-semibold text-slate-700">
+                Nome do Cargo *
+              </Label>
+              <Input
+                id="inline-cargo-nome"
+                placeholder="Ex: Professor de Matemática, Orientador Educacional..."
+                value={novoCargoNome}
+                onChange={(e) => setNovoCargoNome(e.target.value)}
+                autoFocus
+                required
+              />
+            </div>
+
+            <DialogFooter className="pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpenNovoCargoDialog(false)}
+                disabled={salvandoCargo}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={salvandoCargo}>
+                {salvandoCargo && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Cadastrar Cargo
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

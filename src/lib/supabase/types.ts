@@ -129,6 +129,66 @@ export type Database = {
           },
         ]
       }
+      funcao_cargos: {
+        Row: {
+          cargo_id: string
+          created_at: string
+          funcao_id: string
+          id: string
+        }
+        Insert: {
+          cargo_id: string
+          created_at?: string
+          funcao_id: string
+          id?: string
+        }
+        Update: {
+          cargo_id?: string
+          created_at?: string
+          funcao_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'funcao_cargos_cargo_id_fkey'
+            columns: ['cargo_id']
+            isOneToOne: false
+            referencedRelation: 'cargos'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'funcao_cargos_funcao_id_fkey'
+            columns: ['funcao_id']
+            isOneToOne: false
+            referencedRelation: 'funcoes'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      funcoes: {
+        Row: {
+          codigo: string | null
+          created_at: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       municipios_rede: {
         Row: {
           codigo: string | null
