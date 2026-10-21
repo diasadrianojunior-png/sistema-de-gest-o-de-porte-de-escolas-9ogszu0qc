@@ -52,6 +52,7 @@ import {
   TipoAtendimentoUnidade,
   OPCOES_NIVEL_20H,
   OPCOES_NIVEL_40H,
+  normalizarNivelPorte,
 } from '@/types/gestao-escolar'
 
 export default function CadastrosMestres() {
@@ -113,10 +114,12 @@ export default function CadastrosMestres() {
 
   const handleOpenEdit = (unidade: UnidadeEscolar) => {
     setEditingUnidade(unidade)
+    // Se o valor salvo no banco for de um formato antigo, normaliza para a opção correspondente nova
+    const nivelNormalizado = normalizarNivelPorte(unidade.tipo_atendimento, unidade.nivel_porte)
     setFormData({
       nome: unidade.nome,
       tipo_atendimento: unidade.tipo_atendimento,
-      nivel_porte: unidade.nivel_porte,
+      nivel_porte: nivelNormalizado || unidade.nivel_porte,
       localizacao: unidade.localizacao,
     })
     setOpenFormDialog(true)
@@ -441,17 +444,24 @@ export default function CadastrosMestres() {
             {/* 4. REGRA CONDICIONAL: Segundo combo box baseado na escolha do primeiro */}
             {formData.tipo_atendimento === 'Ensino Fundamental e Educação Infantil (20h)' && (
               <div className="space-y-2 bg-blue-50/60 p-3.5 rounded-lg border border-blue-200">
-                <Label htmlFor="nivel_porte_20h" className="text-blue-950 font-semibold">
-                  Nível / Faixa de Alunos (20h) *
+                <Label htmlFor="nivel_porte_20h" className="text-blue-950 font-semibold text-sm">
+                  Nível / Faixa de Alunos *
                 </Label>
                 <Select
                   value={formData.nivel_porte}
                   onValueChange={(val) => setFormData({ ...formData, nivel_porte: val })}
                 >
                   <SelectTrigger id="nivel_porte_20h" className="bg-white">
-                    <SelectValue placeholder="Selecione o nível ou faixa de alunos" />
+                    <SelectValue placeholder="Selecione nível e faixa de alunos" />
                   </SelectTrigger>
                   <SelectContent>
+                    {/* Se o valor atual for legado e não estiver na lista padrão, exibe também para não perder */}
+                    {formData.nivel_porte &&
+                      !(OPCOES_NIVEL_20H as readonly string[]).includes(formData.nivel_porte) && (
+                        <SelectItem value={formData.nivel_porte}>
+                          {formData.nivel_porte} (atual)
+                        </SelectItem>
+                      )}
                     {OPCOES_NIVEL_20H.map((opcao) => (
                       <SelectItem key={opcao} value={opcao}>
                         {opcao}
@@ -460,24 +470,31 @@ export default function CadastrosMestres() {
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-blue-700">
-                  Opções disponíveis para Ensino Fundamental e Educação Infantil (20h)
+                  8 opções para Ensino Fundamental e Educação Infantil (20h)
                 </p>
               </div>
             )}
 
             {formData.tipo_atendimento === 'Educação Infantil (40h)' && (
               <div className="space-y-2 bg-emerald-50/60 p-3.5 rounded-lg border border-emerald-200">
-                <Label htmlFor="nivel_porte_40h" className="text-emerald-950 font-semibold">
-                  Nível / Faixa de Alunos (40h) *
+                <Label htmlFor="nivel_porte_40h" className="text-emerald-950 font-semibold text-sm">
+                  Nível / Faixa de Alunos *
                 </Label>
                 <Select
                   value={formData.nivel_porte}
                   onValueChange={(val) => setFormData({ ...formData, nivel_porte: val })}
                 >
                   <SelectTrigger id="nivel_porte_40h" className="bg-white">
-                    <SelectValue placeholder="Selecione o nível ou faixa de alunos" />
+                    <SelectValue placeholder="Selecione nível e faixa de alunos" />
                   </SelectTrigger>
                   <SelectContent>
+                    {/* Se o valor atual for legado e não estiver na lista padrão, exibe também para não perder */}
+                    {formData.nivel_porte &&
+                      !(OPCOES_NIVEL_40H as readonly string[]).includes(formData.nivel_porte) && (
+                        <SelectItem value={formData.nivel_porte}>
+                          {formData.nivel_porte} (atual)
+                        </SelectItem>
+                      )}
                     {OPCOES_NIVEL_40H.map((opcao) => (
                       <SelectItem key={opcao} value={opcao}>
                         {opcao}
@@ -486,7 +503,7 @@ export default function CadastrosMestres() {
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-emerald-700">
-                  Opções disponíveis para Educação Infantil (40h)
+                  3 opções para Educação Infantil (40h)
                 </p>
               </div>
             )}

@@ -22,32 +22,62 @@ export type TipoAtendimentoUnidade =
   | 'Educação Infantil (40h)'
 
 export const OPCOES_NIVEL_20H = [
-  'Nível I',
-  'Nível II',
-  'Nível III',
-  'Nível IV',
-  'Nível V',
-  'Nível VI',
-  'Nível VII',
-  'Nível VIII',
-  'Até 100 alunos',
-  'De 101 a 150 alunos',
-  'De 151 a 220 alunos',
-  'De 221 a 320 alunos',
-  'De 321 a 420 alunos',
-  'De 421 a 500 alunos',
-  'De 501 a 600 alunos',
-  'Acima de 600 alunos',
+  'Nível I: Até 100 alunos',
+  'Nível II: De 101 a 150 alunos',
+  'Nível III: De 151 a 220 alunos',
+  'Nível IV: De 221 a 320 alunos',
+  'Nível V: De 321 a 420 alunos',
+  'Nível VI: De 421 a 500 alunos',
+  'Nível VII: De 501 a 600 alunos',
+  'Nível VIII: Acima de 600 alunos',
 ] as const
 
 export const OPCOES_NIVEL_40H = [
-  'Nível A',
-  'Nível B',
-  'Nível C',
-  'Até 90 alunos',
-  'De 91 a 140 alunos',
-  'Acima de 141 alunos',
+  'Nível A: Até 90 alunos',
+  'Nível B: De 91 a 140 alunos',
+  'Nível C: Acima de 141 alunos',
 ] as const
+
+export const MAPA_LEGADO_NIVEL: Record<string, string> = {
+  // Mapeamentos para 20h
+  'Nível I': 'Nível I: Até 100 alunos',
+  'Até 100 alunos': 'Nível I: Até 100 alunos',
+  'Nível II': 'Nível II: De 101 a 150 alunos',
+  'De 101 a 150 alunos': 'Nível II: De 101 a 150 alunos',
+  'Nível III': 'Nível III: De 151 a 220 alunos',
+  'De 151 a 220 alunos': 'Nível III: De 151 a 220 alunos',
+  'Nível IV': 'Nível IV: De 221 a 320 alunos',
+  'De 221 a 320 alunos': 'Nível IV: De 221 a 320 alunos',
+  'Nível V': 'Nível V: De 321 a 420 alunos',
+  'De 321 a 420 alunos': 'Nível V: De 321 a 420 alunos',
+  'Nível VI': 'Nível VI: De 421 a 500 alunos',
+  'De 421 a 500 alunos': 'Nível VI: De 421 a 500 alunos',
+  'Nível VII': 'Nível VII: De 501 a 600 alunos',
+  'De 501 a 600 alunos': 'Nível VII: De 501 a 600 alunos',
+  'Nível VIII': 'Nível VIII: Acima de 600 alunos',
+  'Acima de 600 alunos': 'Nível VIII: Acima de 600 alunos',
+
+  // Mapeamentos para 40h
+  'Nível A': 'Nível A: Até 90 alunos',
+  'Até 90 alunos': 'Nível A: Até 90 alunos',
+  'Nível B': 'Nível B: De 91 a 140 alunos',
+  'De 91 a 140 alunos': 'Nível B: De 91 a 140 alunos',
+  'Nível C': 'Nível C: Acima de 141 alunos',
+  'Acima de 141 alunos': 'Nível C: Acima de 141 alunos',
+}
+
+export function normalizarNivelPorte(tipoAtendimento: string, nivelPorte: string): string {
+  if (!nivelPorte) return ''
+  const trimmed = nivelPorte.trim()
+  if (tipoAtendimento === 'Ensino Fundamental e Educação Infantil (20h)') {
+    if ((OPCOES_NIVEL_20H as readonly string[]).includes(trimmed)) return trimmed
+    if (MAPA_LEGADO_NIVEL[trimmed]) return MAPA_LEGADO_NIVEL[trimmed]
+  } else if (tipoAtendimento === 'Educação Infantil (40h)') {
+    if ((OPCOES_NIVEL_40H as readonly string[]).includes(trimmed)) return trimmed
+    if (MAPA_LEGADO_NIVEL[trimmed]) return MAPA_LEGADO_NIVEL[trimmed]
+  }
+  return MAPA_LEGADO_NIVEL[trimmed] || trimmed
+}
 
 export interface UnidadeEscolar {
   id: string

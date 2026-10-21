@@ -120,6 +120,39 @@ export type Database = {
         }
         Relationships: []
       }
+      unidades_escolares: {
+        Row: {
+          codigo: string | null
+          created_at: string
+          id: string
+          localizacao: string
+          nivel_porte: string
+          nome: string
+          tipo_atendimento: string
+          updated_at: string
+        }
+        Insert: {
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          localizacao: string
+          nivel_porte: string
+          nome: string
+          tipo_atendimento: string
+          updated_at?: string
+        }
+        Update: {
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          localizacao?: string
+          nivel_porte?: string
+          nome?: string
+          tipo_atendimento?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       usuarios_sistema: {
         Row: {
           codigo: string | null
