@@ -11,6 +11,7 @@ export type Database = {
     Tables: {
       escolas: {
         Row: {
+          codigo: string | null
           created_at: string
           endereco: string
           id: string
@@ -22,6 +23,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          codigo?: string | null
           created_at?: string
           endereco?: string
           id?: string
@@ -33,6 +35,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          codigo?: string | null
           created_at?: string
           endereco?: string
           id?: string
@@ -62,6 +65,7 @@ export type Database = {
       }
       municipios_rede: {
         Row: {
+          codigo: string | null
           created_at: string
           esfera: string
           id: string
@@ -70,6 +74,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          codigo?: string | null
           created_at?: string
           esfera?: string
           id?: string
@@ -78,6 +83,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          codigo?: string | null
           created_at?: string
           esfera?: string
           id?: string
@@ -89,6 +95,7 @@ export type Database = {
       }
       tipos_escola: {
         Row: {
+          codigo: string | null
           created_at: string
           descricao: string | null
           id: string
@@ -96,6 +103,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          codigo?: string | null
           created_at?: string
           descricao?: string | null
           id?: string
@@ -103,11 +111,48 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          codigo?: string | null
           created_at?: string
           descricao?: string | null
           id?: string
           nome?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      usuarios_sistema: {
+        Row: {
+          codigo: string | null
+          created_at: string
+          email: string
+          estado: string
+          id: string
+          nome_completo: string
+          perfil: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          codigo?: string | null
+          created_at?: string
+          email: string
+          estado?: string
+          id?: string
+          nome_completo: string
+          perfil?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          codigo?: string | null
+          created_at?: string
+          email?: string
+          estado?: string
+          id?: string
+          nome_completo?: string
+          perfil?: string
+          updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }

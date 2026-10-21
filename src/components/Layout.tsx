@@ -10,8 +10,6 @@ import {
   Menu,
   X,
   ShieldCheck,
-  ChevronDown,
-  FolderKanban,
   PanelLeftClose,
   PanelLeftOpen,
   UserCog,
@@ -26,21 +24,6 @@ export default function Layout() {
   // Controle da sidebar mobile (drawer) e desktop colapso opcional
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-
-  // O grupo "Cadastros" expande/colapsa ao clicar
-  // Inicia expandido se estiver em uma das páginas de cadastros, ou padrão aberto
-  const isCadastrosActive =
-    location.pathname === '/cadastros-mestres' ||
-    location.pathname === '/cadastros-apoio' ||
-    location.pathname === '/administracao'
-  const [cadastrosOpen, setCadastrosOpen] = useState(true)
-
-  // Ao navegar, se a rota for de cadastro, garante que o menu esteja aberto
-  useEffect(() => {
-    if (isCadastrosActive) {
-      setCadastrosOpen(true)
-    }
-  }, [location.pathname, isCadastrosActive])
 
   useEffect(() => {
     if (!loading && !user) {
@@ -149,104 +132,56 @@ export default function Layout() {
               {!sidebarCollapsed && <span>Painel de Início</span>}
             </NavLink>
 
-            {/* Item 2: Grupo Cadastros (Expansível / Accordion) */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={() => setCadastrosOpen((prev) => !prev)}
-                title="Cadastros"
-                aria-expanded={cadastrosOpen}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isCadastrosActive
-                    ? 'text-blue-800 bg-blue-50/70 font-semibold'
-                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <FolderKanban
-                    className={`w-5 h-5 shrink-0 ${
-                      isCadastrosActive ? 'text-blue-700' : 'text-slate-500'
-                    }`}
-                  />
-                  {!sidebarCollapsed && <span>Cadastros</span>}
-                </div>
-                {!sidebarCollapsed && (
-                  <ChevronDown
-                    className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
-                      cadastrosOpen ? 'rotate-180 text-blue-600' : ''
-                    }`}
-                  />
-                )}
-              </button>
+            {/* Item 2: Cadastros Mestres */}
+            <NavLink
+              to="/cadastros-mestres"
+              onClick={() => isMobile && setMobileSidebarOpen(false)}
+              title="Cadastros Mestres"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isMestresActive
+                  ? 'bg-blue-50 text-blue-700 font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <School
+                className={`w-5 h-5 shrink-0 ${isMestresActive ? 'text-blue-700' : 'text-slate-500'}`}
+              />
+              {!sidebarCollapsed && <span>Cadastros Mestres</span>}
+            </NavLink>
 
-              {/* Subitens de Cadastros (revelados ao clicar no item Cadastros) */}
-              {cadastrosOpen && (
-                <div
-                  className={`mt-1 space-y-1 ${
-                    sidebarCollapsed ? 'pl-0' : 'pl-4 ml-4 border-l-2 border-slate-200'
-                  }`}
-                >
-                  {/* Subitem: Cadastros Mestres */}
-                  <NavLink
-                    to="/cadastros-mestres"
-                    onClick={() => isMobile && setMobileSidebarOpen(false)}
-                    title="Cadastros Mestres (Escolas)"
-                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      isMestresActive
-                        ? 'bg-blue-600 text-white font-medium shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
-                  >
-                    <School
-                      className={`w-4 h-4 shrink-0 ${
-                        isMestresActive ? 'text-white' : 'text-slate-500'
-                      }`}
-                    />
-                    {!sidebarCollapsed && <span className="truncate">Cadastros Mestres</span>}
-                  </NavLink>
+            {/* Item 3: Cadastros de Apoio */}
+            <NavLink
+              to="/cadastros-apoio"
+              onClick={() => isMobile && setMobileSidebarOpen(false)}
+              title="Cadastros de Apoio"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isApoioActive
+                  ? 'bg-blue-50 text-blue-700 font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <Database
+                className={`w-5 h-5 shrink-0 ${isApoioActive ? 'text-blue-700' : 'text-slate-500'}`}
+              />
+              {!sidebarCollapsed && <span>Cadastros de Apoio</span>}
+            </NavLink>
 
-                  {/* Subitem: Cadastros de Apoio */}
-                  <NavLink
-                    to="/cadastros-apoio"
-                    onClick={() => isMobile && setMobileSidebarOpen(false)}
-                    title="Cadastros de Apoio (Municípios e Tipos)"
-                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      isApoioActive
-                        ? 'bg-blue-600 text-white font-medium shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
-                  >
-                    <Database
-                      className={`w-4 h-4 shrink-0 ${
-                        isApoioActive ? 'text-white' : 'text-slate-500'
-                      }`}
-                    />
-                    {!sidebarCollapsed && <span className="truncate">Cadastros de Apoio</span>}
-                  </NavLink>
-
-                  {/* Subitem: Administração do sistema (Último item dentro de Cadastros) */}
-                  <NavLink
-                    to="/administracao"
-                    onClick={() => isMobile && setMobileSidebarOpen(false)}
-                    title="Administração do sistema"
-                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      isAdministracaoActive
-                        ? 'bg-blue-600 text-white font-medium shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
-                  >
-                    <UserCog
-                      className={`w-4 h-4 shrink-0 ${
-                        isAdministracaoActive ? 'text-white' : 'text-slate-500'
-                      }`}
-                    />
-                    {!sidebarCollapsed && (
-                      <span className="truncate">Administração do sistema</span>
-                    )}
-                  </NavLink>
-                </div>
-              )}
-            </div>
+            {/* Item 4: Administração do sistema */}
+            <NavLink
+              to="/administracao"
+              onClick={() => isMobile && setMobileSidebarOpen(false)}
+              title="Administração do sistema"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isAdministracaoActive
+                  ? 'bg-blue-50 text-blue-700 font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <UserCog
+                className={`w-5 h-5 shrink-0 ${isAdministracaoActive ? 'text-blue-700' : 'text-slate-500'}`}
+              />
+              {!sidebarCollapsed && <span>Administração do sistema</span>}
+            </NavLink>
           </nav>
         </div>
       </div>
@@ -349,25 +284,13 @@ export default function Layout() {
                 <span className="text-slate-900 font-semibold">Painel de Início</span>
               )}
               {isMestresActive && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-500">Cadastros</span>
-                  <span className="text-slate-300">/</span>
-                  <span className="text-blue-700 font-semibold">Cadastros Mestres (Escolas)</span>
-                </div>
+                <span className="text-blue-700 font-semibold">Cadastros Mestres</span>
               )}
               {isApoioActive && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-500">Cadastros</span>
-                  <span className="text-slate-300">/</span>
-                  <span className="text-blue-700 font-semibold">Cadastros de Apoio</span>
-                </div>
+                <span className="text-blue-700 font-semibold">Cadastros de Apoio</span>
               )}
               {isAdministracaoActive && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-500">Cadastros</span>
-                  <span className="text-slate-300">/</span>
-                  <span className="text-blue-700 font-semibold">Administração do sistema</span>
-                </div>
+                <span className="text-blue-700 font-semibold">Administração do sistema</span>
               )}
             </div>
           </div>
