@@ -18,6 +18,7 @@ import {
   Building,
   ShieldAlert,
   Briefcase,
+  Layers,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
@@ -59,6 +60,7 @@ export default function Layout() {
   const isPainelActive = location.pathname === '/painel'
   const isMestresActive = location.pathname === '/cadastros-mestres'
   const isCargosActive = location.pathname === '/cadastros-apoio/cargos'
+  const isFuncoesActive = location.pathname === '/cadastros-apoio/funcoes'
   const isApoioActive = location.pathname.startsWith('/cadastros-apoio')
   const isAdministracaoActive = location.pathname === '/administracao'
   const isAuditoriaActive = location.pathname === '/auditoria'
@@ -232,20 +234,38 @@ export default function Layout() {
               {/* Submenu de Cadastros de Apoio */}
               {!sidebarCollapsed && cadastrosApoioExpanded && (
                 <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-200 space-y-1 py-1">
+                  {/* Submenu 1: Cargos */}
                   <NavLink
                     to="/cadastros-apoio/cargos"
                     onClick={() => isMobile && setMobileSidebarOpen(false)}
                     title="Cargos"
                     className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                      isCargosActive || isApoioActive
+                      isCargosActive
                         ? 'bg-blue-600 text-white font-semibold shadow-xs'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                   >
                     <Briefcase
-                      className={`w-3.5 h-3.5 shrink-0 ${isCargosActive || isApoioActive ? 'text-white' : 'text-slate-400'}`}
+                      className={`w-3.5 h-3.5 shrink-0 ${isCargosActive ? 'text-white' : 'text-slate-400'}`}
                     />
                     <span className="truncate">Cargos</span>
+                  </NavLink>
+
+                  {/* Submenu 2: Funções */}
+                  <NavLink
+                    to="/cadastros-apoio/funcoes"
+                    onClick={() => isMobile && setMobileSidebarOpen(false)}
+                    title="Funções"
+                    className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      isFuncoesActive
+                        ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Layers
+                      className={`w-3.5 h-3.5 shrink-0 ${isFuncoesActive ? 'text-white' : 'text-slate-400'}`}
+                    />
+                    <span className="truncate">Funções</span>
                   </NavLink>
                 </div>
               )}
@@ -396,7 +416,9 @@ export default function Layout() {
                 <>
                   <span className="text-slate-600">Cadastros de Apoio</span>
                   <span className="mx-2 text-slate-300">/</span>
-                  <span className="text-blue-700 font-semibold">Cargos</span>
+                  <span className="text-blue-700 font-semibold">
+                    {isFuncoesActive ? 'Funções' : 'Cargos'}
+                  </span>
                 </>
               )}
               {isAuditoriaActive && <span className="text-blue-700 font-semibold">Auditoria</span>}

@@ -25,6 +25,22 @@ export interface Cargo {
   updated_at?: string
 }
 
+export interface Funcao {
+  id: string
+  codigo?: string
+  nome: string
+  created_at?: string
+  updated_at?: string
+  cargos_vinculados?: Cargo[]
+}
+
+export interface FuncaoCargoVinculo {
+  id: string
+  funcao_id: string
+  cargo_id: string
+  created_at?: string
+}
+
 export type TipoAtendimentoUnidade =
   | 'Ensino Fundamental e Educação Infantil (20h)'
   | 'Educação Infantil (40h)'
@@ -144,6 +160,7 @@ export type EntidadeAuditoria =
   | 'Municípios/Redes'
   | 'Tipos de escola'
   | 'Cargos'
+  | 'Funções'
   | 'Usuários'
   | 'Autenticação'
 

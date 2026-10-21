@@ -8,6 +8,7 @@ import Login from './pages/Login'
 import Painel from './pages/Painel'
 import CadastrosApoio from './pages/CadastrosApoio'
 import Cargos from './pages/Cargos'
+import Funcoes from './pages/Funcoes'
 import CadastrosMestres from './pages/CadastrosMestres'
 import Administracao from './pages/Administracao'
 import Auditoria from './pages/Auditoria'
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/cadastros-mestres" element={<CadastrosMestres />} />
             <Route path="/cadastros-apoio" element={<CadastrosApoio />} />
             <Route path="/cadastros-apoio/cargos" element={<Cargos />} />
+            <Route path="/cadastros-apoio/funcoes" element={<Funcoes />} />
             <Route path="/administracao" element={<Administracao />} />
             <Route path="/auditoria" element={<Auditoria />} />
           </Route>

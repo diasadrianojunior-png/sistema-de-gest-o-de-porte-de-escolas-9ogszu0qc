@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
-import { Cargo, MunicipioRede, TipoEscola } from '@/types/gestao-escolar'
+import { Cargo, Funcao, MunicipioRede, TipoEscola } from '@/types/gestao-escolar'
 import { registrarAuditoria } from './auditoria'
 
 const db = supabase as any
@@ -252,6 +252,205 @@ export const deleteCargo = async (id: string): Promise<void> => {
     acao: 'Exclusão',
     registro_codigo: anterior?.codigo || null,
     descricao: `Exclusão do cargo "${anterior?.nome || id}".`,
+    detalhes: { id, registro_anterior: anterior },
+  })
+}
+
+// --- Funções e Vínculo com Cargos ---
+export interface CreateFuncaoInput {
+  nome: string
+  cargo_ids: string[]
+}
+
+export interface UpdateFuncaoInput {
+  nome: string
+  cargo_ids: string[]
+}
+
+export const getFuncoes = async (): Promise<Funcao[]> => {
+  // 1. Buscar todas as funções ordenadas por código sequencial
+  const { data: funcoesData, error: funcoesError } = await db
+    .from('funcoes')
+    .select('*')
+    .order('codigo', { ascending: true })
+
+  if (funcoesError) {
+    console.error('Erro ao buscar funções:', funcoesError)
+    throw funcoesError
+  }
+
+  const funcoes = (funcoesData as Funcao[]) || []
+  if (funcoes.length === 0) return []
+
+  // 2. Buscar vínculos com cargos
+  const { data: vinculosData, error: vinculosError } = await db
+    .from('funcao_cargos')
+    .select('id, funcao_id, cargo_id, cargos(id, codigo, nome)')
+
+  if (vinculosError) {
+    console.error('Erro ao buscar vínculos funcao_cargos:', vinculosError)
+    // Se der erro nos vínculos, retornar funções com array vazio
+    return funcoes.map((f) => ({ ...f, cargos_vinculados: [] }))
+  }
+
+  // Agrupar cargos por funcao_id
+  const cargosPorFuncao = new Map<string, Cargo[]>()
+  for (const v of vinculosData || []) {
+    if (v.cargos) {
+      const arr = cargosPorFuncao.get(v.funcao_id) || []
+      arr.push(v.cargos as Cargo)
+      cargosPorFuncao.set(v.funcao_id, arr)
+    }
+  }
+
+  return funcoes.map((f) => ({
+    ...f,
+    cargos_vinculados: (cargosPorFuncao.get(f.id) || []).sort((a, b) =>
+      (a.codigo || '').localeCompare(b.codigo || ''),
+    ),
+  }))
+}
+
+export const createFuncao = async (input: CreateFuncaoInput): Promise<Funcao> => {
+  // 1. Inserir a função
+  const { data, error } = await db
+    .from('funcoes')
+    .insert([{ nome: input.nome.trim() }])
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Erro ao criar função:', error)
+    throw error
+  }
+
+  const created = data as Funcao
+
+  // 2. Inserir os vínculos com os cargos selecionados
+  if (input.cargo_ids && input.cargo_ids.length > 0) {
+    const vinculosParaInserir = input.cargo_ids.map((cargoId) => ({
+      funcao_id: created.id,
+      cargo_id: cargoId,
+    }))
+
+    const { error: vincError } = await db.from('funcao_cargos').insert(vinculosParaInserir)
+    if (vincError) {
+      console.error('Erro ao vincular cargos à função:', vincError)
+      throw vincError
+    }
+  }
+
+  // 3. Buscar os cargos vinculados para o retorno e auditoria
+  let nomesCargos: string[] = []
+  if (input.cargo_ids && input.cargo_ids.length > 0) {
+    const { data: cargosVinculados } = await db
+      .from('cargos')
+      .select('id, codigo, nome')
+      .in('id', input.cargo_ids)
+    created.cargos_vinculados = (cargosVinculados as Cargo[]) || []
+    nomesCargos = (cargosVinculados || []).map((c: any) => `${c.codigo}: ${c.nome}`)
+  } else {
+    created.cargos_vinculados = []
+  }
+
+  // 4. Registrar Auditoria com código FUN-XXXX
+  await registrarAuditoria({
+    entidade: 'Funções',
+    acao: 'Criação',
+    registro_codigo: created.codigo || null,
+    descricao: `Cadastro da função "${created.nome}" com ${input.cargo_ids.length} cargo(s) vinculado(s): ${nomesCargos.join(', ') || 'Nenhum'}.`,
+    detalhes: {
+      funcao: created,
+      cargos_vinculados: created.cargos_vinculados,
+    },
+  })
+
+  return created
+}
+
+export const updateFuncao = async (id: string, input: UpdateFuncaoInput): Promise<Funcao> => {
+  // 1. Atualizar nome da função
+  const { data, error } = await db
+    .from('funcoes')
+    .update({ nome: input.nome.trim(), updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Erro ao atualizar função:', error)
+    throw error
+  }
+
+  const updated = data as Funcao
+
+  // 2. Atualizar vínculos: remover existentes e inserir novos
+  const { error: delError } = await db.from('funcao_cargos').delete().eq('funcao_id', id)
+  if (delError) {
+    console.error('Erro ao limpar vínculos anteriores da função:', delError)
+    throw delError
+  }
+
+  if (input.cargo_ids && input.cargo_ids.length > 0) {
+    const vinculosParaInserir = input.cargo_ids.map((cargoId) => ({
+      funcao_id: id,
+      cargo_id: cargoId,
+    }))
+
+    const { error: vincError } = await db.from('funcao_cargos').insert(vinculosParaInserir)
+    if (vincError) {
+      console.error('Erro ao reinserir vínculos da função:', vincError)
+      throw vincError
+    }
+  }
+
+  // 3. Buscar os cargos vinculados atualizados
+  let nomesCargos: string[] = []
+  if (input.cargo_ids && input.cargo_ids.length > 0) {
+    const { data: cargosVinculados } = await db
+      .from('cargos')
+      .select('id, codigo, nome')
+      .in('id', input.cargo_ids)
+    updated.cargos_vinculados = (cargosVinculados as Cargo[]) || []
+    nomesCargos = (cargosVinculados || []).map((c: any) => `${c.codigo}: ${c.nome}`)
+  } else {
+    updated.cargos_vinculados = []
+  }
+
+  // 4. Registrar Auditoria com código FUN-XXXX
+  await registrarAuditoria({
+    entidade: 'Funções',
+    acao: 'Edição',
+    registro_codigo: updated.codigo || null,
+    descricao: `Edição da função "${updated.nome}" com ${input.cargo_ids.length} cargo(s) vinculado(s): ${nomesCargos.join(', ') || 'Nenhum'}.`,
+    detalhes: {
+      id,
+      funcao: updated,
+      cargos_vinculados: updated.cargos_vinculados,
+    },
+  })
+
+  return updated
+}
+
+export const deleteFuncao = async (id: string): Promise<void> => {
+  // 1. Buscar registro anterior para histórico de auditoria
+  const { data: anterior } = await db.from('funcoes').select('*').eq('id', id).maybeSingle()
+
+  // 2. Excluir (ON DELETE CASCADE da migration remove os registros em funcao_cargos)
+  const { error } = await db.from('funcoes').delete().eq('id', id)
+
+  if (error) {
+    console.error('Erro ao excluir função:', error)
+    throw error
+  }
+
+  // 3. Registrar Auditoria com código FUN-XXXX
+  await registrarAuditoria({
+    entidade: 'Funções',
+    acao: 'Exclusão',
+    registro_codigo: anterior?.codigo || null,
+    descricao: `Exclusão da função "${anterior?.nome || id}".`,
     detalhes: { id, registro_anterior: anterior },
   })
 }
