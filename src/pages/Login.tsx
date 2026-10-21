@@ -12,14 +12,36 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { School, LogIn, AlertCircle, Loader2 } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { School, LogIn, AlertCircle, Loader2, Mail, CheckCircle2, KeyRound } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { solicitarRedefinicaoSenha } from '@/services/recuperacao-senha'
 
 export default function Login() {
-  const [email, setEmail] = useState('renato.guenther@ajrd.com.br')
-  const [password, setPassword] = useState('Skip@Pass')
+  // Os campos iniciam vazios conforme solicitação do usuário
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  // Estado do modal "Esqueci minha senha"
+  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [isForgotSubmitting, setIsForgotSubmitting] = useState(false)
+  const [forgotError, setForgotError] = useState<string | null>(null)
+  const [forgotSuccess, setForgotSuccess] = useState<string | null>(null)
+  const [forgotContaInfo, setForgotContaInfo] = useState<{
+    codigo?: string
+    descricao?: string
+    remetente?: string
+  } | null>(null)
 
   const { signIn, user, loading } = useAuth()
   const navigate = useNavigate()
@@ -79,6 +101,48 @@ export default function Login() {
     }
   }
 
+  const handleOpenForgotModal = () => {
+    // Se o usuário já digitou o e-mail no formulário, aproveita no modal
+    setForgotEmail(email.trim())
+    setForgotError(null)
+    setForgotSuccess(null)
+    setForgotContaInfo(null)
+    setIsForgotModalOpen(true)
+  }
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setForgotError(null)
+    setForgotSuccess(null)
+    setForgotContaInfo(null)
+
+    if (!forgotEmail || !forgotEmail.includes('@')) {
+      setForgotError('Por favor, informe um endereço de e-mail válido.')
+      return
+    }
+
+    try {
+      setIsForgotSubmitting(true)
+      const resp = await solicitarRedefinicaoSenha(forgotEmail)
+
+      if (!resp.success) {
+        setForgotError(resp.error || 'Não foi possível processar a solicitação.')
+      } else {
+        setForgotSuccess(
+          resp.message ||
+            `E-mail de redefinição enviado para ${forgotEmail.trim().toLowerCase()}. Verifique sua caixa de entrada e spam.`,
+        )
+        if (resp.conta_smtp) {
+          setForgotContaInfo(resp.conta_smtp)
+        }
+      }
+    } catch (err: any) {
+      setForgotError(err?.message || 'Falha inesperada ao enviar e-mail de recuperação.')
+    } finally {
+      setIsForgotSubmitting(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center px-4 py-12">
       <div className="w-full max-w-md">
@@ -125,6 +189,13 @@ export default function Login() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Senha</Label>
+                  <button
+                    type="button"
+                    onClick={handleOpenForgotModal}
+                    className="text-xs text-[#0B2545] hover:text-[#133A68] hover:underline font-medium cursor-pointer"
+                  >
+                    Esqueci minha senha
+                  </button>
                 </div>
                 <Input
                   id="password"
@@ -135,17 +206,6 @@ export default function Login() {
                   disabled={isSubmitting}
                   required
                 />
-              </div>
-
-              <div className="bg-slate-100 p-3 rounded-md text-xs text-slate-600 space-y-1">
-                <p className="font-semibold text-slate-700">Acesso padrão configurado:</p>
-                <p>
-                  E-mail:{' '}
-                  <span className="font-mono text-slate-800">renato.guenther@ajrd.com.br</span>
-                </p>
-                <p>
-                  Senha: <span className="font-mono text-slate-800">Skip@Pass</span>
-                </p>
               </div>
             </CardContent>
 
@@ -171,6 +231,107 @@ export default function Login() {
           </form>
         </Card>
       </div>
+
+      {/* Modal Esqueci Minha Senha */}
+      <Dialog open={isForgotModalOpen} onOpenChange={setIsForgotModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-[#0B2545]">
+              <div className="p-2 rounded-lg bg-blue-50">
+                <KeyRound className="w-5 h-5 text-[#0B2545]" />
+              </div>
+              <DialogTitle className="text-lg">Recuperar Senha</DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-slate-600 pt-1">
+              Informe o endereço de e-mail cadastrado no sistema. Nós enviaremos um link de
+              redefinição usando a conta institucional de e-mail configurada.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleForgotSubmit} className="space-y-4 pt-2">
+            {forgotError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs leading-relaxed">
+                  {forgotError}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {forgotSuccess && (
+              <Alert className="border-green-200 bg-green-50 text-green-800">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <AlertTitle className="text-sm font-semibold text-green-900">
+                  Solicitação enviada!
+                </AlertTitle>
+                <AlertDescription className="text-xs leading-relaxed text-green-800 mt-1">
+                  {forgotSuccess}
+                  {forgotContaInfo && (
+                    <span className="block mt-1 font-mono text-[11px] text-green-700">
+                      Disparado via: {forgotContaInfo.descricao} ({forgotContaInfo.remetente})
+                    </span>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {!forgotSuccess && (
+              <div className="space-y-2">
+                <Label htmlFor="forgot-email">E-mail Cadastrado</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="forgot-email"
+                    type="email"
+                    placeholder="seu.email@exemplo.com.br"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    disabled={isForgotSubmitting}
+                    className="pl-9"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  O link de recuperação possui validade limitada e será encaminhado para sua caixa
+                  postal.
+                </p>
+              </div>
+            )}
+
+            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsForgotModalOpen(false)}
+                disabled={isForgotSubmitting}
+              >
+                {forgotSuccess ? 'Fechar' : 'Cancelar'}
+              </Button>
+
+              {!forgotSuccess && (
+                <Button
+                  type="submit"
+                  className="bg-[#0B2545] hover:bg-[#133A68] text-white gap-2"
+                  disabled={isForgotSubmitting}
+                >
+                  {isForgotSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="w-4 h-4" />
+                      Enviar Instruções
+                    </>
+                  )}
+                </Button>
+              )}
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

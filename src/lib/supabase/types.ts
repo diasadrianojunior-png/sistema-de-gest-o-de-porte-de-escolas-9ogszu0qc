@@ -75,6 +75,60 @@ export type Database = {
         }
         Relationships: []
       }
+      contas_email: {
+        Row: {
+          ativa: boolean
+          codigo: string | null
+          created_at: string
+          criptografia: string
+          descricao: string
+          email_from: string
+          host: string
+          id: string
+          limite_diario: number | null
+          nome_from: string
+          porta: number
+          reply_to: string | null
+          senha_smtp_encrypted: string | null
+          updated_at: string
+          usuario_smtp: string
+        }
+        Insert: {
+          ativa?: boolean
+          codigo?: string | null
+          created_at?: string
+          criptografia?: string
+          descricao: string
+          email_from: string
+          host: string
+          id?: string
+          limite_diario?: number | null
+          nome_from: string
+          porta?: number
+          reply_to?: string | null
+          senha_smtp_encrypted?: string | null
+          updated_at?: string
+          usuario_smtp: string
+        }
+        Update: {
+          ativa?: boolean
+          codigo?: string | null
+          created_at?: string
+          criptografia?: string
+          descricao?: string
+          email_from?: string
+          host?: string
+          id?: string
+          limite_diario?: number | null
+          nome_from?: string
+          porta?: number
+          reply_to?: string | null
+          senha_smtp_encrypted?: string | null
+          updated_at?: string
+          usuario_smtp?: string
+        }
+        Relationships: []
+      }
       escolas: {
         Row: {
           codigo: string | null
@@ -344,7 +398,46 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      salvar_conta_email: {
+        Args: {
+          p_ativa: boolean
+          p_criptografia: string
+          p_descricao: string
+          p_email_from: string
+          p_encryption_key?: string
+          p_host: string
+          p_id: string
+          p_limite_diario: number
+          p_nome_from: string
+          p_porta: number
+          p_reply_to: string
+          p_senha_smtp: string
+          p_usuario_smtp: string
+        }
+        Returns: {
+          ativa: boolean
+          codigo: string | null
+          created_at: string
+          criptografia: string
+          descricao: string
+          email_from: string
+          host: string
+          id: string
+          limite_diario: number | null
+          nome_from: string
+          porta: number
+          reply_to: string | null
+          senha_smtp_encrypted: string | null
+          updated_at: string
+          usuario_smtp: string
+        }
+        SetofOptions: {
+          from: '*'
+          to: 'contas_email'
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       [_ in never]: never
