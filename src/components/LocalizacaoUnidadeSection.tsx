@@ -142,18 +142,24 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
   const [refSearchText, setRefSearchText] = useState('')
   const [addressSuccessMsg, setAddressSuccessMsg] = useState<string | null>(null)
 
-  // Referências para o debounce da geocodificação pelo Número e valor atual do endereço
-  const numeroDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Referências para a geocodificação imediata pelo Número, controle de concorrência e cache
   const valueRef = useRef<EnderecoUnidadeData>(value)
   useEffect(() => {
     valueRef.current = value
   }, [value])
 
-  // Limpa o debounce pendente ao desmontar
+  // Contador sequencial de requisição para descartar respostas desatualizadas (race condition)
+  const numeroRequestIdRef = useRef(0)
+  // AbortController para cancelar requisições HTTP (OSM/Nominatim) em andamento
+  const numeroAbortControllerRef = useRef<AbortController | null>(null)
+  // Guarda a chave do último endereço/número geocodificado com sucesso para evitar chamadas redundantes
+  const lastGeocodedNumeroKeyRef = useRef<string | null>(null)
+
+  // Cancela buscas pendentes ao desmontar
   useEffect(() => {
     return () => {
-      if (numeroDebounceRef.current) {
-        clearTimeout(numeroDebounceRef.current)
+      if (numeroAbortControllerRef.current) {
+        numeroAbortControllerRef.current.abort()
       }
     }
   }, [])
@@ -382,6 +388,7 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
   // 3) Busca por variações de nome de logradouro
   const geocodificarNominatimConsulta = async (
     params: Record<string, string>,
+    signal?: AbortSignal,
   ): Promise<{ lat: number; lng: number } | null> => {
     try {
       const searchParams = new URLSearchParams({
@@ -395,6 +402,7 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?${searchParams.toString()}`,
         {
+          signal,
           headers: {
             Accept: 'application/json',
           },
@@ -422,6 +430,7 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     logradouro: string,
     numero?: string,
     bairro?: string,
+    signal?: AbortSignal,
   ): Promise<{ lat: number; lng: number } | null> => {
     const logradouroLimpo = (logradouro || '').trim()
     const numLimpo = (numero || '').trim()
@@ -483,7 +492,8 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     }
 
     for (const params of tentativas) {
-      const ponto = await geocodificarNominatimConsulta(params)
+      if (signal?.aborted) return null
+      const ponto = await geocodificarNominatimConsulta(params, signal)
       if (ponto) {
         return ponto
       }
@@ -826,16 +836,27 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     }
   }
 
-  // Geocodifica o endereço completo quando o usuário digita/altera o Número do logradouro.
+  // Geocodifica o endereço completo imediatamente quando o usuário altera o Número do logradouro.
   // Move o marcador para a posição exata daquele número (ROOFTOP quando disponível),
-  // atualizando Latitude/Longitude. Restrito à cidade de Cambé (PR).
+  // atualizando Latitude/Longitude com 6 casas decimais. Restrito à cidade de Cambé (PR).
   const handleNumeroGeocode = async (currentValue: EnderecoUnidadeData) => {
     const numeroTrim = (currentValue.numero || '').trim()
+
+    // Cancela qualquer busca HTTP anterior em andamento
+    if (numeroAbortControllerRef.current) {
+      numeroAbortControllerRef.current.abort()
+    }
+    const abortController = new AbortController()
+    numeroAbortControllerRef.current = abortController
+
+    // Incrementa o identificador sequencial da busca atual
+    const thisRequestId = ++numeroRequestIdRef.current
 
     // Sem número (vazio ou S/N): mantém o último posicionamento válido, apenas limpa avisos
     if (!numeroTrim || /^s\s*\/?\s*n$/i.test(numeroTrim)) {
       setCepError(null)
       setSearchingNumero(false)
+      lastGeocodedNumeroKeyRef.current = null
       return
     }
 
@@ -843,8 +864,18 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     const logradouroTrim = (currentValue.logradouro || '').trim()
     const cidadeAtual = currentValue.cidade || 'Cambé'
     const ufAtual = currentValue.estado_uf || 'PR'
+    const bairroAtual = currentValue.bairro?.trim() || ''
+
     if (!logradouroTrim) {
       setCepError('Informe o Logradouro antes do Número para posicionar o mapa no endereço exato.')
+      setSearchingNumero(false)
+      return
+    }
+
+    // Verifica se este número/endereço já foi geocodificado com sucesso (evita chamadas redundantes)
+    const geocodeKey = `${normalizarTexto(logradouroTrim)}|${numeroTrim.toLowerCase()}|${normalizarTexto(bairroAtual)}|${normalizarTexto(cidadeAtual)}`
+    if (lastGeocodedNumeroKeyRef.current === geocodeKey) {
+      setSearchingNumero(false)
       return
     }
 
@@ -858,7 +889,7 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
       if (google?.maps?.Geocoder) {
         const enderecoCompleto = [
           `${logradouroTrim}, ${numeroTrim}`,
-          currentValue.bairro?.trim() || '',
+          bairroAtual,
           `${cidadeAtual}`,
           ufAtual,
           'Brasil',
@@ -869,20 +900,53 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
         ponto = await geocodeEnderecoCambe(enderecoCompleto)
       }
 
+      // Se uma busca mais recente começou durante a requisição Google, descarta este resultado
+      if (thisRequestId !== numeroRequestIdRef.current || abortController.signal.aborted) {
+        return
+      }
+
       // 2) Fallback para OpenStreetMap se Google não devolver coordenadas
       if (!ponto) {
-        ponto = await geocodificarOSM(logradouroTrim, numeroTrim, currentValue.bairro)
+        ponto = await geocodificarOSM(
+          logradouroTrim,
+          numeroTrim,
+          bairroAtual,
+          abortController.signal,
+        )
+      }
+
+      // Verifica novamente se esta requisição ainda é a mais recente
+      if (thisRequestId !== numeroRequestIdRef.current || abortController.signal.aborted) {
+        return
       }
 
       if (ponto) {
         const roundedLat = Number(ponto.lat.toFixed(6))
         const roundedLng = Number(ponto.lng.toFixed(6))
         focusMapOnPoint(roundedLat, roundedLng, 18)
-        onChange({
-          ...currentValue,
+
+        // Preserva o número e logradouro digitados pelo usuário (não sobrescreve)
+        const updatedData: EnderecoUnidadeData = {
+          ...valueRef.current,
+          numero: currentValue.numero,
           latitude: roundedLat,
           longitude: roundedLng,
-        })
+        }
+        onChange(updatedData)
+
+        if (onLocationSummaryChange) {
+          const parts = [
+            updatedData.logradouro,
+            updatedData.numero ? `nº ${updatedData.numero}` : '',
+            updatedData.bairro,
+            `${updatedData.cidade || 'Cambé'} - ${updatedData.estado_uf || 'PR'}`,
+          ].filter(Boolean)
+          if (parts.length > 0) {
+            onLocationSummaryChange(parts.join(', '))
+          }
+        }
+
+        lastGeocodedNumeroKeyRef.current = geocodeKey
         setAddressSuccessMsg(`Número ${numeroTrim} localizado em Cambé - PR!`)
         setTimeout(() => setAddressSuccessMsg(null), 3500)
       } else {
@@ -892,25 +956,26 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
         )
       }
     } catch (err: any) {
-      console.warn('Falha ao geocodificar o número informado:', err)
+      if (!abortController.signal.aborted) {
+        console.warn('Falha ao geocodificar o número informado:', err)
+      }
     } finally {
-      setSearchingNumero(false)
+      if (thisRequestId === numeroRequestIdRef.current) {
+        setSearchingNumero(false)
+      }
     }
   }
 
-  // Dispara a geocodificação pelo Número com debounce (digitação fluida)
+  // Ao alterar o campo "Número", dispara a geocodificação imediatamente
   const handleNumeroChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const novoNumero = e.target.value
-    const novoValue = { ...value, numero: novoNumero }
+    const novoValue: EnderecoUnidadeData = { ...value, numero: novoNumero }
+    valueRef.current = novoValue
     onChange(novoValue)
     setCepError(null)
 
-    if (numeroDebounceRef.current) {
-      clearTimeout(numeroDebounceRef.current)
-    }
-    numeroDebounceRef.current = setTimeout(() => {
-      handleNumeroGeocode(novoValue)
-    }, 600)
+    // Dispara a geocodificação imediatamente ao trocar o número
+    handleNumeroGeocode(novoValue)
   }
 
   const cidadesDisponiveis =
