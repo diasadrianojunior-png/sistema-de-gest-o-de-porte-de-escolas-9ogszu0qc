@@ -210,24 +210,7 @@ export default function Layout() {
               {!sidebarCollapsed && <span>Cadastros de Apoio</span>}
             </NavLink>
 
-            {/* Item 4: Auditoria */}
-            <NavLink
-              to="/auditoria"
-              onClick={() => isMobile && setMobileSidebarOpen(false)}
-              title="Auditoria"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isAuditoriaActive
-                  ? 'bg-blue-50 text-blue-700 font-semibold shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <ShieldAlert
-                className={`w-5 h-5 shrink-0 ${isAuditoriaActive ? 'text-blue-700' : 'text-slate-500'}`}
-              />
-              {!sidebarCollapsed && <span>Auditoria</span>}
-            </NavLink>
-
-            {/* Item 5: Administração do sistema */}
+            {/* Item 4: Administração do sistema */}
             <NavLink
               to="/administracao"
               onClick={() => isMobile && setMobileSidebarOpen(false)}
@@ -242,6 +225,23 @@ export default function Layout() {
                 className={`w-5 h-5 shrink-0 ${isAdministracaoActive ? 'text-blue-700' : 'text-slate-500'}`}
               />
               {!sidebarCollapsed && <span>Administração do sistema</span>}
+            </NavLink>
+
+            {/* Item 5: Auditoria (última posição) */}
+            <NavLink
+              to="/auditoria"
+              onClick={() => isMobile && setMobileSidebarOpen(false)}
+              title="Auditoria"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isAuditoriaActive
+                  ? 'bg-blue-50 text-blue-700 font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <ShieldAlert
+                className={`w-5 h-5 shrink-0 ${isAuditoriaActive ? 'text-blue-700' : 'text-slate-500'}`}
+              />
+              {!sidebarCollapsed && <span>Auditoria</span>}
             </NavLink>
           </nav>
         </div>

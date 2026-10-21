@@ -9,6 +9,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      auditoria: {
+        Row: {
+          acao: string
+          codigo: string | null
+          created_at: string
+          descricao: string
+          detalhes: Json | null
+          entidade: string
+          id: string
+          registro_codigo: string | null
+          usuario_email: string
+          usuario_id: string | null
+          usuario_nome: string
+        }
+        Insert: {
+          acao: string
+          codigo?: string | null
+          created_at?: string
+          descricao: string
+          detalhes?: Json | null
+          entidade: string
+          id?: string
+          registro_codigo?: string | null
+          usuario_email?: string
+          usuario_id?: string | null
+          usuario_nome?: string
+        }
+        Update: {
+          acao?: string
+          codigo?: string | null
+          created_at?: string
+          descricao?: string
+          detalhes?: Json | null
+          entidade?: string
+          id?: string
+          registro_codigo?: string | null
+          usuario_email?: string
+          usuario_id?: string | null
+          usuario_nome?: string
+        }
+        Relationships: []
+      }
       escolas: {
         Row: {
           codigo: string | null
