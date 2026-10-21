@@ -261,6 +261,19 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     [value, onChange],
   )
 
+  // Aplica lat/lng no mapa com o zoom mais próximo possível da posição exata
+  const focusMapOnPoint = (lat: number, lng: number, zoom = 18) => {
+    const roundedLat = Number(lat.toFixed(6))
+    const roundedLng = Number(lng.toFixed(6))
+    if (markerInstanceRef.current) {
+      markerInstanceRef.current.setPosition({ lat: roundedLat, lng: roundedLng })
+    }
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.setCenter({ lat: roundedLat, lng: roundedLng })
+      mapInstanceRef.current.setZoom(zoom)
+    }
+  }
+
   // Processa o resultado do geocoder
   const processGeocodingResult = (result: any, enforceCambeOnly = true): boolean => {
     let postalCode = ''
@@ -310,6 +323,13 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     const lat = result.geometry?.location?.lat?.() ?? null
     const lng = result.geometry?.location?.lng?.() ?? null
 
+    // Preserva as coordenadas já conhecidas quando o resultado não traz geometria
+    const latAtual = lat !== null ? Number(lat.toFixed(6)) : value.latitude
+    const lngAtual = lng !== null ? Number(lng.toFixed(6)) : value.longitude
+    if (lat !== null && lng !== null) {
+      focusMapOnPoint(lat, lng, 18)
+    }
+
     const updatedData: EnderecoUnidadeData = {
       ...value,
       cep: enforceCambeOnly ? (postalCode ? formatCep(postalCode) : value.cep) : value.cep,
@@ -319,8 +339,8 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
       cidade: isCambe ? 'Cambé' : city || value.cidade,
       // Número digitado pelo usuário é a fonte da verdade — o geocoder não deve sobrescrevê-lo
       numero: value.numero,
-      latitude: lat !== null ? Number(lat.toFixed(6)) : value.latitude,
-      longitude: lng !== null ? Number(lng.toFixed(6)) : value.longitude,
+      latitude: latAtual,
+      longitude: lngAtual,
     }
 
     onChange(updatedData)
@@ -337,22 +357,57 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
       }
     }
 
-    if (lat !== null && lng !== null) {
-      if (markerInstanceRef.current) {
-        markerInstanceRef.current.setPosition({ lat, lng })
-      }
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.setCenter({ lat, lng })
-        mapInstanceRef.current.setZoom(16)
-      }
-    }
-
     setAddressSuccessMsg(`Endereço localizado em Cambé - PR com sucesso!`)
     setTimeout(() => setAddressSuccessMsg(null), 4000)
     return true
   }
 
-  // Busca do CEP via Geocoder com fallback / validação de Cambé
+  // Último recurso: endpoint público dos Correios (postmon) devolve o centro do CEP
+  const geocodificarCepCorreios = async (
+    cleanCep: string,
+  ): Promise<{ lat: number; lng: number } | null> => {
+    try {
+      const res = await fetch(`https://api.postmon.com.br/v1/cep/${cleanCep}`)
+      if (!res.ok) return null
+      const data = await res.json()
+      const lat = Number(data?.geo?.latitude)
+      const lng = Number(data?.geo?.longitude)
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        return { lat, lng }
+      }
+      return null
+    } catch {
+      return null
+    }
+  }
+
+  // Geocodifica "logradouro + número, Cambé - PR" e devolve a posição exata (ou null)
+  const geocodeEnderecoCambe = (endereco: string): Promise<{ lat: number; lng: number } | null> => {
+    return new Promise((resolve) => {
+      const google = (window as any).google
+      const geocoder = new google.maps.Geocoder()
+      geocoder.geocode(
+        {
+          address: endereco,
+          bounds: getCambeBounds(),
+          componentRestrictions: { country: 'BR', administrativeArea: 'PR' },
+        },
+        (results: any, status: any) => {
+          if (status === 'OK' && results && results.length > 0) {
+            const loc = results[0]?.geometry?.location
+            if (loc) {
+              resolve({ lat: loc.lat(), lng: loc.lng() })
+              return
+            }
+          }
+          resolve(null)
+        },
+      )
+    })
+  }
+
+  // Busca do CEP: ViaCEP valida a localidade (Cambé) e fornece o endereço;
+  // o Google Geocoder posiciona o mapa no número exato quando informado.
   const handleCepSearch = async (cepToSearch: string) => {
     const cleanCep = cepToSearch.replace(/\D/g, '')
     if (cleanCep.length !== 8) {
@@ -369,94 +424,94 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
         await loadGoogleMapsScript()
       }
 
-      // Consulta de validação e componentes de endereço
-      // O Geocoder do Google Maps é a fonte oficial exigida com a API key
-      const geocoder = new (window as any).google.maps.Geocoder()
+      // 1) ViaCEP: base oficial dos Correios — valida a cidade e devolve o endereço do CEP
+      const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
+      if (!res.ok) {
+        throw new Error(`Falha ao consultar o CEP (${res.status}).`)
+      }
+      const data = await res.json()
 
-      geocoder.geocode(
-        {
-          address: `${cleanCep}, Brasil`,
-          componentRestrictions: { country: 'BR' },
-        },
-        async (results: any, status: any) => {
-          setSearchingCep(false)
+      if (data.erro || !data.localidade) {
+        setCepError('CEP não encontrado na base dos Correios. Verifique o número digitado.')
+        return
+      }
 
-          if (status === 'OK' && results && results.length > 0) {
-            const success = processGeocodingResult(results[0], true)
-            if (!success) {
-              return
-            }
-          } else {
-            // Tentativa complementar via ViaCEP para cruzar localidade antes de desistir
-            try {
-              const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
-              const data = await res.json()
+      const cidadeNorm = normalizarTexto(data.localidade)
+      if (cidadeNorm !== 'cambe' || (data.uf || '').toUpperCase() !== 'PR') {
+        setCepError(
+          `Somente CEPs da cidade de CAMBÉ (PR) são aceitos. O CEP informado pertence a "${data.localidade} - ${data.uf}".`,
+        )
+        return
+      }
 
-              if (data.erro) {
-                setCepError('CEP não encontrado na base de dados.')
-                return
-              }
+      // 2) É Cambé: preenche logradouro/bairro/cidade/UF a partir do ViaCEP
+      const logradouroViaCep = data.logradouro || ''
+      const bairroViaCep = data.bairro || ''
 
-              const cidadeNorm = (data.localidade || '')
-                .trim()
-                .toLowerCase()
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
+      // 3) Geocodificação Google — prioriza o número já digitado (posição exata),
+      //    depois o logradouro do CEP e, por último, o próprio CEP.
+      const numeroAtual = (valueRef.current.numero || '').trim()
+      const candidatos: string[] = []
+      if (logradouroViaCep && numeroAtual && !/^s\s*\/?\s*n$/i.test(numeroAtual)) {
+        candidatos.push(`${logradouroViaCep}, ${numeroAtual}, ${bairroViaCep}, Cambé, PR, Brasil`)
+      }
+      if (logradouroViaCep) {
+        candidatos.push(`${logradouroViaCep}, ${bairroViaCep}, Cambé, PR, Brasil`)
+      }
+      candidatos.push(`${cleanCep}, Cambé, PR, Brasil`)
 
-              if (cidadeNorm !== 'cambe') {
-                setCepError(
-                  `Somente CEPs da cidade de CAMBÉ (PR) são aceitos. O CEP informado pertence a "${data.localidade} - ${data.uf}".`,
-                )
-                return
-              }
+      let lat: number | null = null
+      let lng: number | null = null
+      for (const candidato of candidatos) {
+        const ponto = await geocodeEnderecoCambe(candidato)
+        if (ponto) {
+          lat = ponto.lat
+          lng = ponto.lng
+          break
+        }
+      }
 
-              // É Cambé! Geocodifica o logradouro completo em Cambé
-              const query = `${data.logradouro || ''}, ${data.bairro || ''}, Cambé, PR, Brasil`
-              geocoder.geocode(
-                {
-                  address: query,
-                  componentRestrictions: { country: 'BR', administrativeArea: 'PR' },
-                },
-                (subResults: any, subStatus: any) => {
-                  let lat: number | null = null
-                  let lng: number | null = null
-                  if (subStatus === 'OK' && subResults && subResults[0]) {
-                    lat = subResults[0].geometry.location.lat()
-                    lng = subResults[0].geometry.location.lng()
-                    if (markerInstanceRef.current) {
-                      markerInstanceRef.current.setPosition({ lat, lng })
-                    }
-                    if (mapInstanceRef.current) {
-                      mapInstanceRef.current.setCenter({ lat, lng })
-                      mapInstanceRef.current.setZoom(16)
-                    }
-                  }
+      if (lat === null || lng === null) {
+        // Centro oficial do CEP segundo a base dos Correios
+        const pontoCep = await geocodificarCepCorreios(cleanCep)
+        if (pontoCep) {
+          lat = pontoCep.lat
+          lng = pontoCep.lng
+        }
+      }
 
-                  const updatedData: EnderecoUnidadeData = {
-                    ...value,
-                    cep: formatCep(cleanCep),
-                    logradouro: data.logradouro || value.logradouro,
-                    bairro: data.bairro || value.bairro,
-                    cidade: 'Cambé',
-                    estado_uf: 'PR',
-                    latitude: lat !== null ? Number(lat.toFixed(6)) : value.latitude,
-                    longitude: lng !== null ? Number(lng.toFixed(6)) : value.longitude,
-                  }
-                  onChange(updatedData)
-                  setCepError(null)
-                  setAddressSuccessMsg('Endereço localizado em Cambé - PR com sucesso!')
-                  setTimeout(() => setAddressSuccessMsg(null), 4000)
-                },
-              )
-            } catch (fallbackErr) {
-              setCepError('Não foi possível verificar o CEP informado.')
-            }
-          }
-        },
-      )
+      if (lat === null || lng === null) {
+        setCepError(
+          `Endereço encontrado (${logradouroViaCep || 'CEP'}), mas não foi possível posicioná-lo no mapa. Ajuste o marcador manualmente.`,
+        )
+      }
+
+      const updatedData: EnderecoUnidadeData = {
+        ...valueRef.current,
+        cep: formatCep(cleanCep),
+        logradouro: logradouroViaCep || valueRef.current.logradouro,
+        bairro: bairroViaCep || valueRef.current.bairro,
+        cidade: 'Cambé',
+        estado_uf: 'PR',
+        latitude: lat !== null ? Number(lat.toFixed(6)) : valueRef.current.latitude,
+        longitude: lng !== null ? Number(lng.toFixed(6)) : valueRef.current.longitude,
+      }
+      onChange(updatedData)
+
+      if (lat !== null && lng !== null) {
+        focusMapOnPoint(lat, lng, numeroAtual ? 18 : 17)
+      }
+
+      if (lat !== null && lng !== null) {
+        setAddressSuccessMsg(
+          `Endereço localizado em Cambé - PR! Lat ${Number(lat.toFixed(6))}, Lng ${Number(lng.toFixed(6))}.`,
+        )
+        setTimeout(() => setAddressSuccessMsg(null), 5000)
+      }
     } catch (err: any) {
+      setCepError(err?.message || 'Erro ao pesquisar CEP. Tente novamente.')
+    } finally {
       setSearchingCep(false)
-      setCepError(err.message || 'Erro ao pesquisar CEP.')
     }
   }
 
@@ -577,15 +632,8 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
             if (ok) {
               const first = results[0]
               const loc = first?.geometry?.location
-              if (loc && markerInstanceRef.current) {
-                markerInstanceRef.current.setPosition({
-                  lat: Number(loc.lat().toFixed(6)),
-                  lng: Number(loc.lng().toFixed(6)),
-                })
-              }
-              if (loc && mapInstanceRef.current) {
-                mapInstanceRef.current.panTo({ lat: loc.lat(), lng: loc.lng() })
-                mapInstanceRef.current.setZoom(18)
+              if (loc) {
+                focusMapOnPoint(loc.lat(), loc.lng(), 18)
               }
             }
           } else {
