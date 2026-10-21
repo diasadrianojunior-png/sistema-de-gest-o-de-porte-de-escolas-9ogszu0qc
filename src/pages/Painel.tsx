@@ -3,39 +3,27 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import {
-  School,
-  Database,
-  Settings,
-  ArrowRight,
-  Clock,
-  Layers,
-  Building2,
-  CheckCircle2,
-} from 'lucide-react'
+import { School, Database, ArrowRight, Clock, Layers, Briefcase, CheckCircle2 } from 'lucide-react'
 import { getUnidadesEscolares } from '@/services/unidades-escolares'
-import { getMunicipios, getTiposEscola } from '@/services/apoio'
-import { UnidadeEscolar, MunicipioRede, TipoEscola } from '@/types/gestao-escolar'
+import { getCargos } from '@/services/apoio'
+import { UnidadeEscolar, Cargo } from '@/types/gestao-escolar'
 
 export default function Painel() {
   const { user } = useAuth()
   const [unidades, setUnidades] = useState<UnidadeEscolar[]>([])
-  const [municipios, setMunicipios] = useState<MunicipioRede[]>([])
-  const [tiposEscola, setTiposEscola] = useState<TipoEscola[]>([])
+  const [cargos, setCargos] = useState<Cargo[]>([])
   const [loadingData, setLoadingData] = useState(true)
 
   useEffect(() => {
     async function loadDashboardData() {
       try {
         setLoadingData(true)
-        const [unidadesData, municipiosData, tiposData] = await Promise.all([
+        const [unidadesData, cargosData] = await Promise.all([
           getUnidadesEscolares().catch(() => []),
-          getMunicipios().catch(() => []),
-          getTiposEscola().catch(() => []),
+          getCargos().catch(() => []),
         ])
         setUnidades(unidadesData)
-        setMunicipios(municipiosData)
-        setTiposEscola(tiposData)
+        setCargos(cargosData)
       } catch (err) {
         console.error('Erro ao carregar dados do painel:', err)
       } finally {
@@ -113,7 +101,7 @@ export default function Painel() {
           </CardContent>
         </Card>
 
-        {/* Atalho: Cadastros de Apoio */}
+        {/* Atalho: Cadastros de Apoio (Cargos) */}
         <Card className="hover:shadow-md transition-shadow border-slate-200 relative overflow-hidden group">
           <div className="absolute top-0 left-0 h-1.5 w-full bg-emerald-600" />
           <CardHeader className="pb-3">
@@ -122,37 +110,34 @@ export default function Painel() {
                 <Database className="w-6 h-6" />
               </div>
               <span className="text-2xl font-bold text-slate-900">
-                {loadingData ? '...' : municipios.length + tiposEscola.length}
+                {loadingData ? '...' : cargos.length}
               </span>
             </div>
             <CardTitle className="text-xl mt-3">Cadastros de Apoio</CardTitle>
             <CardDescription>
-              Tabelas auxiliares de municípios/redes de ensino e tipos de escolas para
-              parametrização.
+              Tabela de apoio com cadastro de cargos para parametrização do sistema escolar.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex items-center justify-between text-sm text-slate-600">
               <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-emerald-600" />
-                <span>Municípios / Redes ativas:</span>
+                <Briefcase className="w-4 h-4 text-emerald-600" />
+                <span>Cargos cadastrados:</span>
               </div>
               <span className="font-semibold text-slate-800">
-                {loadingData ? '...' : municipios.length}
+                {loadingData ? '...' : cargos.length}
               </span>
             </div>
             <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex items-center justify-between text-sm text-slate-600">
               <div className="flex items-center gap-2">
-                <Settings className="w-4 h-4 text-emerald-600" />
-                <span>Tipos de escola cadastrados:</span>
+                <Database className="w-4 h-4 text-emerald-600" />
+                <span>Submenu ativo:</span>
               </div>
-              <span className="font-semibold text-slate-800">
-                {loadingData ? '...' : tiposEscola.length}
-              </span>
+              <span className="font-semibold text-slate-800">Cargos</span>
             </div>
             <Button asChild variant="secondary" className="w-full gap-2 mt-2">
-              <Link to="/cadastros-apoio">
-                Acessar Tabelas de Apoio
+              <Link to="/cadastros-apoio/cargos">
+                Acessar Cargos
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </Button>

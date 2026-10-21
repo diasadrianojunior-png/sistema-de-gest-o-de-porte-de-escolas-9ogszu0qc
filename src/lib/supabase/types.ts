@@ -51,6 +51,30 @@ export type Database = {
         }
         Relationships: []
       }
+      cargos: {
+        Row: {
+          codigo: string | null
+          created_at: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       escolas: {
         Row: {
           codigo: string | null

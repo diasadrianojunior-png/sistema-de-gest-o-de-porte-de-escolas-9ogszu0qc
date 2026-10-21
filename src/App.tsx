@@ -7,6 +7,7 @@ import Index from './pages/Index'
 import Login from './pages/Login'
 import Painel from './pages/Painel'
 import CadastrosApoio from './pages/CadastrosApoio'
+import Cargos from './pages/Cargos'
 import CadastrosMestres from './pages/CadastrosMestres'
 import Administracao from './pages/Administracao'
 import Auditoria from './pages/Auditoria'
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/painel" element={<Painel />} />
             <Route path="/cadastros-mestres" element={<CadastrosMestres />} />
             <Route path="/cadastros-apoio" element={<CadastrosApoio />} />
+            <Route path="/cadastros-apoio/cargos" element={<Cargos />} />
             <Route path="/administracao" element={<Administracao />} />
             <Route path="/auditoria" element={<Auditoria />} />
           </Route>

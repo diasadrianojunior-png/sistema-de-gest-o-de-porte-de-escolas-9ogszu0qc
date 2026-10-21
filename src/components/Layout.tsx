@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Building,
   ShieldAlert,
+  Briefcase,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
@@ -29,6 +30,7 @@ export default function Layout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [cadastrosMestresExpanded, setCadastrosMestresExpanded] = useState(true)
+  const [cadastrosApoioExpanded, setCadastrosApoioExpanded] = useState(true)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -56,7 +58,8 @@ export default function Layout() {
 
   const isPainelActive = location.pathname === '/painel'
   const isMestresActive = location.pathname === '/cadastros-mestres'
-  const isApoioActive = location.pathname === '/cadastros-apoio'
+  const isCargosActive = location.pathname === '/cadastros-apoio/cargos'
+  const isApoioActive = location.pathname.startsWith('/cadastros-apoio')
   const isAdministracaoActive = location.pathname === '/administracao'
   const isAuditoriaActive = location.pathname === '/auditoria'
 
@@ -193,22 +196,60 @@ export default function Layout() {
               )}
             </div>
 
-            {/* Item 3: Cadastros de Apoio */}
-            <NavLink
-              to="/cadastros-apoio"
-              onClick={() => isMobile && setMobileSidebarOpen(false)}
-              title="Cadastros de Apoio"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isApoioActive
-                  ? 'bg-blue-50 text-blue-700 font-semibold shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <Database
-                className={`w-5 h-5 shrink-0 ${isApoioActive ? 'text-blue-700' : 'text-slate-500'}`}
-              />
-              {!sidebarCollapsed && <span>Cadastros de Apoio</span>}
-            </NavLink>
+            {/* Item 3: Cadastros de Apoio (Item expansível com submenu) */}
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (sidebarCollapsed) {
+                    setSidebarCollapsed(false)
+                    setCadastrosApoioExpanded(true)
+                  } else {
+                    setCadastrosApoioExpanded(!cadastrosApoioExpanded)
+                  }
+                }}
+                title="Cadastros de Apoio"
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  isApoioActive
+                    ? 'text-blue-700 font-semibold bg-blue-50/70'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Database
+                    className={`w-5 h-5 shrink-0 ${isApoioActive ? 'text-blue-700' : 'text-slate-500'}`}
+                  />
+                  {!sidebarCollapsed && <span className="truncate">Cadastros de Apoio</span>}
+                </div>
+                {!sidebarCollapsed &&
+                  (cadastrosApoioExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                  ))}
+              </button>
+
+              {/* Submenu de Cadastros de Apoio */}
+              {!sidebarCollapsed && cadastrosApoioExpanded && (
+                <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-200 space-y-1 py-1">
+                  <NavLink
+                    to="/cadastros-apoio/cargos"
+                    onClick={() => isMobile && setMobileSidebarOpen(false)}
+                    title="Cargos"
+                    className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      isCargosActive || isApoioActive
+                        ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Briefcase
+                      className={`w-3.5 h-3.5 shrink-0 ${isCargosActive || isApoioActive ? 'text-white' : 'text-slate-400'}`}
+                    />
+                    <span className="truncate">Cargos</span>
+                  </NavLink>
+                </div>
+              )}
+            </div>
 
             {/* Item 4: Administração do sistema */}
             <NavLink
@@ -352,7 +393,11 @@ export default function Layout() {
                 </>
               )}
               {isApoioActive && (
-                <span className="text-blue-700 font-semibold">Cadastros de Apoio</span>
+                <>
+                  <span className="text-slate-600">Cadastros de Apoio</span>
+                  <span className="mx-2 text-slate-300">/</span>
+                  <span className="text-blue-700 font-semibold">Cargos</span>
+                </>
               )}
               {isAuditoriaActive && <span className="text-blue-700 font-semibold">Auditoria</span>}
               {isAdministracaoActive && (
