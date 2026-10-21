@@ -33,6 +33,23 @@ interface LocalizacaoUnidadeProps {
 // Centro padrão: Cambé - PR
 const CAMBE_DEFAULT_COORDS = { lat: -23.2758, lng: -51.2785 }
 
+// Bounds aproximados do município de Cambé - PR (usados para enviesar a busca)
+const getCambeBounds = () => {
+  const google = (window as any).google
+  return new google.maps.LatLngBounds(
+    new google.maps.LatLng(-23.35, -51.35),
+    new google.maps.LatLng(-23.18, -51.2),
+  )
+}
+
+// Normaliza texto para comparação (minúsculas, sem acentos)
+const normalizarTexto = (texto: string): string =>
+  (texto || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+
 // Lista de estados brasileiros
 const ESTADOS_BRASIL = [
   { uf: 'AC', nome: 'Acre' },
@@ -106,9 +123,26 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
   const [mapsError, setMapsError] = useState<string | null>(null)
   const [searchingCep, setSearchingCep] = useState(false)
   const [searchingRef, setSearchingRef] = useState(false)
+  const [searchingNumero, setSearchingNumero] = useState(false)
   const [cepError, setCepError] = useState<string | null>(null)
   const [refSearchText, setRefSearchText] = useState('')
   const [addressSuccessMsg, setAddressSuccessMsg] = useState<string | null>(null)
+
+  // Referências para o debounce da geocodificação pelo Número e valor atual do endereço
+  const numeroDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const valueRef = useRef<EnderecoUnidadeData>(value)
+  useEffect(() => {
+    valueRef.current = value
+  }, [value])
+
+  // Limpa o debounce pendente ao desmontar
+  useEffect(() => {
+    return () => {
+      if (numeroDebounceRef.current) {
+        clearTimeout(numeroDebounceRef.current)
+      }
+    }
+  }, [])
 
   // Carregar Google Maps JS API sob demanda
   useEffect(() => {
@@ -261,16 +295,11 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     }
 
     // Validação estrita: somente cidade de Cambé
-    const cityNormalized = city
-      .trim()
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-    const isCambe = cityNormalized === 'cambe'
+    const isCambe = normalizarTexto(city) === 'cambe'
 
     if (enforceCambeOnly && !isCambe) {
       setCepError(
-        `Somente CEPs da cidade de CAMBÉ (PR) são aceitos. A busca retornou: "${city || 'Outro município'} - ${stateUf}".`,
+        `Somente endereços da cidade de CAMBÉ (PR) são aceitos. A busca retornou: "${city || 'Outro município'} - ${stateUf}".`,
       )
       setAddressSuccessMsg(null)
       return false
@@ -283,12 +312,13 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
 
     const updatedData: EnderecoUnidadeData = {
       ...value,
-      cep: postalCode ? formatCep(postalCode) : value.cep,
+      cep: enforceCambeOnly ? (postalCode ? formatCep(postalCode) : value.cep) : value.cep,
       logradouro: route || value.logradouro,
-      numero: streetNumber || value.numero,
       bairro: neighborhood || value.bairro,
       estado_uf: stateUf || (isCambe ? 'PR' : value.estado_uf),
       cidade: isCambe ? 'Cambé' : city || value.cidade,
+      // Número digitado pelo usuário é a fonte da verdade — o geocoder não deve sobrescrevê-lo
+      numero: value.numero,
       latitude: lat !== null ? Number(lat.toFixed(6)) : value.latitude,
       longitude: lng !== null ? Number(lng.toFixed(6)) : value.longitude,
     }
@@ -490,6 +520,102 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     }
   }
 
+  // Geocodifica o endereço completo quando o usuário digita/altera o Número do logradouro.
+  // Move o marcador para a posição exata daquele número (ROOFTOP quando disponível),
+  // atualizando Latitude/Longitude. Restrito à cidade de Cambé (PR).
+  const handleNumeroGeocode = async (currentValue: EnderecoUnidadeData) => {
+    const numeroTrim = (currentValue.numero || '').trim()
+
+    // Sem número (vazio ou S/N): mantém o último posicionamento válido, apenas limpa avisos
+    if (!numeroTrim || /^s\s*\/?\s*n$/i.test(numeroTrim)) {
+      setCepError(null)
+      setSearchingNumero(false)
+      return
+    }
+
+    // Endereço mínimo para uma busca coerente: logradouro + cidade/UF
+    const logradouroTrim = (currentValue.logradouro || '').trim()
+    const cidadeAtual = currentValue.cidade || 'Cambé'
+    const ufAtual = currentValue.estado_uf || 'PR'
+    if (!logradouroTrim) {
+      setCepError('Informe o Logradouro antes do Número para posicionar o mapa no endereço exato.')
+      return
+    }
+
+    setSearchingNumero(true)
+    setCepError(null)
+
+    try {
+      const google = (window as any).google
+      if (!google?.maps?.Geocoder) {
+        await loadGoogleMapsScript()
+      }
+
+      const geocoder = new (window as any).google.maps.Geocoder()
+
+      const enderecoCompleto = [
+        `${logradouroTrim}, ${numeroTrim}`,
+        currentValue.bairro?.trim() || '',
+        `${cidadeAtual}`,
+        ufAtual,
+        'Brasil',
+      ]
+        .filter(Boolean)
+        .join(', ')
+
+      geocoder.geocode(
+        {
+          address: enderecoCompleto,
+          bounds: getCambeBounds(),
+          componentRestrictions: { country: 'BR', administrativeArea: 'PR' },
+        },
+        (results: any, status: any) => {
+          setSearchingNumero(false)
+          if (status === 'OK' && results && results.length > 0) {
+            // Confere se o resultado caiu dentro de Cambé antes de aplicar
+            const ok = processGeocodingResult(results[0], true)
+            if (ok) {
+              const first = results[0]
+              const loc = first?.geometry?.location
+              if (loc && markerInstanceRef.current) {
+                markerInstanceRef.current.setPosition({
+                  lat: Number(loc.lat().toFixed(6)),
+                  lng: Number(loc.lng().toFixed(6)),
+                })
+              }
+              if (loc && mapInstanceRef.current) {
+                mapInstanceRef.current.panTo({ lat: loc.lat(), lng: loc.lng() })
+                mapInstanceRef.current.setZoom(18)
+              }
+            }
+          } else {
+            setCepError(
+              `Não foi possível localizar "${logradouroTrim}, ${numeroTrim}" em Cambé - PR. Verifique o número ou ajuste o marcador no mapa.`,
+            )
+          }
+        },
+      )
+    } catch (err: any) {
+      setSearchingNumero(false)
+      setCepError(err.message || 'Falha ao geocodificar o endereço informado.')
+    }
+  }
+
+  // Dispara a geocodificação pelo Número com debounce (digitação fluida)
+  const handleNumeroChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const novoNumero = e.target.value
+    const novoValue = { ...value, numero: novoNumero }
+    onChange(novoValue)
+    setCepError(null)
+
+    if (numeroDebounceRef.current) {
+      clearTimeout(numeroDebounceRef.current)
+    }
+    numeroDebounceRef.current = setTimeout(() => {
+      handleNumeroGeocode(novoValue)
+    }, 600)
+  }
+
   const cidadesDisponiveis =
     CIDADES_POR_UF[value.estado_uf] || (value.cidade ? [value.cidade] : ['Cambé'])
 
@@ -660,15 +786,22 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
           />
         </div>
 
-        {/* Número * */}
+        {/* Número * — ao digitar/alterar, geocodifica o endereço completo e move o marcador */}
         <div className="sm:col-span-4 space-y-1.5">
-          <Label htmlFor="numero" className="text-xs font-semibold text-slate-700">
-            Número <span className="text-destructive">*</span>
-          </Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="numero" className="text-xs font-semibold text-slate-700">
+              Número <span className="text-destructive">*</span>
+            </Label>
+            {searchingNumero && (
+              <span className="flex items-center gap-1 text-[10px] font-medium text-blue-700">
+                <Loader2 className="w-3 h-3 animate-spin" /> Localizando nº...
+              </span>
+            )}
+          </div>
           <Input
             id="numero"
             value={value.numero || ''}
-            onChange={(e) => onChange({ ...value, numero: e.target.value })}
+            onChange={handleNumeroChange}
             placeholder="Ex: 120 ou S/N"
             disabled={disabled}
             className="text-sm"
