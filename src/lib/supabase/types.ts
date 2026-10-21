@@ -9,7 +9,108 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      escolas: {
+        Row: {
+          created_at: string
+          endereco: string
+          id: string
+          municipio_id: string | null
+          nome: string
+          numero_alunos: number
+          numero_servidores: number
+          tipo_escola_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          endereco?: string
+          id?: string
+          municipio_id?: string | null
+          nome: string
+          numero_alunos?: number
+          numero_servidores?: number
+          tipo_escola_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          endereco?: string
+          id?: string
+          municipio_id?: string | null
+          nome?: string
+          numero_alunos?: number
+          numero_servidores?: number
+          tipo_escola_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'escolas_municipio_id_fkey'
+            columns: ['municipio_id']
+            isOneToOne: false
+            referencedRelation: 'municipios_rede'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'escolas_tipo_escola_id_fkey'
+            columns: ['tipo_escola_id']
+            isOneToOne: false
+            referencedRelation: 'tipos_escola'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      municipios_rede: {
+        Row: {
+          created_at: string
+          esfera: string
+          id: string
+          nome: string
+          uf: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          esfera?: string
+          id?: string
+          nome: string
+          uf?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          esfera?: string
+          id?: string
+          nome?: string
+          uf?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tipos_escola: {
+        Row: {
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
