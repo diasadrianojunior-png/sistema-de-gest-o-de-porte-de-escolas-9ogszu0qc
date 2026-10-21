@@ -10,8 +10,6 @@ import {
   Menu,
   X,
   ShieldCheck,
-  PanelLeftClose,
-  PanelLeftOpen,
   UserCog,
   ChevronDown,
   ChevronRight,
@@ -27,9 +25,8 @@ export default function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Controle da sidebar mobile (drawer) e desktop colapso opcional
+  // Controle da sidebar mobile (drawer)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [cadastrosMestresExpanded, setCadastrosMestresExpanded] = useState(true)
   const [cadastrosApoioExpanded, setCadastrosApoioExpanded] = useState(true)
 
@@ -78,17 +75,15 @@ export default function Layout() {
           <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
             <School className="w-5 h-5 text-white" />
           </div>
-          {!sidebarCollapsed && (
-            <div className="flex flex-col min-w-0">
-              <span className="font-bold text-slate-900 leading-tight tracking-tight text-base truncate">
-                Gestão Escolar
-              </span>
-              <span className="text-[11px] text-slate-500 font-medium truncate">Porte & Redes</span>
-            </div>
-          )}
+          <div className="flex flex-col min-w-0">
+            <span className="font-bold text-slate-900 leading-tight tracking-tight text-base truncate">
+              Gestão Escolar
+            </span>
+            <span className="text-[11px] text-slate-500 font-medium truncate">Porte & Redes</span>
+          </div>
         </NavLink>
 
-        {isMobile ? (
+        {isMobile && (
           <Button
             variant="ghost"
             size="icon"
@@ -98,32 +93,15 @@ export default function Layout() {
           >
             <X className="w-5 h-5" />
           </Button>
-        ) : (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            aria-label={sidebarCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
-            className="text-slate-400 hover:text-slate-700 hidden lg:flex h-8 w-8"
-            title={sidebarCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
-          >
-            {sidebarCollapsed ? (
-              <PanelLeftOpen className="w-4 h-4" />
-            ) : (
-              <PanelLeftClose className="w-4 h-4" />
-            )}
-          </Button>
         )}
       </div>
 
       {/* Navegação principal */}
       <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
         <div>
-          {!sidebarCollapsed && (
-            <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-              Menu Principal
-            </div>
-          )}
+          <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            Menu Principal
+          </div>
 
           <nav className="space-y-1">
             {/* Item 1: Painel de Início */}
@@ -140,19 +118,19 @@ export default function Layout() {
               <LayoutDashboard
                 className={`w-5 h-5 shrink-0 ${isPainelActive ? 'text-blue-700' : 'text-slate-500'}`}
               />
-              {!sidebarCollapsed && <span>Painel de Início</span>}
+              <span>Painel de Início</span>
             </NavLink>
 
-            {/* Item 2: Cadastros Mestres (Item expansível com submenu) */}
+            {/* Item 2: Cadastros Mestres (Item com submenu auto-expandido ao clicar) */}
             <div>
               <button
                 type="button"
                 onClick={() => {
-                  if (sidebarCollapsed) {
-                    setSidebarCollapsed(false)
+                  // Ao clicar no menu principal, garante que seus submenus apareçam automaticamente
+                  if (!cadastrosMestresExpanded) {
                     setCadastrosMestresExpanded(true)
                   } else {
-                    setCadastrosMestresExpanded(!cadastrosMestresExpanded)
+                    setCadastrosMestresExpanded(false)
                   }
                 }}
                 title="Cadastros Mestres"
@@ -166,18 +144,17 @@ export default function Layout() {
                   <School
                     className={`w-5 h-5 shrink-0 ${isMestresActive ? 'text-blue-700' : 'text-slate-500'}`}
                   />
-                  {!sidebarCollapsed && <span className="truncate">Cadastros Mestres</span>}
+                  <span className="truncate">Cadastros Mestres</span>
                 </div>
-                {!sidebarCollapsed &&
-                  (cadastrosMestresExpanded ? (
-                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                  ))}
+                {cadastrosMestresExpanded ? (
+                  <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                )}
               </button>
 
               {/* Submenu de Cadastros Mestres */}
-              {!sidebarCollapsed && cadastrosMestresExpanded && (
+              {cadastrosMestresExpanded && (
                 <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-200 space-y-1 py-1">
                   <NavLink
                     to="/cadastros-mestres"
@@ -198,16 +175,16 @@ export default function Layout() {
               )}
             </div>
 
-            {/* Item 3: Cadastros de Apoio (Item expansível com submenu) */}
+            {/* Item 3: Cadastros de Apoio (Item com submenus auto-expandidos ao clicar) */}
             <div>
               <button
                 type="button"
                 onClick={() => {
-                  if (sidebarCollapsed) {
-                    setSidebarCollapsed(false)
+                  // Ao clicar no menu principal, garante que seus submenus apareçam automaticamente
+                  if (!cadastrosApoioExpanded) {
                     setCadastrosApoioExpanded(true)
                   } else {
-                    setCadastrosApoioExpanded(!cadastrosApoioExpanded)
+                    setCadastrosApoioExpanded(false)
                   }
                 }}
                 title="Cadastros de Apoio"
@@ -221,18 +198,17 @@ export default function Layout() {
                   <Database
                     className={`w-5 h-5 shrink-0 ${isApoioActive ? 'text-blue-700' : 'text-slate-500'}`}
                   />
-                  {!sidebarCollapsed && <span className="truncate">Cadastros de Apoio</span>}
+                  <span className="truncate">Cadastros de Apoio</span>
                 </div>
-                {!sidebarCollapsed &&
-                  (cadastrosApoioExpanded ? (
-                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                  ))}
+                {cadastrosApoioExpanded ? (
+                  <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                )}
               </button>
 
               {/* Submenu de Cadastros de Apoio */}
-              {!sidebarCollapsed && cadastrosApoioExpanded && (
+              {cadastrosApoioExpanded && (
                 <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-200 space-y-1 py-1">
                   {/* Submenu 1: Cargos */}
                   <NavLink
@@ -285,7 +261,7 @@ export default function Layout() {
               <UserCog
                 className={`w-5 h-5 shrink-0 ${isAdministracaoActive ? 'text-blue-700' : 'text-slate-500'}`}
               />
-              {!sidebarCollapsed && <span>Administração do sistema</span>}
+              <span>Administração do sistema</span>
             </NavLink>
 
             {/* Item 5: Auditoria (última posição) */}
@@ -302,7 +278,7 @@ export default function Layout() {
               <ShieldAlert
                 className={`w-5 h-5 shrink-0 ${isAuditoriaActive ? 'text-blue-700' : 'text-slate-500'}`}
               />
-              {!sidebarCollapsed && <span>Auditoria</span>}
+              <span>Auditoria</span>
             </NavLink>
           </nav>
         </div>
@@ -310,61 +286,37 @@ export default function Layout() {
 
       {/* Rodapé da Sidebar: Informações do Usuário e Logout */}
       <div className="p-3 border-t border-slate-200 bg-slate-50/70 shrink-0">
-        {!sidebarCollapsed ? (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2.5 px-2 py-1">
-              <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-4 h-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-slate-800 truncate" title={user.email}>
-                  {user.email}
-                </p>
-                <p className="text-[11px] text-slate-500 truncate">Sessão Autenticada</p>
-              </div>
-            </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSignOut}
-              className="w-full justify-center gap-2 text-slate-700 hover:text-destructive hover:border-destructive/30 hover:bg-red-50 text-xs"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              Encerrar Sessão
-            </Button>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-2">
-            <div
-              className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center"
-              title={user.email}
-            >
+        <div className="space-y-3">
+          <div className="flex items-center gap-2.5 px-2 py-1">
+            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
               <ShieldCheck className="w-4 h-4" />
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleSignOut}
-              title="Encerrar Sessão"
-              className="h-8 w-8 text-slate-600 hover:text-destructive hover:bg-red-50"
-            >
-              <LogOut className="w-4 h-4" />
-            </Button>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-slate-800 truncate" title={user.email}>
+                {user.email}
+              </p>
+              <p className="text-[11px] text-slate-500 truncate">Sessão Autenticada</p>
+            </div>
           </div>
-        )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSignOut}
+            className="w-full justify-center gap-2 text-slate-700 hover:text-destructive hover:border-destructive/30 hover:bg-red-50 text-xs"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            Encerrar Sessão
+          </Button>
+        </div>
       </div>
     </div>
   )
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* 1. SIDEBAR DESKTOP (Fixa à esquerda) */}
-      <aside
-        className={`hidden md:flex flex-col shrink-0 sticky top-0 h-screen transition-all duration-200 z-30 ${
-          sidebarCollapsed ? 'w-20' : 'w-64'
-        }`}
-      >
+      {/* 1. SIDEBAR DESKTOP (Fixa à esquerda com largura estável e sem variação de layout) */}
+      <aside className="hidden md:flex flex-col shrink-0 sticky top-0 h-screen w-64 min-w-64 max-w-64 z-30">
         {renderSidebarContent(false)}
       </aside>
 
