@@ -11,6 +11,7 @@ import Cargos from './pages/Cargos'
 import Funcoes from './pages/Funcoes'
 import CadastrosMestres from './pages/CadastrosMestres'
 import Administracao from './pages/Administracao'
+import ContasEmail from './pages/ContasEmail'
 import Auditoria from './pages/Auditoria'
 import NotFound from './pages/NotFound'
 import Layout from './components/Layout'
@@ -33,7 +34,14 @@ const App = () => (
             <Route path="/cadastros-apoio" element={<CadastrosApoio />} />
             <Route path="/cadastros-apoio/cargos" element={<Cargos />} />
             <Route path="/cadastros-apoio/funcoes" element={<Funcoes />} />
-            <Route path="/administracao" element={<Administracao />} />
+            {/* Submenus da Administração do Sistema */}
+            <Route path="/administracao/usuarios" element={<Administracao />} />
+            <Route path="/administracao/contas-email" element={<ContasEmail />} />
+            {/* Rota legada/atalho redirecionando para /administracao/usuarios */}
+            <Route
+              path="/administracao"
+              element={<Navigate to="/administracao/usuarios" replace />}
+            />
             <Route path="/auditoria" element={<Auditoria />} />
           </Route>
 

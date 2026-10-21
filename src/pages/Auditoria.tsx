@@ -288,6 +288,7 @@ export default function Auditoria() {
                   <SelectItem value="Cargos">Cargos</SelectItem>
                   <SelectItem value="Funções">Funções</SelectItem>
                   <SelectItem value="Usuários">Usuários</SelectItem>
+                  <SelectItem value="Contas de E-mail">Contas de E-mail</SelectItem>
                   <SelectItem value="Autenticação">Autenticação (Login)</SelectItem>
                 </SelectContent>
               </Select>

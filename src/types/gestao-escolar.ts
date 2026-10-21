@@ -155,6 +155,40 @@ export interface UsuarioSistema {
 
 export type AcaoAuditoria = 'Criação' | 'Edição' | 'Exclusão' | 'Login'
 
+export type CriptografiaSmtp = 'TLS' | 'SSL' | 'NENHUMA'
+
+export interface ContaEmail {
+  id: string
+  codigo?: string
+  descricao: string
+  ativa: boolean
+  host: string
+  porta: number
+  criptografia: CriptografiaSmtp
+  usuario_smtp: string
+  email_from: string
+  nome_from: string
+  reply_to?: string | null
+  limite_diario?: number | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface SalvarContaEmailInput {
+  id?: string
+  descricao: string
+  ativa: boolean
+  host: string
+  porta: number
+  criptografia: CriptografiaSmtp
+  usuario_smtp: string
+  senha_smtp?: string
+  email_from: string
+  nome_from: string
+  reply_to?: string | null
+  limite_diario?: number | null
+}
+
 export type EntidadeAuditoria =
   | 'Unidades escolares'
   | 'Municípios/Redes'
@@ -162,6 +196,7 @@ export type EntidadeAuditoria =
   | 'Cargos'
   | 'Funções'
   | 'Usuários'
+  | 'Contas de E-mail'
   | 'Autenticação'
 
 export interface RegistroAuditoria {

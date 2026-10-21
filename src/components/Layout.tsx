@@ -19,6 +19,8 @@ import {
   Briefcase,
   Layers,
   PanelLeftOpen,
+  Mail,
+  Users,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -32,13 +34,15 @@ export default function Layout() {
   // Controle da sidebar (desktop recolhida vs expandida, mobile drawer)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
-  // Submenus iniciam recolhidos/fechados ao abrir a aplicação
+  // Submenus iniciam recolhidos/fechados por padrão ao abrir a aplicação
   const [cadastrosMestresExpanded, setCadastrosMestresExpanded] = useState(false)
   const [cadastrosApoioExpanded, setCadastrosApoioExpanded] = useState(false)
+  const [administracaoExpanded, setAdministracaoExpanded] = useState(false)
 
   // Estados dos popovers quando a barra está recolhida
   const [mestresPopoverOpen, setMestresPopoverOpen] = useState(false)
   const [apoioPopoverOpen, setApoioPopoverOpen] = useState(false)
+  const [administracaoPopoverOpen, setAdministracaoPopoverOpen] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -69,7 +73,10 @@ export default function Layout() {
   const isCargosActive = location.pathname === '/cadastros-apoio/cargos'
   const isFuncoesActive = location.pathname === '/cadastros-apoio/funcoes'
   const isApoioActive = location.pathname.startsWith('/cadastros-apoio')
-  const isAdministracaoActive = location.pathname === '/administracao'
+  const isUsuariosActive =
+    location.pathname === '/administracao/usuarios' || location.pathname === '/administracao'
+  const isContasEmailActive = location.pathname === '/administracao/contas-email'
+  const isAdministracaoActive = location.pathname.startsWith('/administracao')
   const isAuditoriaActive = location.pathname === '/auditoria'
 
   // Conteúdo unificado da barra lateral (Sidebar)
@@ -454,45 +461,150 @@ export default function Layout() {
                   </div>
                 )}
 
-                {/* Item 4: Administração do sistema */}
+                {/* Item 4: Administração do sistema (agora expansível com submenus Usuários e Contas de Email) */}
                 {collapsed ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <NavLink
-                        to="/administracao"
-                        title="Administração do sistema"
-                        aria-label="Administração do sistema"
-                        className={`flex items-center justify-center w-11 h-11 mx-auto rounded-lg transition-colors ${
-                          isAdministracaoActive
-                            ? 'bg-blue-50 text-blue-700 shadow-xs ring-1 ring-blue-200'
-                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                        }`}
-                      >
-                        <UserCog
-                          className={`w-5 h-5 ${isAdministracaoActive ? 'text-blue-700' : 'text-slate-600'}`}
-                        />
-                      </NavLink>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="text-xs font-medium">
-                      Administração do sistema
-                    </TooltipContent>
-                  </Tooltip>
-                ) : (
-                  <NavLink
-                    to="/administracao"
-                    onClick={() => isMobile && setMobileSidebarOpen(false)}
-                    title="Administração do sistema"
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                      isAdministracaoActive
-                        ? 'bg-blue-50 text-blue-700 font-semibold shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
+                  <Popover
+                    open={administracaoPopoverOpen}
+                    onOpenChange={setAdministracaoPopoverOpen}
                   >
-                    <UserCog
-                      className={`w-5 h-5 shrink-0 ${isAdministracaoActive ? 'text-blue-700' : 'text-slate-500'}`}
-                    />
-                    <span>Administração do sistema</span>
-                  </NavLink>
+                    <Tooltip open={administracaoPopoverOpen ? false : undefined}>
+                      <TooltipTrigger asChild>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label="Administração do sistema"
+                            className={`flex items-center justify-center w-11 h-11 mx-auto rounded-lg transition-colors cursor-pointer outline-none ${
+                              isAdministracaoActive
+                                ? 'bg-blue-50 text-blue-700 shadow-xs ring-1 ring-blue-200'
+                                : administracaoPopoverOpen
+                                  ? 'bg-slate-100 text-slate-900'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                            }`}
+                          >
+                            <UserCog
+                              className={`w-5 h-5 ${isAdministracaoActive ? 'text-blue-700' : 'text-slate-600'}`}
+                            />
+                          </button>
+                        </PopoverTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="text-xs font-medium">
+                        Administração do sistema
+                      </TooltipContent>
+                    </Tooltip>
+                    <PopoverContent
+                      side="right"
+                      align="start"
+                      sideOffset={12}
+                      className="w-56 p-2 rounded-xl shadow-lg border border-slate-200 bg-white"
+                    >
+                      <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1 flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 tracking-tight flex items-center gap-1.5">
+                          <UserCog className="w-3.5 h-3.5 text-blue-600" />
+                          Administração
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-semibold uppercase">
+                          Menu
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        <NavLink
+                          to="/administracao/usuarios"
+                          onClick={() => setAdministracaoPopoverOpen(false)}
+                          className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                            isUsuariosActive
+                              ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                          }`}
+                        >
+                          <Users
+                            className={`w-4 h-4 shrink-0 ${isUsuariosActive ? 'text-white' : 'text-slate-500'}`}
+                          />
+                          <span>Usuários</span>
+                        </NavLink>
+
+                        <NavLink
+                          to="/administracao/contas-email"
+                          onClick={() => setAdministracaoPopoverOpen(false)}
+                          className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                            isContasEmailActive
+                              ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                          }`}
+                        >
+                          <Mail
+                            className={`w-4 h-4 shrink-0 ${isContasEmailActive ? 'text-white' : 'text-slate-500'}`}
+                          />
+                          <span>Contas de Email</span>
+                        </NavLink>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdministracaoExpanded((prev) => !prev)
+                      }}
+                      title="Administração do sistema"
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                        isAdministracaoActive
+                          ? 'text-blue-700 font-semibold bg-blue-50/70'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <UserCog
+                          className={`w-5 h-5 shrink-0 ${isAdministracaoActive ? 'text-blue-700' : 'text-slate-500'}`}
+                        />
+                        <span className="truncate">Administração do sistema</span>
+                      </div>
+                      {administracaoExpanded ? (
+                        <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                      )}
+                    </button>
+
+                    {/* Submenu da Administração do sistema */}
+                    {administracaoExpanded && (
+                      <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-200 space-y-1 py-1">
+                        {/* Submenu 1: Usuários */}
+                        <NavLink
+                          to="/administracao/usuarios"
+                          onClick={() => isMobile && setMobileSidebarOpen(false)}
+                          title="Usuários"
+                          className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                            isUsuariosActive
+                              ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                          }`}
+                        >
+                          <Users
+                            className={`w-3.5 h-3.5 shrink-0 ${isUsuariosActive ? 'text-white' : 'text-slate-400'}`}
+                          />
+                          <span className="truncate">Usuários</span>
+                        </NavLink>
+
+                        {/* Submenu 2: Contas de Email */}
+                        <NavLink
+                          to="/administracao/contas-email"
+                          onClick={() => isMobile && setMobileSidebarOpen(false)}
+                          title="Contas de Email"
+                          className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                            isContasEmailActive
+                              ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                          }`}
+                        >
+                          <Mail
+                            className={`w-3.5 h-3.5 shrink-0 ${isContasEmailActive ? 'text-white' : 'text-slate-400'}`}
+                          />
+                          <span className="truncate">Contas de Email</span>
+                        </NavLink>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {/* Item 5: Auditoria (última posição) */}
@@ -716,8 +828,14 @@ export default function Layout() {
               )}
               {isAuditoriaActive && <span className="text-blue-700 font-semibold">Auditoria</span>}
               {isAdministracaoActive && (
-                <span className="text-blue-700 font-semibold">Administração do sistema</span>
-              )}
+                <>
+                  <span className="text-slate-600">Administração do sistema</span>
+                  <span className="mx-2 text-slate-300">/</span>
+                  <span className="text-blue-700 font-semibold">
+                    {isContasEmailActive ? 'Contas de Email' : 'Usuários'}
+                  </span>
+                </>
+              )}{' '}
             </div>
           </div>
 
