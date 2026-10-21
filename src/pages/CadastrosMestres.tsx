@@ -54,6 +54,10 @@ import {
   OPCOES_NIVEL_40H,
   normalizarNivelPorte,
 } from '@/types/gestao-escolar'
+import {
+  LocalizacaoUnidadeSection,
+  EnderecoUnidadeData,
+} from '@/components/LocalizacaoUnidadeSection'
 
 export default function CadastrosMestres() {
   const [unidades, setUnidades] = useState<UnidadeEscolar[]>([])
@@ -74,11 +78,22 @@ export default function CadastrosMestres() {
     tipo_atendimento: TipoAtendimentoUnidade | ''
     nivel_porte: string
     localizacao: string
+    endereco: EnderecoUnidadeData
   }>({
     nome: '',
     tipo_atendimento: '',
     nivel_porte: '',
     localizacao: '',
+    endereco: {
+      cep: '',
+      logradouro: '',
+      numero: '',
+      bairro: '',
+      estado_uf: 'PR',
+      cidade: 'Cambé',
+      latitude: null,
+      longitude: null,
+    },
   })
 
   const loadData = async () => {
@@ -108,6 +123,16 @@ export default function CadastrosMestres() {
       tipo_atendimento: '',
       nivel_porte: '',
       localizacao: '',
+      endereco: {
+        cep: '',
+        logradouro: '',
+        numero: '',
+        bairro: '',
+        estado_uf: 'PR',
+        cidade: 'Cambé',
+        latitude: null,
+        longitude: null,
+      },
     })
     setOpenFormDialog(true)
   }
@@ -121,6 +146,16 @@ export default function CadastrosMestres() {
       tipo_atendimento: unidade.tipo_atendimento,
       nivel_porte: nivelNormalizado || unidade.nivel_porte,
       localizacao: unidade.localizacao,
+      endereco: {
+        cep: unidade.cep || '',
+        logradouro: unidade.logradouro || '',
+        numero: unidade.numero || '',
+        bairro: unidade.bairro || '',
+        estado_uf: unidade.estado_uf || 'PR',
+        cidade: unidade.cidade || 'Cambé',
+        latitude: unidade.latitude ?? null,
+        longitude: unidade.longitude ?? null,
+      },
     })
     setOpenFormDialog(true)
   }
@@ -170,10 +205,74 @@ export default function CadastrosMestres() {
       return
     }
 
-    if (!formData.localizacao.trim()) {
+    // Se o usuário preencheu campos na seção de endereço do Google Maps, valida os obrigatórios da seção
+    const temEnderecoIniciado =
+      Boolean(formData.endereco.cep) ||
+      Boolean(formData.endereco.logradouro) ||
+      Boolean(formData.endereco.numero) ||
+      Boolean(formData.endereco.bairro)
+
+    if (temEnderecoIniciado) {
+      if (!formData.endereco.logradouro.trim()) {
+        toast({
+          title: 'Atenção',
+          description: 'O campo Logradouro é obrigatório no endereço da unidade.',
+          variant: 'destructive',
+        })
+        return
+      }
+      if (!formData.endereco.numero.trim()) {
+        toast({
+          title: 'Atenção',
+          description:
+            'O campo Número é obrigatório no endereço da unidade (digite S/N caso não possua).',
+          variant: 'destructive',
+        })
+        return
+      }
+      if (!formData.endereco.bairro.trim()) {
+        toast({
+          title: 'Atenção',
+          description: 'O campo Bairro é obrigatório no endereço da unidade.',
+          variant: 'destructive',
+        })
+        return
+      }
+      if (!formData.endereco.estado_uf.trim()) {
+        toast({
+          title: 'Atenção',
+          description: 'Selecione o Estado (UF) da unidade.',
+          variant: 'destructive',
+        })
+        return
+      }
+      if (!formData.endereco.cidade.trim()) {
+        toast({
+          title: 'Atenção',
+          description: 'Selecione a Cidade da unidade.',
+          variant: 'destructive',
+        })
+        return
+      }
+    }
+
+    // Define texto resumo de localização se estiver vazio
+    let localizacaoFinal = formData.localizacao.trim()
+    if (!localizacaoFinal && temEnderecoIniciado) {
+      localizacaoFinal = [
+        formData.endereco.logradouro,
+        formData.endereco.numero ? `nº ${formData.endereco.numero}` : '',
+        formData.endereco.bairro,
+        `${formData.endereco.cidade || 'Cambé'} - ${formData.endereco.estado_uf || 'PR'}`,
+      ]
+        .filter(Boolean)
+        .join(', ')
+    }
+
+    if (!localizacaoFinal) {
       toast({
         title: 'Atenção',
-        description: 'A localização da unidade escolar é obrigatória.',
+        description: 'A localização ou endereço da unidade escolar é obrigatória.',
         variant: 'destructive',
       })
       return
@@ -185,7 +284,15 @@ export default function CadastrosMestres() {
         nome: formData.nome.trim(),
         tipo_atendimento: formData.tipo_atendimento as TipoAtendimentoUnidade,
         nivel_porte: formData.nivel_porte,
-        localizacao: formData.localizacao.trim(),
+        localizacao: localizacaoFinal,
+        cep: formData.endereco.cep ? formData.endereco.cep.trim() : null,
+        logradouro: formData.endereco.logradouro ? formData.endereco.logradouro.trim() : null,
+        numero: formData.endereco.numero ? formData.endereco.numero.trim() : null,
+        bairro: formData.endereco.bairro ? formData.endereco.bairro.trim() : null,
+        estado_uf: formData.endereco.estado_uf ? formData.endereco.estado_uf.trim() : 'PR',
+        cidade: formData.endereco.cidade ? formData.endereco.cidade.trim() : 'Cambé',
+        latitude: formData.endereco.latitude,
+        longitude: formData.endereco.longitude,
       }
 
       if (editingUnidade) {
@@ -242,7 +349,10 @@ export default function CadastrosMestres() {
       (u.codigo && u.codigo.toLowerCase().includes(search.toLowerCase())) ||
       u.tipo_atendimento.toLowerCase().includes(search.toLowerCase()) ||
       u.nivel_porte.toLowerCase().includes(search.toLowerCase()) ||
-      u.localizacao.toLowerCase().includes(search.toLowerCase()),
+      u.localizacao.toLowerCase().includes(search.toLowerCase()) ||
+      (u.logradouro && u.logradouro.toLowerCase().includes(search.toLowerCase())) ||
+      (u.bairro && u.bairro.toLowerCase().includes(search.toLowerCase())) ||
+      (u.cep && u.cep.toLowerCase().includes(search.toLowerCase())),
   )
 
   return (
@@ -336,11 +446,29 @@ export default function CadastrosMestres() {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-slate-600">
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="truncate max-w-[220px]" title={unidade.localizacao}>
-                            {unidade.localizacao}
-                          </span>
+                        <div className="flex flex-col gap-0.5 text-xs">
+                          <div className="flex items-center gap-1.5 font-medium text-slate-800">
+                            <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <span
+                              className="truncate max-w-[260px]"
+                              title={
+                                unidade.logradouro
+                                  ? `${unidade.logradouro}, ${unidade.numero || 'S/N'} - ${unidade.bairro || ''} (${unidade.cidade || 'Cambé'}-${unidade.estado_uf || 'PR'})`
+                                  : unidade.localizacao
+                              }
+                            >
+                              {unidade.logradouro
+                                ? `${unidade.logradouro}, ${unidade.numero || 'S/N'}`
+                                : unidade.localizacao}
+                            </span>
+                          </div>
+                          {(unidade.bairro || unidade.cep) && (
+                            <div className="text-[11px] text-slate-500 pl-5">
+                              {unidade.bairro ? `${unidade.bairro} • ` : ''}
+                              {unidade.cidade || 'Cambé'}/{unidade.estado_uf || 'PR'}
+                              {unidade.cep ? ` • CEP: ${unidade.cep}` : ''}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="py-3 px-4 text-right space-x-1">
@@ -383,13 +511,14 @@ export default function CadastrosMestres() {
 
       {/* MODAL: CRIAR / EDITAR UNIDADE ESCOLAR */}
       <Dialog open={openFormDialog} onOpenChange={setOpenFormDialog}>
-        <DialogContent className="sm:max-w-[560px]">
+        <DialogContent className="sm:max-w-[680px] max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingUnidade ? 'Editar Unidade Escolar' : 'Nova Unidade Escolar'}
             </DialogTitle>
             <DialogDescription>
-              Preencha os atributos da unidade escolar. O identificador UN é gerado automaticamente.
+              Preencha os atributos e a localização da unidade escolar com suporte ao Google Maps e
+              restrição à Cambé (PR).
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 py-2">
@@ -508,19 +637,53 @@ export default function CadastrosMestres() {
               </div>
             )}
 
-            {/* 5. Localização da unidade (último campo) */}
-            <div className="space-y-2">
-              <Label htmlFor="localizacao">Localização da unidade *</Label>
+            {/* 5. Seção de Localização e Endereço da Unidade com Google Maps (Conforme imagem) */}
+            <LocalizacaoUnidadeSection
+              value={formData.endereco}
+              onChange={(novoEndereco) => {
+                setFormData((prev) => ({
+                  ...prev,
+                  endereco: novoEndereco,
+                  // Atualiza também o campo de localização resumo se estiver vazio ou derivado
+                  localizacao: novoEndereco.logradouro
+                    ? [
+                        novoEndereco.logradouro,
+                        novoEndereco.numero ? `nº ${novoEndereco.numero}` : '',
+                        novoEndereco.bairro,
+                        `${novoEndereco.cidade || 'Cambé'} - ${novoEndereco.estado_uf || 'PR'}`,
+                      ]
+                        .filter(Boolean)
+                        .join(', ')
+                    : prev.localizacao,
+                }))
+              }}
+              onLocationSummaryChange={(summary) => {
+                setFormData((prev) => ({
+                  ...prev,
+                  localizacao: summary,
+                }))
+              }}
+              disabled={saving}
+            />
+
+            {/* Campo adicional: Descrição ou Complemento da Localização */}
+            <div className="space-y-1.5 pt-1">
+              <Label htmlFor="localizacao" className="text-xs font-semibold text-slate-700">
+                Resumo / Descrição da Localização
+              </Label>
               <Input
                 id="localizacao"
-                placeholder="Ex: Rua das Palmeiras, 120 - Centro ou Zona Urbana"
+                placeholder="Ex: Próximo à praça central ou Zona Urbana"
                 value={formData.localizacao}
                 onChange={(e) => setFormData({ ...formData, localizacao: e.target.value })}
-                required
+                className="text-sm bg-slate-50/50"
               />
+              <p className="text-[11px] text-slate-500">
+                Preenchido automaticamente a partir do endereço geolocalizado ou customizável.
+              </p>
             </div>
 
-            <DialogFooter className="pt-4">
+            <DialogFooter className="pt-4 border-t">
               <Button
                 type="button"
                 variant="outline"
@@ -584,12 +747,50 @@ export default function CadastrosMestres() {
                 <p className="text-slate-800 font-medium mt-0.5">{viewingUnidade.nivel_porte}</p>
               </div>
 
-              <div className="pb-2">
+              <div className="border-b pb-3 space-y-2">
                 <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
-                  Localização da Unidade
+                  Endereço Completo & Localização
                 </span>
-                <p className="text-slate-800 mt-0.5">{viewingUnidade.localizacao}</p>
+                {viewingUnidade.logradouro ? (
+                  <div className="bg-slate-50 rounded-lg p-3 border text-xs space-y-1.5">
+                    <p className="font-semibold text-slate-900 text-sm">
+                      {viewingUnidade.logradouro}, {viewingUnidade.numero || 'S/N'}
+                    </p>
+                    <p className="text-slate-700">
+                      Bairro: <span className="font-medium">{viewingUnidade.bairro || '—'}</span>
+                    </p>
+                    <p className="text-slate-700">
+                      Cidade/UF:{' '}
+                      <span className="font-medium">
+                        {viewingUnidade.cidade || 'Cambé'} - {viewingUnidade.estado_uf || 'PR'}
+                      </span>
+                    </p>
+                    {viewingUnidade.cep && (
+                      <p className="text-slate-700 font-mono">
+                        CEP: <span className="font-medium">{viewingUnidade.cep}</span>
+                      </p>
+                    )}
+                    {viewingUnidade.latitude !== null && viewingUnidade.latitude !== undefined && (
+                      <div className="pt-1 border-t text-[11px] text-slate-500 font-mono flex items-center gap-2">
+                        <span>Lat: {viewingUnidade.latitude}</span>
+                        <span>•</span>
+                        <span>Lng: {viewingUnidade.longitude}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-slate-800 mt-0.5">{viewingUnidade.localizacao}</p>
+                )}
               </div>
+
+              {viewingUnidade.localizacao && viewingUnidade.logradouro && (
+                <div className="pb-2">
+                  <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
+                    Referência / Observações
+                  </span>
+                  <p className="text-slate-800 mt-0.5 text-xs">{viewingUnidade.localizacao}</p>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>

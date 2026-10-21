@@ -86,6 +86,14 @@ export interface UnidadeEscolar {
   tipo_atendimento: TipoAtendimentoUnidade
   nivel_porte: string
   localizacao: string
+  cep?: string | null
+  logradouro?: string | null
+  numero?: string | null
+  bairro?: string | null
+  estado_uf?: string | null
+  cidade?: string | null
+  latitude?: number | null
+  longitude?: number | null
   created_at?: string
   updated_at?: string
 }
