@@ -14,6 +14,7 @@ import {
   FolderKanban,
   PanelLeftClose,
   PanelLeftOpen,
+  UserCog,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
@@ -29,7 +30,9 @@ export default function Layout() {
   // O grupo "Cadastros" expande/colapsa ao clicar
   // Inicia expandido se estiver em uma das páginas de cadastros, ou padrão aberto
   const isCadastrosActive =
-    location.pathname === '/cadastros-mestres' || location.pathname === '/cadastros-apoio'
+    location.pathname === '/cadastros-mestres' ||
+    location.pathname === '/cadastros-apoio' ||
+    location.pathname === '/administracao'
   const [cadastrosOpen, setCadastrosOpen] = useState(true)
 
   // Ao navegar, se a rota for de cadastro, garante que o menu esteja aberto
@@ -66,6 +69,7 @@ export default function Layout() {
   const isPainelActive = location.pathname === '/painel'
   const isMestresActive = location.pathname === '/cadastros-mestres'
   const isApoioActive = location.pathname === '/cadastros-apoio'
+  const isAdministracaoActive = location.pathname === '/administracao'
 
   // Conteúdo unificado da barra lateral (Sidebar)
   const renderSidebarContent = (isMobile = false) => (
@@ -219,6 +223,27 @@ export default function Layout() {
                     />
                     {!sidebarCollapsed && <span className="truncate">Cadastros de Apoio</span>}
                   </NavLink>
+
+                  {/* Subitem: Administração do sistema (Último item dentro de Cadastros) */}
+                  <NavLink
+                    to="/administracao"
+                    onClick={() => isMobile && setMobileSidebarOpen(false)}
+                    title="Administração do sistema"
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isAdministracaoActive
+                        ? 'bg-blue-600 text-white font-medium shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    <UserCog
+                      className={`w-4 h-4 shrink-0 ${
+                        isAdministracaoActive ? 'text-white' : 'text-slate-500'
+                      }`}
+                    />
+                    {!sidebarCollapsed && (
+                      <span className="truncate">Administração do sistema</span>
+                    )}
+                  </NavLink>
                 </div>
               )}
             </div>
@@ -335,6 +360,13 @@ export default function Layout() {
                   <span className="text-slate-500">Cadastros</span>
                   <span className="text-slate-300">/</span>
                   <span className="text-blue-700 font-semibold">Cadastros de Apoio</span>
+                </div>
+              )}
+              {isAdministracaoActive && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-500">Cadastros</span>
+                  <span className="text-slate-300">/</span>
+                  <span className="text-blue-700 font-semibold">Administração do sistema</span>
                 </div>
               )}
             </div>

@@ -187,6 +187,7 @@ export default function Painel() {
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-slate-600 border-y border-slate-200">
                 <tr>
+                  <th className="py-2.5 px-3 font-medium w-24">Código</th>
                   <th className="py-2.5 px-3 font-medium">Nome da Escola</th>
                   <th className="py-2.5 px-3 font-medium">Endereço</th>
                   <th className="py-2.5 px-3 font-medium">Município/Rede</th>
@@ -197,6 +198,11 @@ export default function Painel() {
               <tbody className="divide-y divide-slate-100">
                 {escolas.slice(0, 5).map((escola) => (
                   <tr key={escola.id} className="hover:bg-slate-50/60">
+                    <td className="py-3 px-3">
+                      <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                        {escola.codigo || 'UN-0000'}
+                      </span>
+                    </td>
                     <td className="py-3 px-3 font-medium text-slate-900">{escola.nome}</td>
                     <td className="py-3 px-3 text-slate-600">{escola.endereco || '-'}</td>
                     <td className="py-3 px-3 text-slate-600">{escola.municipio?.nome || '-'}</td>

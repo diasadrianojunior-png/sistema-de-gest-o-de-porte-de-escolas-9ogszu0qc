@@ -8,6 +8,7 @@ import Login from './pages/Login'
 import Painel from './pages/Painel'
 import CadastrosApoio from './pages/CadastrosApoio'
 import CadastrosMestres from './pages/CadastrosMestres'
+import Administracao from './pages/Administracao'
 import NotFound from './pages/NotFound'
 import Layout from './components/Layout'
 
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/painel" element={<Painel />} />
             <Route path="/cadastros-mestres" element={<CadastrosMestres />} />
             <Route path="/cadastros-apoio" element={<CadastrosApoio />} />
+            <Route path="/administracao" element={<Administracao />} />
           </Route>
 
           {/* Rota 404 */}

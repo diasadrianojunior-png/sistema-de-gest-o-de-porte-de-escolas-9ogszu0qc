@@ -273,12 +273,14 @@ export default function CadastrosApoio() {
     (m) =>
       m.nome.toLowerCase().includes(searchMunicipio.toLowerCase()) ||
       m.uf.toLowerCase().includes(searchMunicipio.toLowerCase()) ||
+      (m.codigo && m.codigo.toLowerCase().includes(searchMunicipio.toLowerCase())) ||
       m.esfera.toLowerCase().includes(searchMunicipio.toLowerCase()),
   )
 
   const filteredTipos = tiposEscola.filter(
     (t) =>
       t.nome.toLowerCase().includes(searchTipo.toLowerCase()) ||
+      (t.codigo && t.codigo.toLowerCase().includes(searchTipo.toLowerCase())) ||
       (t.descricao && t.descricao.toLowerCase().includes(searchTipo.toLowerCase())),
   )
 
@@ -325,7 +327,7 @@ export default function CadastrosApoio() {
               <div className="relative max-w-sm">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <Input
-                  placeholder="Pesquisar por nome, UF ou esfera..."
+                  placeholder="Pesquisar por código (MUN-XXXX), nome, UF..."
                   value={searchMunicipio}
                   onChange={(e) => setSearchMunicipio(e.target.value)}
                   className="pl-9 text-sm"
@@ -346,6 +348,7 @@ export default function CadastrosApoio() {
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 text-slate-600 border-b">
                       <tr>
+                        <th className="py-3 px-4 font-medium w-28">Código</th>
                         <th className="py-3 px-4 font-medium">Nome do Município / Rede</th>
                         <th className="py-3 px-4 font-medium w-24">UF</th>
                         <th className="py-3 px-4 font-medium w-36">Esfera</th>
@@ -355,6 +358,11 @@ export default function CadastrosApoio() {
                     <tbody className="divide-y divide-slate-100">
                       {filteredMunicipios.map((m) => (
                         <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3 px-4">
+                            <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                              {m.codigo || 'MUN-0000'}
+                            </span>
+                          </td>
                           <td className="py-3 px-4 font-medium text-slate-900">{m.nome}</td>
                           <td className="py-3 px-4 text-slate-600">{m.uf}</td>
                           <td className="py-3 px-4 text-slate-600">
@@ -411,7 +419,7 @@ export default function CadastrosApoio() {
               <div className="relative max-w-sm">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <Input
-                  placeholder="Pesquisar por nome ou descrição..."
+                  placeholder="Pesquisar por código (TIP-XXXX), nome..."
                   value={searchTipo}
                   onChange={(e) => setSearchTipo(e.target.value)}
                   className="pl-9 text-sm"
@@ -432,6 +440,7 @@ export default function CadastrosApoio() {
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 text-slate-600 border-b">
                       <tr>
+                        <th className="py-3 px-4 font-medium w-28">Código</th>
                         <th className="py-3 px-4 font-medium w-1/3">Tipo de Escola</th>
                         <th className="py-3 px-4 font-medium">Descrição</th>
                         <th className="py-3 px-4 font-medium text-right w-28">Ações</th>
@@ -440,6 +449,11 @@ export default function CadastrosApoio() {
                     <tbody className="divide-y divide-slate-100">
                       {filteredTipos.map((t) => (
                         <tr key={t.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3 px-4">
+                            <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                              {t.codigo || 'TIP-0000'}
+                            </span>
+                          </td>
                           <td className="py-3 px-4 font-medium text-slate-900">{t.nome}</td>
                           <td className="py-3 px-4 text-slate-600">{t.descricao || '-'}</td>
                           <td className="py-3 px-4 text-right space-x-1">
@@ -485,6 +499,25 @@ export default function CadastrosApoio() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSaveMunicipio} className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label
+                htmlFor="m-codigo"
+                className="text-xs font-semibold uppercase tracking-wider text-slate-600"
+              >
+                Identificador do Sistema (Automático)
+              </Label>
+              <Input
+                id="m-codigo"
+                value={
+                  editingMunicipio
+                    ? editingMunicipio.codigo || 'MUN-XXXX'
+                    : 'Gerado automaticamente ao salvar (ex: MUN-0001)'
+                }
+                disabled
+                className="bg-slate-100 font-mono text-xs text-slate-600 cursor-not-allowed"
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="m-nome">Nome do Município ou Rede de Ensino *</Label>
               <Input
@@ -590,6 +623,25 @@ export default function CadastrosApoio() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSaveTipo} className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label
+                htmlFor="t-codigo"
+                className="text-xs font-semibold uppercase tracking-wider text-slate-600"
+              >
+                Identificador do Sistema (Automático)
+              </Label>
+              <Input
+                id="t-codigo"
+                value={
+                  editingTipo
+                    ? editingTipo.codigo || 'TIP-XXXX'
+                    : 'Gerado automaticamente ao salvar (ex: TIP-0001)'
+                }
+                disabled
+                className="bg-slate-100 font-mono text-xs text-slate-600 cursor-not-allowed"
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="t-nome">Nome da Modalidade / Tipo *</Label>
               <Input

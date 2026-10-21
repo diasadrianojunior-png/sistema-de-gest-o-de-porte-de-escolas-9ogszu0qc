@@ -195,6 +195,7 @@ export default function CadastrosMestres() {
     (e) =>
       e.nome.toLowerCase().includes(search.toLowerCase()) ||
       e.endereco.toLowerCase().includes(search.toLowerCase()) ||
+      (e.codigo && e.codigo.toLowerCase().includes(search.toLowerCase())) ||
       (e.municipio?.nome && e.municipio.nome.toLowerCase().includes(search.toLowerCase())) ||
       (e.tipo_escola?.nome && e.tipo_escola.nome.toLowerCase().includes(search.toLowerCase())),
   )
@@ -229,7 +230,7 @@ export default function CadastrosMestres() {
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <Input
-              placeholder="Pesquisar escola, endereço ou rede..."
+              placeholder="Pesquisar código (UN-XXXX), escola, endereço..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 text-sm"
@@ -249,6 +250,7 @@ export default function CadastrosMestres() {
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 text-slate-600 border-b">
                   <tr>
+                    <th className="py-3 px-4 font-medium w-28">Código</th>
                     <th className="py-3 px-4 font-medium">Nome da Escola</th>
                     <th className="py-3 px-4 font-medium">Município / Rede</th>
                     <th className="py-3 px-4 font-medium">Tipo / Modalidade</th>
@@ -260,6 +262,11 @@ export default function CadastrosMestres() {
                 <tbody className="divide-y divide-slate-100">
                   {filteredEscolas.map((escola) => (
                     <tr key={escola.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-4">
+                        <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                          {escola.codigo || 'UN-0000'}
+                        </span>
+                      </td>
                       <td className="py-3 px-4">
                         <div className="font-medium text-slate-900">{escola.nome}</div>
                         <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
@@ -341,6 +348,26 @@ export default function CadastrosMestres() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 py-2">
+            {/* Campo identificador automático somente leitura */}
+            <div className="space-y-2">
+              <Label
+                htmlFor="codigo"
+                className="text-xs font-semibold uppercase tracking-wider text-slate-600"
+              >
+                Identificador do Sistema (Automático)
+              </Label>
+              <Input
+                id="codigo"
+                value={
+                  editingEscola
+                    ? editingEscola.codigo || 'UN-XXXX'
+                    : 'Gerado automaticamente ao salvar (ex: UN-0001)'
+                }
+                disabled
+                className="bg-slate-100 font-mono text-xs text-slate-600 cursor-not-allowed"
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="nome">Nome da Escola *</Label>
               <Input
@@ -467,9 +494,20 @@ export default function CadastrosMestres() {
           </DialogHeader>
           {viewingEscola && (
             <div className="space-y-4 py-2 text-sm">
+              <div className="border-b pb-3 flex items-center justify-between">
+                <div>
+                  <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
+                    Identificador
+                  </span>
+                  <p className="font-mono text-sm font-bold text-blue-700 mt-0.5">
+                    {viewingEscola.codigo || 'UN-0000'}
+                  </p>
+                </div>
+              </div>
+
               <div className="border-b pb-3">
                 <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
-                  Nome
+                  Nome da Escola
                 </span>
                 <p className="text-base font-medium text-slate-900 mt-0.5">{viewingEscola.nome}</p>
               </div>
