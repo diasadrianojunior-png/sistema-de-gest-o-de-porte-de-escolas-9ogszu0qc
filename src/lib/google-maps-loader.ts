@@ -9,12 +9,40 @@ export function getGoogleMapsApiKey(): string {
   return envKey || 'AIzaSyAVd864TUJT0mMHGa0ZzRUSq2KEUWm5jUw'
 }
 
+// A API só está realmente pronta quando google.maps.Map existir.
+// Com loading=async o evento onload do <script> dispara ANTES do bootstrap
+// interno terminar, então verificar apenas window.google não é suficiente.
+function isMapsApiReady(): boolean {
+  if (typeof window === 'undefined') return false
+  const google = (window as any).google
+  return !!(google && google.maps && typeof google.maps.Map === 'function')
+}
+
+// Aguarda (com polling curto e timeout) até o bootstrap da API expor google.maps
+function waitForMapsApi(timeoutMs = 15000): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const startedAt = Date.now()
+    const tick = () => {
+      if (isMapsApiReady()) {
+        resolve()
+        return
+      }
+      if (Date.now() - startedAt > timeoutMs) {
+        reject(new Error('Tempo excedido ao aguardar a Google Maps JavaScript API.'))
+        return
+      }
+      window.setTimeout(tick, 50)
+    }
+    tick()
+  })
+}
+
 export function loadGoogleMapsScript(apiKey?: string): Promise<void> {
   if (typeof window === 'undefined') {
     return Promise.resolve()
   }
 
-  if ((window as any).google && (window as any).google.maps) {
+  if (isMapsApiReady()) {
     return Promise.resolve()
   }
 
@@ -25,6 +53,7 @@ export function loadGoogleMapsScript(apiKey?: string): Promise<void> {
   loadPromise = new Promise<void>((resolve, reject) => {
     const key = apiKey || getGoogleMapsApiKey()
     if (!key) {
+      loadPromise = null
       reject(new Error('Chave da API do Google Maps não configurada.'))
       return
     }
@@ -33,24 +62,30 @@ export function loadGoogleMapsScript(apiKey?: string): Promise<void> {
       GOOGLE_MAPS_SCRIPT_ID,
     ) as HTMLScriptElement | null
     if (existingScript) {
-      if ((window as any).google && (window as any).google.maps) {
-        resolve()
-      } else {
-        existingScript.addEventListener('load', () => resolve())
-        existingScript.addEventListener('error', (e) => reject(e))
-      }
+      waitForMapsApi().then(resolve).catch(reject)
       return
     }
 
     const script = document.createElement('script')
     script.id = GOOGLE_MAPS_SCRIPT_ID
     script.type = 'text/javascript'
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places,geometry&loading=async`
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places,geometry&loading=async&callback=__googleMapsApiReady__`
     script.async = true
     script.defer = true
 
+    // Callback exigido pelo modo loading=async; a resolução da promise
+    // acontece via waitForMapsApi (quando google.maps.Map existir de fato).
+    ;(window as any).__googleMapsApiReady__ = () => {
+      /* noop */
+    }
+
     script.onload = () => {
-      resolve()
+      waitForMapsApi()
+        .then(resolve)
+        .catch((err) => {
+          loadPromise = null
+          reject(err)
+        })
     }
 
     script.onerror = (error) => {

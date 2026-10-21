@@ -132,54 +132,64 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     }
   }, [])
 
-  // Inicializar mapa após a biblioteca carregar
+  // Inicializar mapa somente após a biblioteca estar REALMENTE carregada
   useEffect(() => {
     if (!mapsLoaded || !mapContainerRef.current) return
-    const google = (window as any).google
-    if (!google?.maps) return
-
     if (mapInstanceRef.current) return
 
-    const initialLat = value.latitude ?? CAMBE_DEFAULT_COORDS.lat
-    const initialLng = value.longitude ?? CAMBE_DEFAULT_COORDS.lng
+    const google = (window as any).google
+    if (!google?.maps || typeof google.maps.Map !== 'function') {
+      // A API ainda não expôs google.maps: mantém a tela funcionando
+      setMapsError('A API do Google Maps ainda não está disponível. Tente recarregar a página.')
+      return
+    }
 
-    const map = new google.maps.Map(mapContainerRef.current, {
-      center: { lat: initialLat, lng: initialLng },
-      zoom: value.latitude && value.longitude ? 16 : 14,
-      mapTypeControl: false,
-      streetViewControl: false,
-      fullscreenControl: true,
-      zoomControl: true,
-    })
+    try {
+      const initialLat = value.latitude ?? CAMBE_DEFAULT_COORDS.lat
+      const initialLng = value.longitude ?? CAMBE_DEFAULT_COORDS.lng
 
-    mapInstanceRef.current = map
+      const map = new google.maps.Map(mapContainerRef.current, {
+        center: { lat: initialLat, lng: initialLng },
+        zoom: value.latitude && value.longitude ? 16 : 14,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: true,
+        zoomControl: true,
+      })
 
-    const marker = new google.maps.Marker({
-      position: { lat: initialLat, lng: initialLng },
-      map: map,
-      draggable: true,
-      animation: google.maps.Animation.DROP,
-      title: 'Local da Unidade Escolar (Cambé - PR)',
-    })
+      mapInstanceRef.current = map
 
-    markerInstanceRef.current = marker
+      const marker = new google.maps.Marker({
+        position: { lat: initialLat, lng: initialLng },
+        map: map,
+        draggable: true,
+        animation: google.maps.Animation.DROP,
+        title: 'Local da Unidade Escolar (Cambé - PR)',
+      })
 
-    // Evento de clique no mapa para posicionar marcador
-    map.addListener('click', (event: any) => {
-      if (disabled) return
-      const lat = event.latLng.lat()
-      const lng = event.latLng.lng()
-      updateMarkerPosition(lat, lng, true)
-    })
+      markerInstanceRef.current = marker
 
-    // Evento de arrastar o marcador
-    marker.addListener('dragend', () => {
-      if (disabled) return
-      const pos = marker.getPosition()
-      if (pos) {
-        updateMarkerPosition(pos.lat(), pos.lng(), true)
-      }
-    })
+      // Evento de clique no mapa para posicionar marcador
+      map.addListener('click', (event: any) => {
+        if (disabled) return
+        const lat = event.latLng.lat()
+        const lng = event.latLng.lng()
+        updateMarkerPosition(lat, lng, true)
+      })
+
+      // Evento de arrastar o marcador
+      marker.addListener('dragend', () => {
+        if (disabled) return
+        const pos = marker.getPosition()
+        if (pos) {
+          updateMarkerPosition(pos.lat(), pos.lng(), true)
+        }
+      })
+    } catch (err) {
+      // Qualquer falha na criação do mapa não pode derrubar a página
+      console.error('Erro ao inicializar o mapa do Google Maps:', err)
+      setMapsError('Não foi possível inicializar o mapa interativo.')
+    }
   }, [mapsLoaded, disabled])
 
   // Atualizar marcador quando coordenadas mudam externamente

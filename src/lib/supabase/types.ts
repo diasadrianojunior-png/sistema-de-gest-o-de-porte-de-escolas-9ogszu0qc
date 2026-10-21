@@ -122,32 +122,56 @@ export type Database = {
       }
       unidades_escolares: {
         Row: {
+          bairro: string | null
+          cep: string | null
+          cidade: string | null
           codigo: string | null
           created_at: string
+          estado_uf: string | null
           id: string
+          latitude: number | null
           localizacao: string
+          logradouro: string | null
+          longitude: number | null
           nivel_porte: string
           nome: string
+          numero: string | null
           tipo_atendimento: string
           updated_at: string
         }
         Insert: {
+          bairro?: string | null
+          cep?: string | null
+          cidade?: string | null
           codigo?: string | null
           created_at?: string
+          estado_uf?: string | null
           id?: string
+          latitude?: number | null
           localizacao: string
+          logradouro?: string | null
+          longitude?: number | null
           nivel_porte: string
           nome: string
+          numero?: string | null
           tipo_atendimento: string
           updated_at?: string
         }
         Update: {
+          bairro?: string | null
+          cep?: string | null
+          cidade?: string | null
           codigo?: string | null
           created_at?: string
+          estado_uf?: string | null
           id?: string
+          latitude?: number | null
           localizacao?: string
+          logradouro?: string | null
+          longitude?: number | null
           nivel_porte?: string
           nome?: string
+          numero?: string | null
           tipo_atendimento?: string
           updated_at?: string
         }
