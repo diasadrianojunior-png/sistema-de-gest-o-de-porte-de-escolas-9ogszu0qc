@@ -8,18 +8,18 @@ import {
   Database,
   Settings,
   ArrowRight,
-  Users,
-  GraduationCap,
+  Clock,
+  Layers,
   Building2,
   CheckCircle2,
 } from 'lucide-react'
-import { getEscolas } from '@/services/escolas'
+import { getUnidadesEscolares } from '@/services/unidades-escolares'
 import { getMunicipios, getTiposEscola } from '@/services/apoio'
-import { Escola, MunicipioRede, TipoEscola } from '@/types/gestao-escolar'
+import { UnidadeEscolar, MunicipioRede, TipoEscola } from '@/types/gestao-escolar'
 
 export default function Painel() {
   const { user } = useAuth()
-  const [escolas, setEscolas] = useState<Escola[]>([])
+  const [unidades, setUnidades] = useState<UnidadeEscolar[]>([])
   const [municipios, setMunicipios] = useState<MunicipioRede[]>([])
   const [tiposEscola, setTiposEscola] = useState<TipoEscola[]>([])
   const [loadingData, setLoadingData] = useState(true)
@@ -28,12 +28,12 @@ export default function Painel() {
     async function loadDashboardData() {
       try {
         setLoadingData(true)
-        const [escolasData, municipiosData, tiposData] = await Promise.all([
-          getEscolas().catch(() => []),
+        const [unidadesData, municipiosData, tiposData] = await Promise.all([
+          getUnidadesEscolares().catch(() => []),
           getMunicipios().catch(() => []),
           getTiposEscola().catch(() => []),
         ])
-        setEscolas(escolasData)
+        setUnidades(unidadesData)
         setMunicipios(municipiosData)
         setTiposEscola(tiposData)
       } catch (err) {
@@ -46,8 +46,10 @@ export default function Painel() {
     loadDashboardData()
   }, [])
 
-  const totalAlunos = escolas.reduce((sum, e) => sum + (e.numero_alunos || 0), 0)
-  const totalServidores = escolas.reduce((sum, e) => sum + (e.numero_servidores || 0), 0)
+  const total20h = unidades.filter(
+    (u) => u.tipo_atendimento === 'Ensino Fundamental e Educação Infantil (20h)',
+  ).length
+  const total40h = unidades.filter((u) => u.tipo_atendimento === 'Educação Infantil (40h)').length
 
   return (
     <div className="space-y-8">
@@ -69,7 +71,7 @@ export default function Painel() {
 
       {/* Cards de Atalhos Principais */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Atalho: Cadastros Mestres (Escolas) */}
+        {/* Atalho: Cadastros Mestres (Unidades Escolares) */}
         <Card className="hover:shadow-md transition-shadow border-slate-200 relative overflow-hidden group">
           <div className="absolute top-0 left-0 h-1.5 w-full bg-blue-600" />
           <CardHeader className="pb-3">
@@ -78,37 +80,33 @@ export default function Painel() {
                 <School className="w-6 h-6" />
               </div>
               <span className="text-2xl font-bold text-slate-900">
-                {loadingData ? '...' : escolas.length}
+                {loadingData ? '...' : unidades.length}
               </span>
             </div>
             <CardTitle className="text-xl mt-3">Cadastros Mestres</CardTitle>
             <CardDescription>
-              Gestão centralizada de escolas cadastradas com informações de porte, endereço e
-              contingente.
+              Gestão de unidades escolares com identificador sequencial, tipo de atendimento e
+              nível/porte.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex items-center justify-between text-sm text-slate-600">
               <div className="flex items-center gap-2">
-                <GraduationCap className="w-4 h-4 text-blue-600" />
-                <span>Alunos registrados:</span>
+                <Clock className="w-4 h-4 text-blue-600" />
+                <span>Fundamental e Infantil (20h):</span>
               </div>
-              <span className="font-semibold text-slate-800">
-                {loadingData ? '...' : totalAlunos.toLocaleString('pt-BR')}
-              </span>
+              <span className="font-semibold text-slate-800">{loadingData ? '...' : total20h}</span>
             </div>
             <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex items-center justify-between text-sm text-slate-600">
               <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-blue-600" />
-                <span>Servidores registrados:</span>
+                <Layers className="w-4 h-4 text-blue-600" />
+                <span>Educação Infantil (40h):</span>
               </div>
-              <span className="font-semibold text-slate-800">
-                {loadingData ? '...' : totalServidores.toLocaleString('pt-BR')}
-              </span>
+              <span className="font-semibold text-slate-800">{loadingData ? '...' : total40h}</span>
             </div>
             <Button asChild className="w-full gap-2 mt-2">
               <Link to="/cadastros-mestres">
-                Acessar Cadastros Mestres
+                Acessar Unidades Escolares
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </Button>
@@ -162,11 +160,13 @@ export default function Painel() {
         </Card>
       </div>
 
-      {/* Tabela Resumo Rápido de Escolas */}
+      {/* Tabela Resumo Rápido de Unidades Escolares */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Últimas Escolas Cadastradas</h2>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Últimas Unidades Escolares Cadastradas
+            </h2>
             <p className="text-xs text-slate-500">
               Visualização resumida dos cadastros mestres recentes
             </p>
@@ -178,9 +178,10 @@ export default function Painel() {
 
         {loadingData ? (
           <div className="py-8 text-center text-sm text-slate-500">Carregando dados...</div>
-        ) : escolas.length === 0 ? (
+        ) : unidades.length === 0 ? (
           <div className="py-8 text-center text-sm text-slate-500">
-            Nenhuma escola cadastrada ainda. Utilize o botão acima para adicionar a primeira.
+            Nenhuma unidade escolar cadastrada ainda. Utilize o botão acima para adicionar a
+            primeira.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -188,30 +189,26 @@ export default function Painel() {
               <thead className="bg-slate-50 text-slate-600 border-y border-slate-200">
                 <tr>
                   <th className="py-2.5 px-3 font-medium w-24">Código</th>
-                  <th className="py-2.5 px-3 font-medium">Nome da Escola</th>
-                  <th className="py-2.5 px-3 font-medium">Endereço</th>
-                  <th className="py-2.5 px-3 font-medium">Município/Rede</th>
-                  <th className="py-2.5 px-3 font-medium text-right">Alunos</th>
-                  <th className="py-2.5 px-3 font-medium text-right">Servidores</th>
+                  <th className="py-2.5 px-3 font-medium">Nome da Unidade</th>
+                  <th className="py-2.5 px-3 font-medium">Tipo de Atendimento</th>
+                  <th className="py-2.5 px-3 font-medium">Nível / Faixa</th>
+                  <th className="py-2.5 px-3 font-medium">Localização</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {escolas.slice(0, 5).map((escola) => (
-                  <tr key={escola.id} className="hover:bg-slate-50/60">
+                {unidades.slice(0, 5).map((unidade) => (
+                  <tr key={unidade.id} className="hover:bg-slate-50/60">
                     <td className="py-3 px-3">
                       <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                        {escola.codigo || 'UN-0000'}
+                        {unidade.codigo || 'UN-0000'}
                       </span>
                     </td>
-                    <td className="py-3 px-3 font-medium text-slate-900">{escola.nome}</td>
-                    <td className="py-3 px-3 text-slate-600">{escola.endereco || '-'}</td>
-                    <td className="py-3 px-3 text-slate-600">{escola.municipio?.nome || '-'}</td>
-                    <td className="py-3 px-3 text-right font-mono text-slate-700">
-                      {escola.numero_alunos}
+                    <td className="py-3 px-3 font-medium text-slate-900">{unidade.nome}</td>
+                    <td className="py-3 px-3 text-slate-700 text-xs">{unidade.tipo_atendimento}</td>
+                    <td className="py-3 px-3 text-slate-700 text-xs font-medium">
+                      {unidade.nivel_porte}
                     </td>
-                    <td className="py-3 px-3 text-right font-mono text-slate-700">
-                      {escola.numero_servidores}
-                    </td>
+                    <td className="py-3 px-3 text-slate-600 text-xs">{unidade.localizacao}</td>
                   </tr>
                 ))}
               </tbody>

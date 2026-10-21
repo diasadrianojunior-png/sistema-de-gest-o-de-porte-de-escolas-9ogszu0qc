@@ -13,6 +13,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   UserCog,
+  ChevronDown,
+  ChevronRight,
+  Building,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
@@ -24,6 +27,7 @@ export default function Layout() {
   // Controle da sidebar mobile (drawer) e desktop colapso opcional
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [cadastrosMestresExpanded, setCadastrosMestresExpanded] = useState(true)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -132,22 +136,60 @@ export default function Layout() {
               {!sidebarCollapsed && <span>Painel de Início</span>}
             </NavLink>
 
-            {/* Item 2: Cadastros Mestres */}
-            <NavLink
-              to="/cadastros-mestres"
-              onClick={() => isMobile && setMobileSidebarOpen(false)}
-              title="Cadastros Mestres"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isMestresActive
-                  ? 'bg-blue-50 text-blue-700 font-semibold shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <School
-                className={`w-5 h-5 shrink-0 ${isMestresActive ? 'text-blue-700' : 'text-slate-500'}`}
-              />
-              {!sidebarCollapsed && <span>Cadastros Mestres</span>}
-            </NavLink>
+            {/* Item 2: Cadastros Mestres (Item expansível com submenu) */}
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (sidebarCollapsed) {
+                    setSidebarCollapsed(false)
+                    setCadastrosMestresExpanded(true)
+                  } else {
+                    setCadastrosMestresExpanded(!cadastrosMestresExpanded)
+                  }
+                }}
+                title="Cadastros Mestres"
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  isMestresActive
+                    ? 'text-blue-700 font-semibold bg-blue-50/70'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <School
+                    className={`w-5 h-5 shrink-0 ${isMestresActive ? 'text-blue-700' : 'text-slate-500'}`}
+                  />
+                  {!sidebarCollapsed && <span className="truncate">Cadastros Mestres</span>}
+                </div>
+                {!sidebarCollapsed &&
+                  (cadastrosMestresExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                  ))}
+              </button>
+
+              {/* Submenu de Cadastros Mestres */}
+              {!sidebarCollapsed && cadastrosMestresExpanded && (
+                <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-200 space-y-1 py-1">
+                  <NavLink
+                    to="/cadastros-mestres"
+                    onClick={() => isMobile && setMobileSidebarOpen(false)}
+                    title="Unidades escolares"
+                    className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      isMestresActive
+                        ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Building
+                      className={`w-3.5 h-3.5 shrink-0 ${isMestresActive ? 'text-white' : 'text-slate-400'}`}
+                    />
+                    <span className="truncate">Unidades escolares</span>
+                  </NavLink>
+                </div>
+              )}
+            </div>
 
             {/* Item 3: Cadastros de Apoio */}
             <NavLink
@@ -284,7 +326,11 @@ export default function Layout() {
                 <span className="text-slate-900 font-semibold">Painel de Início</span>
               )}
               {isMestresActive && (
-                <span className="text-blue-700 font-semibold">Cadastros Mestres</span>
+                <>
+                  <span className="text-slate-600">Cadastros Mestres</span>
+                  <span className="mx-2 text-slate-300">/</span>
+                  <span className="text-blue-700 font-semibold">Unidades escolares</span>
+                </>
               )}
               {isApoioActive && (
                 <span className="text-blue-700 font-semibold">Cadastros de Apoio</span>
