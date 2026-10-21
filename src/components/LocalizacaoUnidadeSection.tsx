@@ -33,6 +33,20 @@ interface LocalizacaoUnidadeProps {
 // Centro padrão: Cambé - PR
 const CAMBE_DEFAULT_COORDS = { lat: -23.2758, lng: -51.2785 }
 
+// Bounds usados apenas para ENVIESAR a busca do geocoder (aproximados)
+const CAMBE_BOUNDS_BUSCA = { south: -23.35, west: -51.35, north: -23.18, east: -51.2 }
+// Bounds amplos (hard) para validar que a coordenada final cai dentro de Cambé - PR
+const CAMBE_BOUNDS_VALIDACAO = { south: -23.45, west: -51.45, north: -23.08, east: -51.05 }
+
+// A coordenada final precisa cair dentro do território de Cambé (restrição da cidade)
+const estaDentroDeCambe = (lat: number, lng: number): boolean =>
+  Number.isFinite(lat) &&
+  Number.isFinite(lng) &&
+  lat >= CAMBE_BOUNDS_VALIDACAO.south &&
+  lat <= CAMBE_BOUNDS_VALIDACAO.north &&
+  lng >= CAMBE_BOUNDS_VALIDACAO.west &&
+  lng <= CAMBE_BOUNDS_VALIDACAO.east
+
 // Bounds aproximados do município de Cambé - PR (usados para enviesar a busca)
 const getCambeBounds = () => {
   const google = (window as any).google
@@ -269,7 +283,7 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
       markerInstanceRef.current.setPosition({ lat: roundedLat, lng: roundedLng })
     }
     if (mapInstanceRef.current) {
-      mapInstanceRef.current.setCenter({ lat: roundedLat, lng: roundedLng })
+      mapInstanceRef.current.panTo({ lat: roundedLat, lng: roundedLng })
       mapInstanceRef.current.setZoom(zoom)
     }
   }
@@ -372,7 +386,7 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
       const data = await res.json()
       const lat = Number(data?.geo?.latitude)
       const lng = Number(data?.geo?.longitude)
-      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      if (Number.isFinite(lat) && Number.isFinite(lng) && estaDentroDeCambe(lat, lng)) {
         return { lat, lng }
       }
       return null
@@ -381,28 +395,115 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     }
   }
 
-  // Geocodifica "logradouro + número, Cambé - PR" e devolve a posição exata (ou null)
+  // Recurso alternativo fora do Google: Nominatim/OpenStreetMap — usado quando o
+  // geocoder do Google não retorna nada (ex.: chave sem a Geocoding API liberada),
+  // para que o marcador continue sendo posicionado em vez de ficar parado.
+  const geocodificarNominatim = async (
+    endereco: string,
+  ): Promise<{ lat: number; lng: number } | null> => {
+    try {
+      const url =
+        'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=' +
+        encodeURIComponent(endereco)
+      const res = await fetch(url)
+      if (!res.ok) return null
+      const lista = await res.json()
+      const primeiro = Array.isArray(lista) ? lista[0] : null
+      const lat = Number(primeiro?.lat)
+      const lng = Number(primeiro?.lon)
+      if (Number.isFinite(lat) && Number.isFinite(lng) && estaDentroDeCambe(lat, lng)) {
+        return { lat, lng }
+      }
+      return null
+    } catch {
+      return null
+    }
+  }
+
+  // Garante que a Google Maps JS API está REALMENTE pronta (google.maps.Map e
+  // google.maps.Geocoder disponíveis) antes de qualquer geocodificação.
+  // Resolve false em caso de falha — nunca derruba a tela.
+  const garantirGoogleMapsPronto = async (): Promise<boolean> => {
+    const pronto = () => {
+      const google = (window as any).google
+      return !!(
+        google?.maps &&
+        typeof google.maps.Map === 'function' &&
+        typeof google.maps.Geocoder === 'function'
+      )
+    }
+    if (pronto()) return true
+    try {
+      await loadGoogleMapsScript()
+    } catch (err) {
+      console.error('Erro ao carregar a Google Maps JS API:', err)
+      return false
+    }
+    // Pequena espera extra: o bootstrap da API pode expor google.maps um pouco depois
+    for (let tentativa = 0; tentativa < 100; tentativa++) {
+      if (pronto()) return true
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    return false
+  }
+
+  // Geocodifica um endereço em Cambé - PR e devolve a posição mais exata (ou null).
+  // Nunca lança: qualquer erro (API ausente, status de erro, resultado fora de Cambé)
+  // vira null para a cascata seguir para a próxima estratégia.
   const geocodeEnderecoCambe = (endereco: string): Promise<{ lat: number; lng: number } | null> => {
     return new Promise((resolve) => {
-      const google = (window as any).google
-      const geocoder = new google.maps.Geocoder()
-      geocoder.geocode(
-        {
+      try {
+        const google = (window as any).google
+        if (!google?.maps?.Geocoder || typeof google.maps.Map !== 'function') {
+          resolve(null)
+          return
+        }
+        const geocoder = new google.maps.Geocoder()
+        const request: any = {
           address: endereco,
-          bounds: getCambeBounds(),
-          componentRestrictions: { country: 'BR', administrativeArea: 'PR' },
-        },
-        (results: any, status: any) => {
-          if (status === 'OK' && results && results.length > 0) {
-            const loc = results[0]?.geometry?.location
-            if (loc) {
-              resolve({ lat: loc.lat(), lng: loc.lng() })
+          componentRestrictions: { country: 'BR' },
+        }
+        if (typeof google.maps.LatLngBounds === 'function') {
+          request.bounds = new google.maps.LatLngBounds(
+            new google.maps.LatLng(CAMBE_BOUNDS_BUSCA.south, CAMBE_BOUNDS_BUSCA.west),
+            new google.maps.LatLng(CAMBE_BOUNDS_BUSCA.north, CAMBE_BOUNDS_BUSCA.east),
+          )
+        }
+        geocoder.geocode(request, (results: any, status: any) => {
+          try {
+            if (status !== 'OK' || !Array.isArray(results) || results.length === 0) {
+              resolve(null)
               return
             }
+            // Prefere resultados ROOFTOP (número exato) sobre aproximações
+            const rank = (r: any) =>
+              r?.geometry?.location_type === 'ROOFTOP'
+                ? 0
+                : r?.geometry?.location_type === 'GEOMETRIC'
+                  ? 1
+                  : 2
+            const ordenados = [...results].sort((a: any, b: any) => rank(a) - rank(b))
+            for (const result of ordenados) {
+              const loc = result?.geometry?.location
+              if (!loc || typeof loc.lat !== 'function' || typeof loc.lng !== 'function') continue
+              const lat = loc.lat()
+              const lng = loc.lng()
+              if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue
+              // Validação estrita: somente coordenadas dentro de Cambé - PR
+              if (!estaDentroDeCambe(lat, lng)) continue
+              resolve({ lat, lng })
+              return
+            }
+            resolve(null)
+          } catch (err) {
+            console.error('Erro ao processar resultado do geocoder:', err)
+            resolve(null)
           }
-          resolve(null)
-        },
-      )
+        })
+      } catch (err) {
+        console.error('Erro na geocodificação Google:', err)
+        resolve(null)
+      }
     })
   }
 
@@ -419,10 +520,9 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     setSearchingCep(true)
 
     try {
-      const google = (window as any).google
-      if (!google?.maps?.Geocoder) {
-        await loadGoogleMapsScript()
-      }
+      // 0) Garante que a API do Google Maps está REALMENTE carregada (google.maps.Map
+      //    disponível) ANTES de geocodificar — sem travar a tela em caso de falha.
+      const mapsPronto = await garantirGoogleMapsPronto()
 
       // 1) ViaCEP: base oficial dos Correios — valida a cidade e devolve o endereço do CEP
       const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
@@ -447,44 +547,65 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
       // 2) É Cambé: preenche logradouro/bairro/cidade/UF a partir do ViaCEP
       const logradouroViaCep = data.logradouro || ''
       const bairroViaCep = data.bairro || ''
-
-      // 3) Geocodificação Google — prioriza o número já digitado (posição exata),
-      //    depois o logradouro do CEP e, por último, o próprio CEP.
       const numeroAtual = (valueRef.current.numero || '').trim()
-      const candidatos: string[] = []
-      if (logradouroViaCep && numeroAtual && !/^s\s*\/?\s*n$/i.test(numeroAtual)) {
-        candidatos.push(`${logradouroViaCep}, ${numeroAtual}, ${bairroViaCep}, Cambé, PR, Brasil`)
-      }
-      if (logradouroViaCep) {
-        candidatos.push(`${logradouroViaCep}, ${bairroViaCep}, Cambé, PR, Brasil`)
-      }
-      candidatos.push(`${cleanCep}, Cambé, PR, Brasil`)
+      const temNumero = !!numeroAtual && !/^s\s*\/?\s*n$/i.test(numeroAtual)
+      const logradouroBase = logradouroViaCep || (valueRef.current.logradouro || '').trim()
+      const bairroBase = bairroViaCep || (valueRef.current.bairro || '').trim()
 
-      let lat: number | null = null
-      let lng: number | null = null
-      for (const candidato of candidatos) {
-        const ponto = await geocodeEnderecoCambe(candidato)
-        if (ponto) {
-          lat = ponto.lat
-          lng = ponto.lng
+      // 3) Cascata COMPLETA de estratégias de geocodificação (Google Geocoder):
+      //    a) endereço completo com número
+      //    b) logradouro + bairro + cidade + UF
+      //    c) logradouro + cidade + UF
+      //    d) CEP
+      const estrategias: string[] = []
+      if (logradouroBase && temNumero) {
+        estrategias.push(`${logradouroBase}, ${numeroAtual}, ${bairroBase}, Cambé, PR, Brasil`)
+      }
+      if (logradouroBase && bairroBase) {
+        estrategias.push(`${logradouroBase}, ${bairroBase}, Cambé, PR, Brasil`)
+      }
+      if (logradouroBase) {
+        estrategias.push(`${logradouroBase}, Cambé, PR, Brasil`)
+      }
+      estrategias.push(`${cleanCep}, Cambé, PR, Brasil`)
+
+      let ponto: { lat: number; lng: number } | null = null
+      for (const estrategia of estrategias) {
+        // Se a API do Google não estiver pronta, geocodeEnderecoCambe resolve null
+        // (sem lançar erro) e a cascata continua para a próxima estratégia.
+        const candidato = mapsPronto ? await geocodeEnderecoCambe(estrategia) : null
+        if (candidato) {
+          ponto = candidato
           break
         }
       }
 
-      if (lat === null || lng === null) {
-        // Centro oficial do CEP segundo a base dos Correios
-        const pontoCep = await geocodificarCepCorreios(cleanCep)
-        if (pontoCep) {
-          lat = pontoCep.lat
-          lng = pontoCep.lng
-        }
+      // 4) Últimos recursos fora do Google: centro do CEP segundo os Correios
+      //    (postmon) e, por fim, Nominatim/OpenStreetMap.
+      if (!ponto) {
+        ponto = await geocodificarCepCorreios(cleanCep)
       }
-
-      if (lat === null || lng === null) {
-        setCepError(
-          `Endereço encontrado (${logradouroViaCep || 'CEP'}), mas não foi possível posicioná-lo no mapa. Ajuste o marcador manualmente.`,
+      if (!ponto) {
+        ponto = await geocodificarNominatim(
+          [
+            logradouroBase
+              ? temNumero
+                ? `${logradouroBase}, ${numeroAtual}`
+                : logradouroBase
+              : '',
+            bairroBase,
+            'Cambé',
+            'PR',
+            'Brasil',
+          ]
+            .filter(Boolean)
+            .join(', '),
         )
       }
+
+      // 5) Aplica o resultado: preenche Latitude/Longitude (6 casas) e move o marcador
+      const latFinal = ponto ? Number(ponto.lat.toFixed(6)) : valueRef.current.latitude
+      const lngFinal = ponto ? Number(ponto.lng.toFixed(6)) : valueRef.current.longitude
 
       const updatedData: EnderecoUnidadeData = {
         ...valueRef.current,
@@ -493,20 +614,42 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
         bairro: bairroViaCep || valueRef.current.bairro,
         cidade: 'Cambé',
         estado_uf: 'PR',
-        latitude: lat !== null ? Number(lat.toFixed(6)) : valueRef.current.latitude,
-        longitude: lng !== null ? Number(lng.toFixed(6)) : valueRef.current.longitude,
+        latitude: latFinal,
+        longitude: lngFinal,
       }
       onChange(updatedData)
 
-      if (lat !== null && lng !== null) {
-        focusMapOnPoint(lat, lng, numeroAtual ? 18 : 17)
+      if (onLocationSummaryChange) {
+        const parts = [
+          updatedData.logradouro,
+          updatedData.numero ? `nº ${updatedData.numero}` : '',
+          updatedData.bairro,
+          `${updatedData.cidade || 'Cambé'} - ${updatedData.estado_uf || 'PR'}`,
+        ].filter(Boolean)
+        if (parts.length > 0) {
+          onLocationSummaryChange(parts.join(', '))
+        }
       }
 
-      if (lat !== null && lng !== null) {
-        setAddressSuccessMsg(
-          `Endereço localizado em Cambé - PR! Lat ${Number(lat.toFixed(6))}, Lng ${Number(lng.toFixed(6))}.`,
-        )
+      if (ponto && mapsPronto) {
+        // Coordenadas válidas: posiciona o marcador com precisão
+        focusMapOnPoint(ponto.lat, ponto.lng, temNumero ? 18 : 17)
+        setAddressSuccessMsg(`Endereço localizado em Cambé - PR! Lat ${latFinal}, Lng ${lngFinal}.`)
         setTimeout(() => setAddressSuccessMsg(null), 5000)
+      } else if (ponto) {
+        // Coordenadas obtidas, mas o mapa interativo ainda não está disponível
+        setCepError(
+          `Endereço localizado! Latitude/Longitude preenchidas (Lat ${latFinal}, Lng ${lngFinal}), mas o mapa do Google ainda não está disponível para exibir o marcador.`,
+        )
+      } else if (!mapsPronto) {
+        setCepError(
+          'Endereço encontrado, mas o Google Maps ainda não está disponível para posicionar o marcador. Aguarde o mapa carregar e busque o CEP novamente.',
+        )
+      } else {
+        // Só chega aqui se NENHUMA estratégia retornou coordenadas válidas
+        setCepError(
+          `Endereço encontrado (${logradouroViaCep || 'CEP'}), mas não foi possível posicioná-lo no mapa. Ajuste o marcador manualmente.`,
+        )
       }
     } catch (err: any) {
       setCepError(err?.message || 'Erro ao pesquisar CEP. Tente novamente.')
