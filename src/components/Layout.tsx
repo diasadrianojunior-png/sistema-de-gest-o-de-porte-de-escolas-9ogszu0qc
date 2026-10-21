@@ -32,8 +32,9 @@ export default function Layout() {
   // Controle da sidebar (desktop recolhida vs expandida, mobile drawer)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
-  const [cadastrosMestresExpanded, setCadastrosMestresExpanded] = useState(true)
-  const [cadastrosApoioExpanded, setCadastrosApoioExpanded] = useState(true)
+  // Submenus iniciam recolhidos/fechados ao abrir a aplicação
+  const [cadastrosMestresExpanded, setCadastrosMestresExpanded] = useState(false)
+  const [cadastrosApoioExpanded, setCadastrosApoioExpanded] = useState(false)
 
   // Estados dos popovers quando a barra está recolhida
   const [mestresPopoverOpen, setMestresPopoverOpen] = useState(false)
@@ -265,12 +266,7 @@ export default function Layout() {
                     <button
                       type="button"
                       onClick={() => {
-                        // Ao clicar no menu principal, garante que seus submenus apareçam automaticamente
-                        if (!cadastrosMestresExpanded) {
-                          setCadastrosMestresExpanded(true)
-                        } else {
-                          setCadastrosMestresExpanded(false)
-                        }
+                        setCadastrosMestresExpanded((prev) => !prev)
                       }}
                       title="Cadastros Mestres"
                       className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
@@ -395,12 +391,7 @@ export default function Layout() {
                     <button
                       type="button"
                       onClick={() => {
-                        // Ao clicar no menu principal, garante que seus submenus apareçam automaticamente
-                        if (!cadastrosApoioExpanded) {
-                          setCadastrosApoioExpanded(true)
-                        } else {
-                          setCadastrosApoioExpanded(false)
-                        }
+                        setCadastrosApoioExpanded((prev) => !prev)
                       }}
                       title="Cadastros de Apoio"
                       className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
