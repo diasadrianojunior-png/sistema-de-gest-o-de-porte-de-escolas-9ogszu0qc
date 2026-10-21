@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/client'
 import { UsuarioSistema, PerfilUsuario, EstadoUsuario } from '@/types/gestao-escolar'
+import { registrarAuditoria } from './auditoria'
 
 const db = supabase as any
 
@@ -62,8 +63,17 @@ export const createUsuario = async (
       inviteMessage = fnData.message || ''
 
       if (fnData.usuario) {
+        const usrCriado = fnData.usuario as UsuarioSistema
+        await registrarAuditoria({
+          entidade: 'Usuários',
+          acao: 'Criação',
+          registro_codigo: usrCriado.codigo || null,
+          descricao: `Cadastro do usuário "${usrCriado.nome_completo}" (${usrCriado.email}, perfil ${usrCriado.perfil}, estado ${usrCriado.estado}). Convite enviado.`,
+          detalhes: { usuario: usrCriado, inviteSent },
+        })
+
         return {
-          usuario: fnData.usuario as UsuarioSistema,
+          usuario: usrCriado,
           inviteSent,
           message: inviteMessage,
         }
@@ -94,8 +104,18 @@ export const createUsuario = async (
     throw error
   }
 
+  const usuarioCriado = data as UsuarioSistema
+
+  await registrarAuditoria({
+    entidade: 'Usuários',
+    acao: 'Criação',
+    registro_codigo: usuarioCriado.codigo || null,
+    descricao: `Cadastro do usuário "${usuarioCriado.nome_completo}" (${usuarioCriado.email}, perfil ${usuarioCriado.perfil}, estado ${usuarioCriado.estado}).`,
+    detalhes: { usuario: usuarioCriado, inviteSent },
+  })
+
   return {
-    usuario: data as UsuarioSistema,
+    usuario: usuarioCriado,
     inviteSent,
     message: inviteMessage,
   }
@@ -121,7 +141,18 @@ export const updateUsuario = async (
     console.error('Erro ao atualizar usuário do sistema:', error)
     throw error
   }
-  return data as UsuarioSistema
+
+  const updated = data as UsuarioSistema
+
+  await registrarAuditoria({
+    entidade: 'Usuários',
+    acao: 'Edição',
+    registro_codigo: updated.codigo || null,
+    descricao: `Edição do usuário "${updated.nome_completo}" (${updated.email}, perfil ${updated.perfil}, estado ${updated.estado}).`,
+    detalhes: { id, alteracoes: input },
+  })
+
+  return updated
 }
 
 export const deleteUsuario = async (usuario: UsuarioSistema): Promise<void> => {
@@ -146,4 +177,12 @@ export const deleteUsuario = async (usuario: UsuarioSistema): Promise<void> => {
     console.error('Erro ao excluir usuário do sistema:', error)
     throw error
   }
+
+  await registrarAuditoria({
+    entidade: 'Usuários',
+    acao: 'Exclusão',
+    registro_codigo: usuario.codigo || null,
+    descricao: `Exclusão do usuário "${usuario.nome_completo}" (${usuario.email}).`,
+    detalhes: { usuario },
+  })
 }

@@ -128,3 +128,26 @@ export interface UsuarioSistema {
   created_at?: string
   updated_at?: string
 }
+
+export type AcaoAuditoria = 'Criação' | 'Edição' | 'Exclusão' | 'Login'
+
+export type EntidadeAuditoria =
+  | 'Unidades escolares'
+  | 'Municípios/Redes'
+  | 'Tipos de escola'
+  | 'Usuários'
+  | 'Autenticação'
+
+export interface RegistroAuditoria {
+  id: string
+  codigo?: string
+  registro_codigo?: string | null
+  entidade: EntidadeAuditoria | string
+  acao: AcaoAuditoria | string
+  descricao: string
+  usuario_id?: string | null
+  usuario_nome: string
+  usuario_email: string
+  detalhes?: Record<string, any> | null
+  created_at: string
+}

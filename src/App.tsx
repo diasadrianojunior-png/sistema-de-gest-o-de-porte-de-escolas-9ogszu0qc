@@ -9,6 +9,7 @@ import Painel from './pages/Painel'
 import CadastrosApoio from './pages/CadastrosApoio'
 import CadastrosMestres from './pages/CadastrosMestres'
 import Administracao from './pages/Administracao'
+import Auditoria from './pages/Auditoria'
 import NotFound from './pages/NotFound'
 import Layout from './components/Layout'
 
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/cadastros-mestres" element={<CadastrosMestres />} />
             <Route path="/cadastros-apoio" element={<CadastrosApoio />} />
             <Route path="/administracao" element={<Administracao />} />
+            <Route path="/auditoria" element={<Auditoria />} />
           </Route>
 
           {/* Rota 404 */}

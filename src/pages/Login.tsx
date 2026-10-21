@@ -49,6 +49,27 @@ export default function Login() {
           setErrorMessage(error.message || 'Falha ao realizar login. Tente novamente.')
         }
       } else {
+        // Gravar auditoria de login realizado com sucesso
+        import('@/services/auditoria')
+          .then(({ registrarAuditoria, getUsuarioAtualParaAuditoria }) => {
+            getUsuarioAtualParaAuditoria().then((usr) => {
+              registrarAuditoria({
+                entidade: 'Autenticação',
+                acao: 'Login',
+                registro_codigo: null,
+                descricao: `Login realizado com sucesso no sistema pelo usuário ${usr.nome} (${email.trim().toLowerCase()}).`,
+                usuario_id: usr.id,
+                usuario_nome: usr.nome,
+                usuario_email: email.trim().toLowerCase(),
+                detalhes: {
+                  email: email.trim().toLowerCase(),
+                  timestamp: new Date().toISOString(),
+                },
+              }).catch((err) => console.warn('Erro ao auditar login:', err))
+            })
+          })
+          .catch((err) => console.warn('Falha no import do serviço de auditoria:', err))
+
         navigate('/painel')
       }
     } catch (err: any) {

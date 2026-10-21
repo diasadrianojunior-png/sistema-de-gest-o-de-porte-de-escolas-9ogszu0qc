@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/client'
 import { MunicipioRede, TipoEscola } from '@/types/gestao-escolar'
+import { registrarAuditoria } from './auditoria'
 
 const db = supabase as any
 
@@ -26,7 +27,18 @@ export const createMunicipio = async (
     console.error('Erro ao criar município:', error)
     throw error
   }
-  return data as MunicipioRede
+
+  const created = data as MunicipioRede
+
+  await registrarAuditoria({
+    entidade: 'Municípios/Redes',
+    acao: 'Criação',
+    registro_codigo: created.codigo || null,
+    descricao: `Cadastro do município/rede "${created.nome}" (${created.uf}, esfera ${created.esfera}).`,
+    detalhes: { municipio: created },
+  })
+
+  return created
 }
 
 export const updateMunicipio = async (
@@ -44,16 +56,37 @@ export const updateMunicipio = async (
     console.error('Erro ao atualizar município:', error)
     throw error
   }
-  return data as MunicipioRede
+
+  const updated = data as MunicipioRede
+
+  await registrarAuditoria({
+    entidade: 'Municípios/Redes',
+    acao: 'Edição',
+    registro_codigo: updated.codigo || null,
+    descricao: `Edição do município/rede "${updated.nome}" (${updated.uf}, esfera ${updated.esfera}).`,
+    detalhes: { id, alteracoes: municipio },
+  })
+
+  return updated
 }
 
 export const deleteMunicipio = async (id: string): Promise<void> => {
+  const { data: anterior } = await db.from('municipios_rede').select('*').eq('id', id).maybeSingle()
+
   const { error } = await db.from('municipios_rede').delete().eq('id', id)
 
   if (error) {
     console.error('Erro ao excluir município:', error)
     throw error
   }
+
+  await registrarAuditoria({
+    entidade: 'Municípios/Redes',
+    acao: 'Exclusão',
+    registro_codigo: anterior?.codigo || null,
+    descricao: `Exclusão do município/rede "${anterior?.nome || id}".`,
+    detalhes: { id, registro_anterior: anterior },
+  })
 }
 
 // --- Tipos de Escola ---
@@ -79,7 +112,18 @@ export const createTipoEscola = async (
     console.error('Erro ao criar tipo de escola:', error)
     throw error
   }
-  return data as TipoEscola
+
+  const created = data as TipoEscola
+
+  await registrarAuditoria({
+    entidade: 'Tipos de escola',
+    acao: 'Criação',
+    registro_codigo: created.codigo || null,
+    descricao: `Cadastro do tipo de escola "${created.nome}".`,
+    detalhes: { tipo: created },
+  })
+
+  return created
 }
 
 export const updateTipoEscola = async (
@@ -97,14 +141,35 @@ export const updateTipoEscola = async (
     console.error('Erro ao atualizar tipo de escola:', error)
     throw error
   }
-  return data as TipoEscola
+
+  const updated = data as TipoEscola
+
+  await registrarAuditoria({
+    entidade: 'Tipos de escola',
+    acao: 'Edição',
+    registro_codigo: updated.codigo || null,
+    descricao: `Edição do tipo de escola "${updated.nome}".`,
+    detalhes: { id, alteracoes: tipo },
+  })
+
+  return updated
 }
 
 export const deleteTipoEscola = async (id: string): Promise<void> => {
+  const { data: anterior } = await db.from('tipos_escola').select('*').eq('id', id).maybeSingle()
+
   const { error } = await db.from('tipos_escola').delete().eq('id', id)
 
   if (error) {
     console.error('Erro ao excluir tipo de escola:', error)
     throw error
   }
+
+  await registrarAuditoria({
+    entidade: 'Tipos de escola',
+    acao: 'Exclusão',
+    registro_codigo: anterior?.codigo || null,
+    descricao: `Exclusão do tipo de escola "${anterior?.nome || id}".`,
+    detalhes: { id, registro_anterior: anterior },
+  })
 }
