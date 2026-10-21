@@ -17,6 +17,14 @@ export interface TipoEscola {
   updated_at?: string
 }
 
+export interface Cargo {
+  id: string
+  codigo?: string
+  nome: string
+  created_at?: string
+  updated_at?: string
+}
+
 export type TipoAtendimentoUnidade =
   | 'Ensino Fundamental e Educação Infantil (20h)'
   | 'Educação Infantil (40h)'
@@ -135,6 +143,7 @@ export type EntidadeAuditoria =
   | 'Unidades escolares'
   | 'Municípios/Redes'
   | 'Tipos de escola'
+  | 'Cargos'
   | 'Usuários'
   | 'Autenticação'
 

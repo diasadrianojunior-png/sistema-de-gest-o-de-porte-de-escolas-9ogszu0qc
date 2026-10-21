@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
-import { MunicipioRede, TipoEscola } from '@/types/gestao-escolar'
+import { Cargo, MunicipioRede, TipoEscola } from '@/types/gestao-escolar'
 import { registrarAuditoria } from './auditoria'
 
 const db = supabase as any
@@ -170,6 +170,88 @@ export const deleteTipoEscola = async (id: string): Promise<void> => {
     acao: 'Exclusão',
     registro_codigo: anterior?.codigo || null,
     descricao: `Exclusão do tipo de escola "${anterior?.nome || id}".`,
+    detalhes: { id, registro_anterior: anterior },
+  })
+}
+
+// --- Cargos ---
+export const getCargos = async (): Promise<Cargo[]> => {
+  const { data, error } = await db.from('cargos').select('*').order('codigo', { ascending: true })
+
+  if (error) {
+    console.error('Erro ao buscar cargos:', error)
+    throw error
+  }
+  return (data as Cargo[]) || []
+}
+
+export const createCargo = async (
+  cargo: Omit<Cargo, 'id' | 'codigo' | 'created_at' | 'updated_at'>,
+): Promise<Cargo> => {
+  const { data, error } = await db.from('cargos').insert([cargo]).select().single()
+
+  if (error) {
+    console.error('Erro ao criar cargo:', error)
+    throw error
+  }
+
+  const created = data as Cargo
+
+  await registrarAuditoria({
+    entidade: 'Cargos',
+    acao: 'Criação',
+    registro_codigo: created.codigo || null,
+    descricao: `Cadastro do cargo "${created.nome}".`,
+    detalhes: { cargo: created },
+  })
+
+  return created
+}
+
+export const updateCargo = async (
+  id: string,
+  cargo: Partial<Omit<Cargo, 'id' | 'codigo' | 'created_at' | 'updated_at'>>,
+): Promise<Cargo> => {
+  const { data, error } = await db
+    .from('cargos')
+    .update({ ...cargo, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Erro ao atualizar cargo:', error)
+    throw error
+  }
+
+  const updated = data as Cargo
+
+  await registrarAuditoria({
+    entidade: 'Cargos',
+    acao: 'Edição',
+    registro_codigo: updated.codigo || null,
+    descricao: `Edição do cargo "${updated.nome}".`,
+    detalhes: { id, alteracoes: cargo },
+  })
+
+  return updated
+}
+
+export const deleteCargo = async (id: string): Promise<void> => {
+  const { data: anterior } = await db.from('cargos').select('*').eq('id', id).maybeSingle()
+
+  const { error } = await db.from('cargos').delete().eq('id', id)
+
+  if (error) {
+    console.error('Erro ao excluir cargo:', error)
+    throw error
+  }
+
+  await registrarAuditoria({
+    entidade: 'Cargos',
+    acao: 'Exclusão',
+    registro_codigo: anterior?.codigo || null,
+    descricao: `Exclusão do cargo "${anterior?.nome || id}".`,
     detalhes: { id, registro_anterior: anterior },
   })
 }
