@@ -287,7 +287,10 @@ export default function Funcoes() {
               Total de {funcoes.length} função(ões) cadastrada(s) na tabela de apoio
             </CardDescription>
           </div>
-          <Button onClick={handleOpenCreateFuncao} className="gap-2">
+          <Button
+            onClick={handleOpenCreateFuncao}
+            className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+          >
             <Plus className="w-4 h-4" />
             Nova Função
           </Button>
@@ -378,27 +381,24 @@ export default function Funcoes() {
                         {/* Ações */}
                         <td className="py-3 px-4 text-right space-x-1">
                           <Button
-                            variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-slate-600 hover:text-blue-700 hover:bg-blue-50"
+                            className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
                             onClick={() => handleOpenViewFuncao(f)}
                             title="Visualizar Detalhes"
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
                           <Button
-                            variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-slate-600 hover:text-slate-900"
+                            className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
                             onClick={() => handleOpenEditFuncao(f)}
                             title="Editar"
                           >
                             <Edit2 className="w-4 h-4" />
                           </Button>
                           <Button
-                            variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                            className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
                             onClick={() => setDeletingFuncao(f)}
                             title="Excluir"
                           >
@@ -484,10 +484,9 @@ export default function Funcoes() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <Button
                     type="button"
-                    variant="outline"
                     size="sm"
                     onClick={handleOpenNovoCargoInline}
-                    className="h-7 text-xs px-2.5 gap-1.5 bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:text-blue-800 font-medium"
+                    className="h-7 text-xs px-2.5 gap-1.5 bg-[#0B2545] hover:bg-[#133A68] text-white font-medium"
                     title="Criar novo cargo diretamente sem sair do cadastro de funções"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -495,22 +494,20 @@ export default function Funcoes() {
                   </Button>
                   <Button
                     type="button"
-                    variant="outline"
                     size="sm"
                     onClick={handleSelectAllCargos}
-                    className="h-7 text-xs px-2 gap-1 text-slate-700"
+                    className="h-7 text-xs px-2 gap-1 bg-[#0B2545] hover:bg-[#133A68] text-white"
                   >
-                    <CheckSquare className="w-3 h-3 text-blue-600" />
+                    <CheckSquare className="w-3 h-3" />
                     Marcar todos
                   </Button>
                   <Button
                     type="button"
-                    variant="outline"
                     size="sm"
                     onClick={handleDeselectAllCargos}
-                    className="h-7 text-xs px-2 gap-1 text-slate-700"
+                    className="h-7 text-xs px-2 gap-1 bg-[#0B2545] hover:bg-[#133A68] text-white"
                   >
-                    <Square className="w-3 h-3 text-slate-400" />
+                    <Square className="w-3 h-3" />
                     Desmarcar todos
                   </Button>
                 </div>
@@ -566,13 +563,17 @@ export default function Funcoes() {
             <DialogFooter className="pt-3 border-t shrink-0">
               <Button
                 type="button"
-                variant="outline"
                 onClick={() => setOpenFuncaoDialog(false)}
                 disabled={saving}
+                className="bg-[#0B2545] hover:bg-[#133A68] text-white"
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={saving}>
+              <Button
+                type="submit"
+                disabled={saving}
+                className="bg-[#0B2545] hover:bg-[#133A68] text-white"
+              >
                 {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 {editingFuncao ? 'Atualizar Função' : 'Salvar Função'}
               </Button>
@@ -662,9 +663,8 @@ export default function Funcoes() {
             {viewingFuncao && (
               <Button
                 type="button"
-                variant="outline"
                 size="sm"
-                className="gap-1.5 text-xs"
+                className="gap-1.5 text-xs bg-[#0B2545] hover:bg-[#133A68] text-white"
                 onClick={() => {
                   setOpenViewDialog(false)
                   handleOpenEditFuncao(viewingFuncao)
@@ -676,9 +676,8 @@ export default function Funcoes() {
             )}
             <Button
               type="button"
-              variant="outline"
               onClick={() => setOpenViewDialog(false)}
-              className="text-xs"
+              className="text-xs bg-[#0B2545] hover:bg-[#133A68] text-white"
             >
               Fechar
             </Button>
@@ -733,13 +732,17 @@ export default function Funcoes() {
             <DialogFooter className="pt-3">
               <Button
                 type="button"
-                variant="outline"
                 onClick={() => setOpenNovoCargoDialog(false)}
                 disabled={salvandoCargo}
+                className="bg-[#0B2545] hover:bg-[#133A68] text-white"
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={salvandoCargo}>
+              <Button
+                type="submit"
+                disabled={salvandoCargo}
+                className="bg-[#0B2545] hover:bg-[#133A68] text-white"
+              >
                 {salvandoCargo && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Cadastrar Cargo
               </Button>
@@ -767,10 +770,15 @@ export default function Funcoes() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel
+              disabled={saving}
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white hover:text-white border-transparent"
+            >
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteFuncaoConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white"
               disabled={saving}
             >
               {saving ? 'Excluindo...' : 'Excluir'}

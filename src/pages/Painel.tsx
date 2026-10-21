@@ -92,7 +92,10 @@ export default function Painel() {
               </div>
               <span className="font-semibold text-slate-800">{loadingData ? '...' : total40h}</span>
             </div>
-            <Button asChild className="w-full gap-2 mt-2">
+            <Button
+              asChild
+              className="w-full gap-2 mt-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+            >
               <Link to="/cadastros-mestres">
                 Acessar Unidades Escolares
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
@@ -135,7 +138,10 @@ export default function Painel() {
               </div>
               <span className="font-semibold text-slate-800">Cargos</span>
             </div>
-            <Button asChild variant="secondary" className="w-full gap-2 mt-2">
+            <Button
+              asChild
+              className="w-full gap-2 mt-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+            >
               <Link to="/cadastros-apoio/cargos">
                 Acessar Cargos
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
@@ -156,7 +162,7 @@ export default function Painel() {
               Visualização resumida dos cadastros mestres recentes
             </p>
           </div>
-          <Button asChild variant="outline" size="sm">
+          <Button asChild size="sm" className="bg-[#0B2545] hover:bg-[#133A68] text-white">
             <Link to="/cadastros-mestres">Ver todas</Link>
           </Button>
         </div>

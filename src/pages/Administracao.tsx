@@ -237,7 +237,10 @@ export default function Administracao() {
               Total de {usuarios.length} usuário(s) registrado(s) na plataforma
             </CardDescription>
           </div>
-          <Button onClick={handleOpenCreate} className="gap-2 bg-blue-600 hover:bg-blue-700">
+          <Button
+            onClick={handleOpenCreate}
+            className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+          >
             <Plus className="w-4 h-4" />
             Novo Usuário
           </Button>
@@ -328,18 +331,16 @@ export default function Administracao() {
                       </td>
                       <td className="py-3 px-4 text-right space-x-1">
                         <Button
-                          variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-slate-600 hover:text-slate-900"
+                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
                           onClick={() => handleOpenEdit(u)}
                           title="Editar"
                         >
                           <Edit2 className="w-4 h-4" />
                         </Button>
                         <Button
-                          variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
                           onClick={() => setDeletingUsuario(u)}
                           title="Excluir"
                         >
@@ -536,17 +537,16 @@ export default function Administracao() {
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
               <Button
                 type="button"
-                variant="ghost"
                 onClick={() => setOpenCreateDialog(false)}
                 disabled={saving}
-                className="text-slate-700 hover:text-slate-900 font-medium"
+                className="bg-[#0B2545] hover:bg-[#133A68] text-white font-medium px-4 h-10"
               >
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 disabled={saving}
-                className="bg-[#2563eb] hover:bg-blue-700 text-white font-medium px-5 h-10 shadow-sm"
+                className="bg-[#0B2545] hover:bg-[#133A68] text-white font-medium px-5 h-10 shadow-sm"
               >
                 {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Salvar e enviar e-mail
@@ -738,17 +738,16 @@ export default function Administracao() {
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
               <Button
                 type="button"
-                variant="ghost"
                 onClick={() => setOpenEditDialog(false)}
                 disabled={saving}
-                className="text-slate-700 hover:text-slate-900 font-medium"
+                className="bg-[#0B2545] hover:bg-[#133A68] text-white font-medium px-4 h-10"
               >
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 disabled={saving}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 h-10 shadow-sm"
+                className="bg-[#0B2545] hover:bg-[#133A68] text-white font-medium px-5 h-10 shadow-sm"
               >
                 {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Salvar Alterações
@@ -776,10 +775,15 @@ export default function Administracao() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel
+              disabled={saving}
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white hover:text-white border-transparent"
+            >
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white"
               disabled={saving}
             >
               {saving ? 'Excluindo...' : 'Excluir Usuário'}

@@ -1118,10 +1118,9 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
           />
           <Button
             type="button"
-            variant="outline"
             onClick={handleRefSearch}
             disabled={disabled || searchingRef || !refSearchText.trim()}
-            className="shrink-0 text-slate-700"
+            className="shrink-0 bg-[#0B2545] hover:bg-[#133A68] text-white"
           >
             {searchingRef ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Localizar'}
           </Button>

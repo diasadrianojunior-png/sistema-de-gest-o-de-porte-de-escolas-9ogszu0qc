@@ -381,7 +381,10 @@ export default function CadastrosMestres() {
               Total de {unidades.length} unidade(s) escolar(es) cadastrada(s)
             </CardDescription>
           </div>
-          <Button onClick={handleOpenCreate} className="gap-2">
+          <Button
+            onClick={handleOpenCreate}
+            className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+          >
             <Plus className="w-4 h-4" />
             Nova Unidade Escolar
           </Button>
@@ -473,27 +476,24 @@ export default function CadastrosMestres() {
                       </td>
                       <td className="py-3 px-4 text-right space-x-1">
                         <Button
-                          variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-slate-600 hover:text-slate-900"
+                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
                           onClick={() => handleOpenView(unidade)}
                           title="Visualizar Detalhes"
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
                         <Button
-                          variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-slate-600 hover:text-slate-900"
+                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
                           onClick={() => handleOpenEdit(unidade)}
                           title="Editar"
                         >
                           <Edit2 className="w-4 h-4" />
                         </Button>
                         <Button
-                          variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
                           onClick={() => setDeletingUnidade(unidade)}
                           title="Excluir"
                         >
@@ -686,13 +686,17 @@ export default function CadastrosMestres() {
             <DialogFooter className="pt-4 border-t">
               <Button
                 type="button"
-                variant="outline"
                 onClick={() => setOpenFormDialog(false)}
                 disabled={saving}
+                className="bg-[#0B2545] hover:bg-[#133A68] text-white"
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={saving}>
+              <Button
+                type="submit"
+                disabled={saving}
+                className="bg-[#0B2545] hover:bg-[#133A68] text-white"
+              >
                 {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 {editingUnidade ? 'Atualizar Unidade' : 'Cadastrar Unidade'}
               </Button>
@@ -794,7 +798,11 @@ export default function CadastrosMestres() {
             </div>
           )}
           <DialogFooter>
-            <Button type="button" onClick={() => setOpenViewDialog(false)}>
+            <Button
+              type="button"
+              onClick={() => setOpenViewDialog(false)}
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white"
+            >
               Fechar
             </Button>
           </DialogFooter>
@@ -816,10 +824,15 @@ export default function CadastrosMestres() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel
+              disabled={saving}
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white hover:text-white border-transparent"
+            >
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white"
               disabled={saving}
             >
               {saving ? 'Excluindo...' : 'Excluir'}

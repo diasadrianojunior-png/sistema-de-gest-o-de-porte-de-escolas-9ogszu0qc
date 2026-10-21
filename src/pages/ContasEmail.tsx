@@ -22,15 +22,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import {
-  HelpCircle,
   Plus,
   Search,
   Loader2,
   Send,
   Pencil,
   Trash2,
-  ChevronDown,
-  ChevronUp,
   ShieldCheck,
   Server,
   Lock,
@@ -58,9 +55,6 @@ export default function ContasEmail() {
   const [saving, setSaving] = useState(false)
   const [testingId, setTestingId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-
-  // Controle de colapso do card de orientações
-  const [helpExpanded, setHelpExpanded] = useState(false)
 
   // Modais
   const [openModal, setOpenModal] = useState(false)
@@ -353,16 +347,6 @@ export default function ContasEmail() {
         <div className="flex items-center gap-3">
           <Button
             type="button"
-            variant="outline"
-            onClick={() => setHelpExpanded((prev) => !prev)}
-            className="gap-2 border-slate-300 text-slate-700 hover:bg-slate-50 shadow-2xs font-medium text-xs sm:text-sm h-10 px-4"
-          >
-            <HelpCircle className="w-4 h-4 text-slate-600" />
-            Ajuda do Cadastro
-          </Button>
-
-          <Button
-            type="button"
             onClick={handleOpenCreate}
             className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white shadow-2xs font-medium text-xs sm:text-sm h-10 px-4"
           >
@@ -370,70 +354,6 @@ export default function ContasEmail() {
             Nova Conta de E-mail
           </Button>
         </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* CARTÃO AZUL CLARO EXPANSÍVEL: ORIENTAÇÕES CONFORME IMAGEM 1               */}
-      {/* ========================================================================= */}
-      <div className="rounded-xl border border-blue-200 bg-[#EBF3FC] transition-all">
-        <button
-          type="button"
-          onClick={() => setHelpExpanded((prev) => !prev)}
-          className="w-full text-left p-4 flex items-center justify-between gap-3 cursor-pointer group select-none"
-        >
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-[#1E3A8A] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-              <HelpCircle className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-bold text-slate-900 text-sm">
-                  Orientações: Configuração e Cadastro de Contas de E-mail (SMTP)
-                </span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-blue-200/80 text-blue-900">
-                  AJUDA
-                </span>
-              </div>
-              <p className="text-xs text-slate-600 mt-0.5">
-                Envio institucional, segurança TLS/SSL, teste de disparo e proteção de credenciais
-                ativas
-              </p>
-            </div>
-          </div>
-          <div className="text-slate-500 group-hover:text-slate-800 p-1 shrink-0">
-            {helpExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-          </div>
-        </button>
-
-        {helpExpanded && (
-          <div className="px-4 pb-4 pt-1 border-t border-blue-200/60 text-xs text-slate-700 space-y-3 leading-relaxed">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-              <div className="bg-white/80 p-3 rounded-lg border border-blue-100">
-                <span className="font-bold text-slate-900 block mb-1">1. Segurança das Senhas</span>
-                <p className="text-slate-600">
-                  As senhas do SMTP são protegidas com criptografia simétrica AES-256 no banco de
-                  dados e nunca são expostas na listagem ou na tela de edição.
-                </p>
-              </div>
-              <div className="bg-white/80 p-3 rounded-lg border border-blue-100">
-                <span className="font-bold text-slate-900 block mb-1">
-                  2. Portas e Criptografia
-                </span>
-                <p className="text-slate-600">
-                  Para TLS/STARTTLS utilize comumente a porta <strong>587</strong>. Para SSL
-                  implícito utilize a porta <strong>465</strong>.
-                </p>
-              </div>
-              <div className="bg-white/80 p-3 rounded-lg border border-blue-100">
-                <span className="font-bold text-slate-900 block mb-1">3. Botão "Testar"</span>
-                <p className="text-slate-600">
-                  Permite validar a sintaxe e a integridade dos parâmetros do host, porta e dados do
-                  remetente institucional antes de disparar redefinições de senha.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ========================================================================= */}
@@ -645,36 +565,32 @@ export default function ContasEmail() {
                     <td className="py-4 px-4 align-top text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <Button
-                          variant="outline"
                           size="sm"
                           onClick={() => handleTestar(item)}
                           disabled={testingId === item.id}
-                          className="h-8 px-2.5 text-xs font-medium text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900 gap-1.5 shadow-2xs"
+                          className="h-8 px-2.5 text-xs font-medium bg-[#0B2545] hover:bg-[#133A68] text-white gap-1.5 shadow-2xs"
                           title="Testar parâmetros da conta"
                         >
                           {testingId === item.id ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           ) : (
-                            <Send className="w-3.5 h-3.5 text-slate-600" />
+                            <Send className="w-3.5 h-3.5" />
                           )}
                           <span>Testar</span>
                         </Button>
-
                         <Button
-                          variant="ghost"
                           size="icon"
                           onClick={() => handleOpenEdit(item)}
-                          className="h-8 w-8 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
                           title="Editar conta"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
 
                         <Button
-                          variant="ghost"
                           size="icon"
                           onClick={() => setDeletingConta(item)}
-                          className="h-8 w-8 text-slate-500 hover:text-rose-600 hover:bg-rose-50"
+                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
                           title="Excluir conta"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -741,7 +657,6 @@ export default function ContasEmail() {
                 </Label>
                 <Input
                   id="smtp-descricao"
-                  placeholder="Ex.: Coordenadoria de Educação - PMF"
                   value={formDescricao}
                   onChange={(e) => setFormDescricao(e.target.value)}
                   required
@@ -788,7 +703,6 @@ export default function ContasEmail() {
                   </Label>
                   <Input
                     id="smtp-host"
-                    placeholder="smtp.florianopolis.sc.gov.br ou smtp.off..."
                     value={formHost}
                     onChange={(e) => setFormHost(e.target.value)}
                     required
@@ -804,7 +718,6 @@ export default function ContasEmail() {
                   <Input
                     id="smtp-porta"
                     type="number"
-                    placeholder="587"
                     value={formPorta}
                     onChange={(e) => setFormPorta(e.target.value)}
                     required
@@ -851,7 +764,6 @@ export default function ContasEmail() {
                   </Label>
                   <Input
                     id="smtp-usuario"
-                    placeholder="usuario@dominio.com ou login"
                     value={formUsuarioSmtp}
                     onChange={(e) => setFormUsuarioSmtp(e.target.value)}
                     required
@@ -868,9 +780,6 @@ export default function ContasEmail() {
                     <Input
                       id="smtp-senha"
                       type={showPassword ? 'text' : 'password'}
-                      placeholder={
-                        editingConta ? 'Deixar em branco para manter a atual' : '••••••••••••'
-                      }
                       value={formSenhaSmtp}
                       onChange={(e) => setFormSenhaSmtp(e.target.value)}
                       required={!editingConta}
@@ -915,7 +824,6 @@ export default function ContasEmail() {
                   <Input
                     id="smtp-email-from"
                     type="email"
-                    placeholder="educacao@florianopolis.sc.gov.br"
                     value={formEmailFrom}
                     onChange={(e) => setFormEmailFrom(e.target.value)}
                     required
@@ -930,7 +838,6 @@ export default function ContasEmail() {
                   </Label>
                   <Input
                     id="smtp-nome-from"
-                    placeholder="Ex.: Secretaria de Educação - PMF"
                     value={formNomeFrom}
                     onChange={(e) => setFormNomeFrom(e.target.value)}
                     required
@@ -947,7 +854,6 @@ export default function ContasEmail() {
                   <Input
                     id="smtp-reply-to"
                     type="email"
-                    placeholder="suporte.vagas@florianopolis.sc.gov.br"
                     value={formReplyTo}
                     onChange={(e) => setFormReplyTo(e.target.value)}
                     className="h-10 rounded-lg border-slate-300 text-xs font-mono"
@@ -966,7 +872,6 @@ export default function ContasEmail() {
                   <Input
                     id="smtp-limite-diario"
                     type="number"
-                    placeholder="Ex.: 1000"
                     value={formLimiteDiario}
                     onChange={(e) => setFormLimiteDiario(e.target.value)}
                     className="h-10 rounded-lg border-slate-300 text-xs font-mono"
@@ -979,10 +884,9 @@ export default function ContasEmail() {
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
               <Button
                 type="button"
-                variant="outline"
                 onClick={() => setOpenModal(false)}
                 disabled={saving}
-                className="h-10 px-5 text-xs sm:text-sm font-medium border-slate-300 text-slate-700 hover:bg-slate-50 shadow-2xs"
+                className="h-10 px-5 text-xs sm:text-sm font-medium bg-[#0B2545] hover:bg-[#133A68] text-white shadow-2xs"
               >
                 Cancelar
               </Button>
@@ -1024,10 +928,15 @@ export default function ContasEmail() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel
+              disabled={saving}
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white hover:text-white border-transparent"
+            >
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white"
               disabled={saving}
             >
               {saving ? 'Excluindo...' : 'Excluir Conta'}

@@ -200,11 +200,10 @@ export default function Auditoria() {
 
         <div className="flex items-center gap-2">
           <Button
-            variant="outline"
             size="sm"
             onClick={() => carregarAuditoria(true)}
             disabled={loading || refreshing}
-            className="gap-2 text-slate-700"
+            className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
             Atualizar
@@ -241,10 +240,9 @@ export default function Auditoria() {
               filtroAcao !== 'todas' ||
               filtroUsuario !== 'todos') && (
               <Button
-                variant="ghost"
                 size="sm"
                 onClick={limparFiltros}
-                className="text-xs text-blue-600 hover:text-blue-800 self-start sm:self-auto"
+                className="text-xs bg-[#0B2545] hover:bg-[#133A68] text-white self-start sm:self-auto"
               >
                 Limpar filtros aplicados
               </Button>
@@ -453,9 +451,8 @@ export default function Auditoria() {
                       {/* Botão de Ver Detalhes (somente leitura) */}
                       <td className="py-3 px-4 text-right">
                         <Button
-                          variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-slate-500 hover:text-blue-700 hover:bg-blue-100/60"
+                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
                           onClick={(e) => {
                             e.stopPropagation()
                             handleVisualizar(item)
@@ -571,9 +568,8 @@ export default function Auditoria() {
           <DialogFooter className="border-t pt-3">
             <Button
               type="button"
-              variant="outline"
               onClick={() => setOpenDetailsDialog(false)}
-              className="text-xs"
+              className="text-xs bg-[#0B2545] hover:bg-[#133A68] text-white"
             >
               Fechar
             </Button>

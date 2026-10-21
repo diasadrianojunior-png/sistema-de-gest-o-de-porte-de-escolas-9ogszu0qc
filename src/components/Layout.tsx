@@ -719,10 +719,9 @@ export default function Layout() {
 
                 <div className="flex items-center gap-2">
                   <Button
-                    variant="outline"
                     size="sm"
                     onClick={handleSignOut}
-                    className="flex-1 justify-center gap-2 text-slate-700 hover:text-destructive hover:border-destructive/30 hover:bg-red-50 text-xs"
+                    className="flex-1 justify-center gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white text-xs"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     Encerrar Sessão
@@ -847,10 +846,9 @@ export default function Layout() {
             </div>
 
             <Button
-              variant="ghost"
               size="sm"
               onClick={handleSignOut}
-              className="text-xs text-slate-600 hover:text-destructive hover:bg-red-50 gap-1.5"
+              className="text-xs bg-[#0B2545] hover:bg-[#133A68] text-white gap-1.5"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Sair</span>

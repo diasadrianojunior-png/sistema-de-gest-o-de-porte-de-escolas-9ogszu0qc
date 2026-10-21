@@ -151,7 +151,10 @@ export default function Cargos() {
               Total de {cargos.length} cargo(s) cadastrado(s) na tabela de apoio
             </CardDescription>
           </div>
-          <Button onClick={handleOpenCreateCargo} className="gap-2">
+          <Button
+            onClick={handleOpenCreateCargo}
+            className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+          >
             <Plus className="w-4 h-4" />
             Novo Cargo
           </Button>
@@ -199,18 +202,16 @@ export default function Cargos() {
                       <td className="py-3 px-4 font-medium text-slate-900">{c.nome}</td>
                       <td className="py-3 px-4 text-right space-x-1">
                         <Button
-                          variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-slate-600 hover:text-slate-900"
+                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
                           onClick={() => handleOpenEditCargo(c)}
                           title="Editar"
                         >
                           <Edit2 className="w-4 h-4" />
                         </Button>
                         <Button
-                          variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
                           onClick={() => setDeletingCargo(c)}
                           title="Excluir"
                         >
@@ -269,13 +270,17 @@ export default function Cargos() {
             <DialogFooter className="pt-4">
               <Button
                 type="button"
-                variant="outline"
                 onClick={() => setOpenCargoDialog(false)}
                 disabled={saving}
+                className="bg-[#0B2545] hover:bg-[#133A68] text-white"
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={saving}>
+              <Button
+                type="submit"
+                disabled={saving}
+                className="bg-[#0B2545] hover:bg-[#133A68] text-white"
+              >
                 {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 {editingCargo ? 'Atualizar' : 'Salvar'}
               </Button>
@@ -295,10 +300,15 @@ export default function Cargos() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel
+              disabled={saving}
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white hover:text-white border-transparent"
+            >
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteCargoConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white"
               disabled={saving}
             >
               {saving ? 'Excluindo...' : 'Excluir'}

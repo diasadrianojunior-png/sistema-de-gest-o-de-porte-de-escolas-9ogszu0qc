@@ -150,7 +150,11 @@ export default function Login() {
             </CardContent>
 
             <CardFooter className="pt-2">
-              <Button type="submit" className="w-full gap-2" disabled={isSubmitting}>
+              <Button
+                type="submit"
+                className="w-full gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+                disabled={isSubmitting}
+              >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
