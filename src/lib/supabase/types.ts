@@ -183,6 +183,33 @@ export type Database = {
           },
         ]
       }
+      etapas: {
+        Row: {
+          ano_letivo: number
+          codigo: string | null
+          created_at: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ano_letivo: number
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ano_letivo?: number
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       funcao_cargos: {
         Row: {
           cargo_id: string

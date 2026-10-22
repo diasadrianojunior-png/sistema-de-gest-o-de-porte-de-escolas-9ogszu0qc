@@ -111,18 +111,27 @@ export default function Administracao() {
         setLoadingPermissoesEdit(true)
         const perms = await getPermissoesUsuario(targetUser.id)
         if (perms && perms.length > 0) {
-          setFormPermissoes(
-            perms.map((p) => ({
-              id: p.id,
-              codigo: p.codigo,
-              menu_key: p.menu_key,
-              menu_label: p.menu_label,
-              pode_ver: p.pode_ver,
-              pode_editar: p.pode_editar,
-              suporta_edicao: p.suporta_edicao,
-              ordem: p.ordem,
-            })),
-          )
+          // Assegurar que todos os menus padrão do sistema existam no formulário,
+          // mesclando com o que já foi salvo para o usuário
+          const permsMap = new Map(perms.map((p) => [p.menu_key, p]))
+          const padrao = getPermissoesPadraoOperador()
+          const mescladas = padrao.map((padraoItem) => {
+            const existente = permsMap.get(padraoItem.menu_key)
+            if (existente) {
+              return {
+                id: existente.id,
+                codigo: existente.codigo,
+                menu_key: existente.menu_key,
+                menu_label: existente.menu_label || padraoItem.menu_label,
+                pode_ver: existente.pode_ver,
+                pode_editar: existente.pode_editar,
+                suporta_edicao: existente.suporta_edicao,
+                ordem: padraoItem.ordem,
+              }
+            }
+            return padraoItem
+          })
+          setFormPermissoes(mescladas)
         } else {
           setFormPermissoes(getPermissoesPadraoOperador())
         }
