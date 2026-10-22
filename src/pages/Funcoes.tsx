@@ -447,8 +447,8 @@ export default function Funcoes() {
 
       {/* DIÁLOGO: FUNÇÃO (CRIAR/EDITAR COM CHECKLIST DE CARGOS) */}
       <Dialog open={openFuncaoDialog} onOpenChange={setOpenFuncaoDialog}>
-        <DialogContent className="sm:max-w-[620px] max-h-[90vh] flex flex-col">
-          <DialogHeader className="shrink-0">
+        <DialogContent className="sm:max-w-[640px] max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Layers className="w-5 h-5 text-blue-600" />
               {editingFuncao ? 'Editar Função' : 'Nova Função'}
@@ -458,9 +458,9 @@ export default function Funcoes() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSaveFuncao} className="flex-1 flex flex-col min-h-0 space-y-4 py-2">
+          <form onSubmit={handleSaveFuncao} className="space-y-4 pt-1">
             {/* Campo 1: Identificador gerado automaticamente */}
-            <div className="space-y-1.5 shrink-0">
+            <div className="space-y-1.5">
               <Label
                 htmlFor="f-codigo"
                 className="text-xs font-semibold uppercase tracking-wider text-slate-600"
@@ -480,7 +480,7 @@ export default function Funcoes() {
             </div>
 
             {/* Campo 2: Nome da função (obrigatório) */}
-            <div className="space-y-1.5 shrink-0">
+            <div className="space-y-1.5">
               <Label
                 htmlFor="f-nome"
                 className="text-xs font-semibold uppercase tracking-wider text-slate-700"
@@ -496,22 +496,22 @@ export default function Funcoes() {
               />
             </div>
 
-            {/* Campo 3: Checklist de Cargos que podem exercer */}
-            <div className="flex-1 flex flex-col min-h-0 space-y-2 border-t pt-3">
-              {/* Barra superior do atributo: Título e Botão "+ Novo cargo" */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0">
+            {/* Campo 3: Checklist de Cargos que podem exercer com espaço próprio no fluxo */}
+            <div className="space-y-3 border-t border-slate-200 pt-4 mt-2">
+              {/* Barra superior do atributo: Título e Botões de Ação */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
                 <div>
-                  <Label className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                     <Briefcase className="w-3.5 h-3.5 text-blue-600" />
                     Cargos que podem exercer
                   </Label>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-slate-500 mt-0.5">
                     Selecione os cargos habilitados ({selectedCargoIds.length} de {cargos.length}{' '}
                     selecionado(s))
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <Button
                     type="button"
                     size="sm"
@@ -544,7 +544,7 @@ export default function Funcoes() {
               </div>
 
               {/* Filtro rápido dentro do checklist */}
-              <div className="relative shrink-0">
+              <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
                 <Input
                   placeholder="Filtrar cargos do checklist por código ou nome..."
@@ -554,10 +554,10 @@ export default function Funcoes() {
                 />
               </div>
 
-              {/* Lista rolável do Checklist */}
-              <div className="flex-1 min-h-[180px] max-h-[260px] overflow-y-auto border rounded-md p-2 divide-y divide-slate-100 bg-white">
+              {/* Lista rolável do Checklist com altura fixa confortável (~280px) e scroll interno */}
+              <div className="h-[280px] overflow-y-auto border border-slate-200 rounded-lg p-1.5 divide-y divide-slate-100 bg-white">
                 {cargosFiltradosChecklist.length === 0 ? (
-                  <div className="py-6 text-center text-xs text-slate-500">
+                  <div className="h-full flex items-center justify-center text-xs text-slate-500 py-6">
                     Nenhum cargo encontrado no filtro.
                   </div>
                 ) : (
@@ -566,17 +566,17 @@ export default function Funcoes() {
                     return (
                       <label
                         key={c.id}
-                        className={`flex items-start gap-2.5 p-2 rounded-md hover:bg-slate-50 cursor-pointer transition-colors ${
-                          isChecked ? 'bg-blue-50/50' : ''
+                        className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-slate-50 cursor-pointer transition-colors ${
+                          isChecked ? 'bg-blue-50/70' : ''
                         }`}
                       >
                         <Checkbox
                           checked={isChecked}
                           onCheckedChange={() => handleToggleCargo(c.id)}
-                          className="mt-0.5"
+                          className="shrink-0"
                         />
                         <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                          <span className="text-xs font-medium text-slate-900 leading-snug">
+                          <span className="text-xs font-medium text-slate-900 leading-snug truncate">
                             {c.nome}
                           </span>
                           <span className="font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 shrink-0 border border-slate-200">
@@ -590,7 +590,8 @@ export default function Funcoes() {
               </div>
             </div>
 
-            <DialogFooter className="pt-3 border-t shrink-0">
+            {/* Rodapé de ações — posicionado estritamente abaixo do checklist no fluxo natural */}
+            <DialogFooter className="pt-4 border-t border-slate-200 mt-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 shrink-0">
               <Button
                 type="button"
                 onClick={() => setOpenFuncaoDialog(false)}

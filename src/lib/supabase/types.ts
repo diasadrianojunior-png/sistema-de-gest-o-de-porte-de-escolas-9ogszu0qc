@@ -156,6 +156,82 @@ export type Database = {
         }
         Relationships: []
       }
+      crh_configuracoes: {
+        Row: {
+          ano_letivo: number
+          cargo_id: string
+          codigo: string | null
+          created_at: string
+          funcao_id: string
+          id: string
+          natureza_cargo: string
+          nivel_unidade: string
+          por_periodo: string
+          por_turma: string
+          quantidade_por_funcao: number
+          quantidade_profissionais: number
+          tipo_atendimento: string
+          unidade_escolar_id: string
+          updated_at: string
+        }
+        Insert: {
+          ano_letivo: number
+          cargo_id: string
+          codigo?: string | null
+          created_at?: string
+          funcao_id: string
+          id?: string
+          natureza_cargo?: string
+          nivel_unidade: string
+          por_periodo?: string
+          por_turma?: string
+          quantidade_por_funcao?: number
+          quantidade_profissionais?: number
+          tipo_atendimento: string
+          unidade_escolar_id: string
+          updated_at?: string
+        }
+        Update: {
+          ano_letivo?: number
+          cargo_id?: string
+          codigo?: string | null
+          created_at?: string
+          funcao_id?: string
+          id?: string
+          natureza_cargo?: string
+          nivel_unidade?: string
+          por_periodo?: string
+          por_turma?: string
+          quantidade_por_funcao?: number
+          quantidade_profissionais?: number
+          tipo_atendimento?: string
+          unidade_escolar_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'crh_configuracoes_cargo_id_fkey'
+            columns: ['cargo_id']
+            isOneToOne: false
+            referencedRelation: 'cargos'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'crh_configuracoes_funcao_id_fkey'
+            columns: ['funcao_id']
+            isOneToOne: false
+            referencedRelation: 'funcoes'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'crh_configuracoes_unidade_escolar_id_fkey'
+            columns: ['unidade_escolar_id']
+            isOneToOne: false
+            referencedRelation: 'unidades_escolares'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       escolas: {
         Row: {
           codigo: string | null
@@ -323,6 +399,45 @@ export type Database = {
           id?: string
           nome?: string
           uf?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      niveis_porte: {
+        Row: {
+          alunos_max: number | null
+          alunos_min: number
+          codigo: string | null
+          created_at: string
+          descricao: string | null
+          id: string
+          nivel: string
+          ordem: number
+          tipo_atendimento: string
+          updated_at: string
+        }
+        Insert: {
+          alunos_max?: number | null
+          alunos_min?: number
+          codigo?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nivel: string
+          ordem?: number
+          tipo_atendimento: string
+          updated_at?: string
+        }
+        Update: {
+          alunos_max?: number | null
+          alunos_min?: number
+          codigo?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nivel?: string
+          ordem?: number
+          tipo_atendimento?: string
           updated_at?: string
         }
         Relationships: []
