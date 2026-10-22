@@ -4,6 +4,13 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { MapPin, Search, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { loadGoogleMapsScript, getGoogleMapsApiKey } from '@/lib/google-maps-loader'
+import {
+  consultarViaCep,
+  geocodificarCepGoogle,
+  geocodificarEnderecoGoogle,
+  geocodificarComNominatim,
+  isCoordinateInsideCambeBounds,
+} from '@/services/geocoding-service'
 
 export interface EnderecoUnidadeData {
   cep: string
@@ -505,8 +512,13 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     value.longitude,
   ])
 
-  // REGRA 1 — CEP como ponto de entrada principal:
-  // Consulta o Google Maps (Geocoder, NÃO ViaCEP) usando componentRestrictions: { postalCode: cepSemMascara, country: 'BR' }
+  // REGRA 1 & 2 — CEP como ponto de entrada principal:
+  // Cascata resiliente:
+  // 1. Google Geocoder com postalCode + country: 'BR' (prioritário).
+  // 2. Se ZERO_RESULTS ou falhar: consulta ViaCEP para obter logradouro e bairro + valida município Cambé.
+  //    Com o logradouro e bairro em mãos, geocodifica via Google Geocoder (com restrição Cambé).
+  // 3. Se Google Geocoder não achar o logradouro: fallback com OpenStreetMap/Nominatim (viewbox Cambé com bounded=1).
+  // 4. Se nem assim houver coordenada ou CEP não existir: exibe erro amigável e PRESERVA dados anteriores.
   const handleCepSearch = useCallback(
     async (cepDigits: string) => {
       const cleanCep = cepDigits.replace(/\D/g, '')
@@ -518,85 +530,152 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
       setSearchingCep(true)
 
       try {
-        const google = (window as any).google
-        if (!google?.maps?.Geocoder) {
-          // Se a API do Google não estiver pronta, não quebra a tela
-          notifyError(
-            'API do Google Maps indisponível no momento. Preencha o endereço manualmente.',
-          )
+        // PASSO 1: Tenta Google Geocoder direto por CEP
+        const googleCepRes = await geocodificarCepGoogle(cleanCep)
+        if (googleCepRes && isCidadeCambe(googleCepRes.city, googleCepRes.stateUf)) {
           setSearchingCep(false)
+          lastValidCepRef.current = formatCep(cleanCep)
+          posicionarMarcadorNoPonto(googleCepRes.lat, googleCepRes.lng, 16)
+
+          const updatedData: EnderecoUnidadeData = {
+            cep: formatCep(cleanCep),
+            logradouro: googleCepRes.route || '',
+            numero: '',
+            bairro: googleCepRes.neighborhood || '',
+            cidade: CIDADE_PERMITIDA,
+            estado_uf: ESTADO_PERMITIDO,
+            latitude: googleCepRes.lat,
+            longitude: googleCepRes.lng,
+          }
+
+          onChange(updatedData)
+          emitLocationSummary(updatedData)
+          notifySuccess(
+            `CEP localizado via Google Maps: ${googleCepRes.route ? googleCepRes.route + ' - ' : ''}Cambé - PR`,
+          )
           return
         }
 
-        const geocoder = new google.maps.Geocoder()
+        // PASSO 2: Fallback via ViaCEP (para dados textuais confiáveis do logradouro e bairro)
+        const viaCepData = await consultarViaCep(cleanCep)
 
-        geocoder.geocode(
-          {
-            componentRestrictions: {
-              postalCode: cleanCep,
-              country: 'BR',
-            },
-          },
-          (results: any, status: any) => {
-            setSearchingCep(false)
+        if (!viaCepData) {
+          setSearchingCep(false)
+          notifyError(
+            `CEP ${formatCep(cleanCep)} não foi localizado. Os dados anteriores foram preservados.`,
+          )
+          return
+        }
 
-            if (status !== 'OK' || !Array.isArray(results) || results.length === 0) {
-              // REGRA 1: Se o novo CEP for inválido, exibir erro e PRESERVAR os dados anteriores
-              notifyError(
-                `CEP ${formatCep(cleanCep)} não foi localizado no Google Maps. Os dados anteriores foram preservados.`,
-              )
-              return
+        // REGRA 2: validação estrita a Cambé - PR
+        const cidadeViaCep = viaCepData.localidade || ''
+        const ufViaCep = viaCepData.uf || ''
+
+        if (!isCidadeCambe(cidadeViaCep, ufViaCep)) {
+          setSearchingCep(false)
+          notifyError(
+            `Só é possível selecionar endereços na cidade Cambé. O CEP informado pertence a "${cidadeViaCep || 'Outro município'} - ${ufViaCep}". Os dados anteriores foram preservados.`,
+          )
+          return
+        }
+
+        const logradouroEncontrado = (viaCepData.logradouro || '').trim()
+        const bairroEncontrado = (viaCepData.bairro || '').trim()
+
+        // Monta strings de busca para geocodificação
+        const queryCompleta = [logradouroEncontrado, bairroEncontrado, 'Cambé', 'Paraná', 'Brasil']
+          .filter(Boolean)
+          .join(', ')
+        const querySimples = [logradouroEncontrado, 'Cambé', 'Paraná', 'Brasil']
+          .filter(Boolean)
+          .join(', ')
+
+        let latEncontrada: number | null = null
+        let lngEncontrada: number | null = null
+
+        // Tenta geocodificar o logradouro no Google Geocoder (com bounds de Cambé)
+        if (logradouroEncontrado) {
+          const googleLogradouro =
+            (await geocodificarEnderecoGoogle(queryCompleta, cambeBoundsRef.current)) ||
+            (await geocodificarEnderecoGoogle(querySimples, cambeBoundsRef.current))
+
+          if (
+            googleLogradouro &&
+            isCidadeCambe(googleLogradouro.city || '', googleLogradouro.stateUf)
+          ) {
+            latEncontrada = googleLogradouro.lat
+            lngEncontrada = googleLogradouro.lng
+          }
+        }
+
+        // PASSO 3: Se Google Geocoder não resolveu o logradouro, tenta OpenStreetMap / Nominatim (bounded=1 viewbox Cambé)
+        if (latEncontrada === null && logradouroEncontrado) {
+          const nominatimQuery = `${logradouroEncontrado}, Cambé, PR, Brasil`
+          const osmRes =
+            (await geocodificarComNominatim(nominatimQuery)) ||
+            (await geocodificarComNominatim(`${logradouroEncontrado}, Cambé`))
+
+          if (osmRes && isCoordinateInsideCambeBounds(osmRes.lat, osmRes.lng)) {
+            latEncontrada = osmRes.lat
+            lngEncontrada = osmRes.lng
+          }
+        }
+
+        // Se ainda não achou coordenada específica do logradouro, tenta buscar o bairro em Cambé
+        if (latEncontrada === null && bairroEncontrado) {
+          const googleBairro = await geocodificarEnderecoGoogle(
+            `${bairroEncontrado}, Cambé, Paraná, Brasil`,
+            cambeBoundsRef.current,
+          )
+          if (googleBairro && isCidadeCambe(googleBairro.city || '', googleBairro.stateUf)) {
+            latEncontrada = googleBairro.lat
+            lngEncontrada = googleBairro.lng
+          } else {
+            const osmBairro = await geocodificarComNominatim(
+              `${bairroEncontrado}, Cambé, PR, Brasil`,
+            )
+            if (osmBairro && isCoordinateInsideCambeBounds(osmBairro.lat, osmBairro.lng)) {
+              latEncontrada = osmBairro.lat
+              lngEncontrada = osmBairro.lng
             }
+          }
+        }
 
-            const bestResult = results[0]
-            const comp = extrairComponentesGoogle(bestResult.address_components)
+        setSearchingCep(false)
 
-            // REGRA 2: qualquer resultado cuja cidade seja diferente de Cambé deve ser recusado
-            if (!isCidadeCambe(comp.city, comp.stateUf)) {
-              notifyError(
-                `Só é possível selecionar endereços na cidade Cambé. O CEP informado pertence a "${comp.city || 'Outro município'} - ${comp.stateUf}". Os dados anteriores foram preservados.`,
-              )
-              return
-            }
+        if (latEncontrada === null || lngEncontrada === null) {
+          // Se não houver coordenadas, exibe erro e preserva dados
+          notifyError(
+            `Não foi possível obter coordenadas para o CEP ${formatCep(cleanCep)} em Cambé. Os dados anteriores foram preservados.`,
+          )
+          return
+        }
 
-            // Coordenadas retornadas pelo Geocoder
-            const loc = bestResult.geometry?.location
-            const lat = loc && typeof loc.lat === 'function' ? Number(loc.lat().toFixed(6)) : null
-            const lng = loc && typeof loc.lng === 'function' ? Number(loc.lng().toFixed(6)) : null
+        // Sucesso total com fallback! Posiciona marcador e preenche campos
+        lastValidCepRef.current = formatCep(cleanCep)
+        posicionarMarcadorNoPonto(latEncontrada, lngEncontrada, 16)
 
-            if (lat === null || lng === null) {
-              notifyError('Não foi possível obter coordenadas para o CEP informado.')
-              return
-            }
+        const updatedData: EnderecoUnidadeData = {
+          cep: formatCep(cleanCep),
+          logradouro: logradouroEncontrado,
+          numero: '',
+          bairro: bairroEncontrado,
+          cidade: CIDADE_PERMITIDA,
+          estado_uf: ESTADO_PERMITIDO,
+          latitude: latEncontrada,
+          longitude: lngEncontrada,
+        }
 
-            // Ponto válido em Cambé!
-            lastValidCepRef.current = formatCep(cleanCep)
-            posicionarMarcadorNoPonto(lat, lng, 16)
-
-            // REGRA 1: Ao trocar o CEP, todos os campos preenchidos pelo CEP anterior
-            // devem ser substituídos pelos dados do novo
-            const updatedData: EnderecoUnidadeData = {
-              cep: formatCep(cleanCep),
-              logradouro: comp.route || '',
-              // Limpa número ao mudar de CEP para forçar a identificação do novo imóvel
-              numero: '',
-              bairro: comp.neighborhood || '',
-              cidade: CIDADE_PERMITIDA,
-              estado_uf: ESTADO_PERMITIDO,
-              latitude: lat,
-              longitude: lng,
-            }
-
-            onChange(updatedData)
-            emitLocationSummary(updatedData)
-            notifySuccess(`CEP localizado com sucesso: ${comp.route || 'Cambé - PR'}`)
-          },
+        onChange(updatedData)
+        emitLocationSummary(updatedData)
+        notifySuccess(
+          `CEP localizado com sucesso: ${logradouroEncontrado ? logradouroEncontrado + ' - ' : ''}Cambé - PR`,
         )
       } catch (err: any) {
-        console.warn('Erro ao consultar CEP no Geocoder:', err)
+        console.warn('Erro ao processar busca de CEP:', err)
         setSearchingCep(false)
         notifyError(
-          'Falha na consulta ao Google Maps. Verifique sua conexão ou preencha o endereço manualmente.',
+          'Falha na consulta do CEP. Verifique sua conexão ou preencha o endereço manualmente.',
         )
       }
     },
@@ -676,43 +755,49 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
             req.bounds = cambeBoundsRef.current
           }
 
-          geocoder.geocode(req, (results: any, status: any) => {
+          geocoder.geocode(req, async (results: any, status: any) => {
+            let lat: number | null = null
+            let lng: number | null = null
+
+            if (status === 'OK' && Array.isArray(results) && results.length > 0) {
+              // Seleciona o melhor resultado dentro de Cambé
+              let melhor = results[0]
+              for (const r of results) {
+                const comp = extrairComponentesGoogle(r.address_components)
+                if (isCidadeCambe(comp.city, comp.stateUf)) {
+                  melhor = r
+                  break
+                }
+              }
+
+              const compMelhor = extrairComponentesGoogle(melhor.address_components)
+              if (isCidadeCambe(compMelhor.city, compMelhor.stateUf)) {
+                const loc = melhor.geometry?.location
+                lat = loc && typeof loc.lat === 'function' ? Number(loc.lat().toFixed(6)) : null
+                lng = loc && typeof loc.lng === 'function' ? Number(loc.lng().toFixed(6)) : null
+              }
+            }
+
+            // Fallback para Nominatim se Google não localizou o endereço completo em Cambé
+            if (lat === null || lng === null) {
+              const queryOsm = partes.join(', ')
+              const osmRes = await geocodificarComNominatim(queryOsm)
+              if (osmRes && isCoordinateInsideCambeBounds(osmRes.lat, osmRes.lng)) {
+                lat = osmRes.lat
+                lng = osmRes.lng
+              }
+            }
+
             if (opts?.isDebounce) setDebouncingGeocode(false)
             else setSearchingNumero(false)
 
-            if (status !== 'OK' || !Array.isArray(results) || results.length === 0) {
-              // REGRA 3: Se o número exato não for encontrado, manter as coordenadas anteriores com elegância
+            if (lat === null || lng === null) {
+              // REGRA 3: Se o ponto exato não for encontrado, manter as coordenadas anteriores com elegância
               if (!opts?.isDebounce) {
                 notifyError(
                   `Não foi possível localizar o ponto exato para "${logradouroTrim}, ${numeroTrim || 'S/N'}". As coordenadas anteriores foram mantidas.`,
                 )
               }
-              resolve(false)
-              return
-            }
-
-            // Seleciona o melhor resultado
-            let melhor = results[0]
-            for (const r of results) {
-              const comp = extrairComponentesGoogle(r.address_components)
-              if (isCidadeCambe(comp.city, comp.stateUf)) {
-                melhor = r
-                break
-              }
-            }
-
-            const compMelhor = extrairComponentesGoogle(melhor.address_components)
-            if (!isCidadeCambe(compMelhor.city, compMelhor.stateUf)) {
-              notifyError('Só é possível selecionar endereços na cidade Cambé.')
-              resolve(false)
-              return
-            }
-
-            const loc = melhor.geometry?.location
-            const lat = loc && typeof loc.lat === 'function' ? Number(loc.lat().toFixed(6)) : null
-            const lng = loc && typeof loc.lng === 'function' ? Number(loc.lng().toFixed(6)) : null
-
-            if (lat === null || lng === null) {
               resolve(false)
               return
             }
@@ -824,7 +909,7 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
           </Label>
           {searchingCep && (
             <span className="flex items-center gap-1 text-xs text-blue-700">
-              <Loader2 className="w-3 h-3 animate-spin" /> Consultando Google Maps...
+              <Loader2 className="w-3 h-3 animate-spin" /> Localizando endereço...
             </span>
           )}
         </div>
@@ -843,7 +928,7 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
                 }
               }
             }}
-            placeholder="00000-000 (digite o CEP para buscar o local real no Google)"
+            placeholder="00000-000 (digite o CEP para buscar o local real)"
             maxLength={9}
             disabled={disabled || searchingCep}
             className="bg-white border-blue-200 text-slate-900 placeholder:text-slate-400 font-mono text-sm focus-visible:ring-blue-500"
