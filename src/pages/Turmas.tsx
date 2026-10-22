@@ -46,7 +46,8 @@ import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
 import { getTurmas, createTurma, updateTurma, deleteTurma } from '@/services/turmas'
 import { getEtapas, createEtapa, getAnosSeries, createAnoSerie } from '@/services/apoio'
-import { Turma, Etapa, AnoSerie } from '@/types/gestao-escolar'
+import { getUnidadesEscolares } from '@/services/unidades-escolares'
+import { Turma, Etapa, AnoSerie, UnidadeEscolar } from '@/types/gestao-escolar'
 import { ANOS_LETIVOS } from './Etapas'
 
 export default function Turmas() {
@@ -56,9 +57,11 @@ export default function Turmas() {
   const [turmas, setTurmas] = useState<Turma[]>([])
   const [etapas, setEtapas] = useState<Etapa[]>([])
   const [anosSeries, setAnosSeries] = useState<AnoSerie[]>([])
+  const [unidades, setUnidades] = useState<UnidadeEscolar[]>([])
 
   const [search, setSearch] = useState('')
   const [filtroAno, setFiltroAno] = useState<string>('todos')
+  const [filtroUnidade, setFiltroUnidade] = useState<string>('todas')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -66,6 +69,7 @@ export default function Turmas() {
   const [openDialog, setOpenDialog] = useState(false)
   const [editingTurma, setEditingTurma] = useState<Turma | null>(null)
   const [formNome, setFormNome] = useState('')
+  const [formUnidadeId, setFormUnidadeId] = useState<string>('')
   const [formAnoLetivo, setFormAnoLetivo] = useState<number>(new Date().getFullYear())
   const [formEtapaId, setFormEtapaId] = useState<string>('nenhuma')
   const [formAnoSerieId, setFormAnoSerieId] = useState<string>('nenhum')
@@ -89,14 +93,16 @@ export default function Turmas() {
   const carregarDados = async () => {
     try {
       setLoading(true)
-      const [turmasData, etapasData, anosSeriesData] = await Promise.all([
+      const [turmasData, etapasData, anosSeriesData, unidadesData] = await Promise.all([
         getTurmas(),
         getEtapas(),
         getAnosSeries(),
+        getUnidadesEscolares(),
       ])
       setTurmas(turmasData)
       setEtapas(etapasData)
       setAnosSeries(anosSeriesData)
+      setUnidades(unidadesData)
     } catch (err: any) {
       toast({
         title: 'Erro ao carregar dados',
@@ -146,6 +152,7 @@ export default function Turmas() {
   const handleOpenCreate = () => {
     setEditingTurma(null)
     setFormNome('')
+    setFormUnidadeId('')
     const anoAtual = new Date().getFullYear()
     const anoValido = anoAtual >= 2020 && anoAtual <= 2040 ? anoAtual : 2026
     setFormAnoLetivo(anoValido)
@@ -157,6 +164,7 @@ export default function Turmas() {
   const handleOpenEdit = (t: Turma) => {
     setEditingTurma(t)
     setFormNome(t.nome)
+    setFormUnidadeId(t.unidade_escolar_id || '')
     setFormAnoLetivo(t.ano_letivo)
     setFormEtapaId(t.etapa_id || 'nenhuma')
     setFormAnoSerieId(t.ano_serie_id || 'nenhum')
@@ -184,6 +192,15 @@ export default function Turmas() {
       toast({
         title: 'Atenção',
         description: 'Selecione um ano letivo válido entre 2020 e 2040.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!formUnidadeId) {
+      toast({
+        title: 'Atenção',
+        description: 'Selecione a Unidade Escolar vinculada à turma.',
         variant: 'destructive',
       })
       return
@@ -222,6 +239,7 @@ export default function Turmas() {
       if (editingTurma) {
         await updateTurma(editingTurma.id, {
           nome: formNome.trim(),
+          unidade_escolar_id: formUnidadeId,
           ano_letivo: formAnoLetivo,
           etapa_id: etapaIdFinal,
           ano_serie_id: anoSerieIdFinal,
@@ -230,6 +248,7 @@ export default function Turmas() {
       } else {
         await createTurma({
           nome: formNome.trim(),
+          unidade_escolar_id: formUnidadeId,
           ano_letivo: formAnoLetivo,
           etapa_id: etapaIdFinal,
           ano_serie_id: anoSerieIdFinal,
@@ -358,18 +377,22 @@ export default function Turmas() {
       if (filtroAno !== 'todos' && String(item.ano_letivo) !== filtroAno) {
         return false
       }
+      if (filtroUnidade !== 'todas' && item.unidade_escolar_id !== filtroUnidade) {
+        return false
+      }
       if (search.trim()) {
         const q = search.trim().toLowerCase()
         const matchCodigo = item.codigo?.toLowerCase().includes(q)
         const matchNome = item.nome.toLowerCase().includes(q)
+        const matchUnidade = item.unidade_escolar?.nome?.toLowerCase().includes(q)
         const matchAno = String(item.ano_letivo).includes(q)
         const matchEtapa = item.etapa?.nome?.toLowerCase().includes(q)
         const matchAnoSerie = item.ano_serie?.nome?.toLowerCase().includes(q)
-        return matchCodigo || matchNome || matchAno || matchEtapa || matchAnoSerie
+        return matchCodigo || matchNome || matchUnidade || matchAno || matchEtapa || matchAnoSerie
       }
       return true
     })
-  }, [turmas, search, filtroAno])
+  }, [turmas, search, filtroAno, filtroUnidade])
 
   return (
     <div className="space-y-6">
@@ -414,14 +437,30 @@ export default function Turmas() {
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <Input
-                placeholder="Pesquisar por identificador (TUR-XXXX), nome, etapa, ano/série..."
+                placeholder="Pesquisar por identificador (TUR-XXXX), nome, escola..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 text-sm"
               />
             </div>
 
-            <div className="w-full sm:w-48">
+            <div className="w-full sm:w-56">
+              <Select value={filtroUnidade} onValueChange={setFiltroUnidade}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="Todas as unidades" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as unidades</SelectItem>
+                  {unidades.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.nome} ({u.codigo || 'UN'})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="w-full sm:w-44">
               <Select value={filtroAno} onValueChange={setFiltroAno}>
                 <SelectTrigger className="text-sm">
                   <SelectValue placeholder="Ano Letivo" />
@@ -437,13 +476,14 @@ export default function Turmas() {
               </Select>
             </div>
 
-            {(search || filtroAno !== 'todos') && (
+            {(search || filtroAno !== 'todos' || filtroUnidade !== 'todas') && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
                   setSearch('')
                   setFiltroAno('todos')
+                  setFiltroUnidade('todas')
                 }}
                 className="text-xs text-slate-600 hover:text-slate-900"
               >
@@ -470,6 +510,7 @@ export default function Turmas() {
                   <tr>
                     <th className="py-3 px-4 font-medium w-32">Identificador</th>
                     <th className="py-3 px-4 font-medium">Nome da Turma</th>
+                    <th className="py-3 px-4 font-medium">Unidade Escolar</th>
                     <th className="py-3 px-4 font-medium">Etapa</th>
                     <th className="py-3 px-4 font-medium">Ano/Série</th>
                     <th className="py-3 px-4 font-medium w-32 text-center">Ano Letivo</th>
@@ -488,6 +529,22 @@ export default function Turmas() {
 
                       {/* Nome da Turma */}
                       <td className="py-3 px-4 font-medium text-slate-900">{item.nome}</td>
+
+                      {/* Unidade Escolar Vinculada */}
+                      <td className="py-3 px-4 text-slate-700">
+                        {item.unidade_escolar ? (
+                          <div className="flex flex-col">
+                            <span className="font-medium text-slate-900 text-xs">
+                              {item.unidade_escolar.nome}
+                            </span>
+                            <span className="font-mono text-[10px] text-blue-700">
+                              {item.unidade_escolar.codigo || 'UN'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">Não vinculada</span>
+                        )}
+                      </td>
 
                       {/* Etapa Vinculada */}
                       <td className="py-3 px-4 text-slate-700">
@@ -617,8 +674,35 @@ export default function Turmas() {
                 onChange={(e) => setFormNome(e.target.value)}
                 required
                 autoFocus
+                placeholder="Ex: 1º Ano A - Matutino"
                 className="text-sm"
               />
+            </div>
+
+            {/* Campo: Unidade Escolar (Obrigatório para CRH / CARE) */}
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="t-unidade"
+                className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"
+              >
+                Unidade Escolar <span className="text-rose-500">*</span>
+              </Label>
+              <Select value={formUnidadeId} onValueChange={setFormUnidadeId}>
+                <SelectTrigger id="t-unidade" className="text-sm">
+                  <SelectValue placeholder="Selecione uma opção" />
+                </SelectTrigger>
+                <SelectContent>
+                  {unidades.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.nome} ({u.codigo || 'UN'}) — {u.tipo_atendimento}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-slate-500">
+                A vinculação com a unidade escolar é utilizada pelo CRH e pelo CARE para o
+                dimensionamento por turma.
+              </p>
             </div>
 
             {/* Campo 3: Ano Letivo (Combobox 2020-2040) */}
@@ -805,6 +889,24 @@ export default function Turmas() {
                 <p className="text-sm font-semibold text-slate-900 bg-white p-2.5 rounded-md border border-slate-200">
                   {viewingTurma.nome}
                 </p>
+              </div>
+
+              <div>
+                <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold block mb-1">
+                  Unidade Escolar Vinculada
+                </span>
+                {viewingTurma.unidade_escolar ? (
+                  <div className="p-2.5 rounded-md border border-slate-200 bg-white">
+                    <p className="font-semibold text-slate-900 text-xs">
+                      {viewingTurma.unidade_escolar.nome}
+                    </p>
+                    <span className="font-mono text-[10px] text-blue-700 font-semibold">
+                      {viewingTurma.unidade_escolar.codigo || 'UN'}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-slate-400 italic text-xs">Não vinculada</span>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

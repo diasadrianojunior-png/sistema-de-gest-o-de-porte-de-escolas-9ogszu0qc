@@ -6,6 +6,7 @@ const db = supabase as any
 
 export interface CreateTurmaInput {
   nome: string
+  unidade_escolar_id?: string | null
   etapa_id: string | null
   ano_letivo: number
   ano_serie_id: string | null
@@ -13,6 +14,7 @@ export interface CreateTurmaInput {
 
 export interface UpdateTurmaInput {
   nome: string
+  unidade_escolar_id?: string | null
   etapa_id: string | null
   ano_letivo: number
   ano_serie_id: string | null
@@ -23,6 +25,7 @@ export const getTurmas = async (): Promise<Turma[]> => {
     .from('turmas')
     .select(`
       *,
+      unidade_escolar:unidades_escolares(id, codigo, nome, tipo_atendimento),
       etapa:etapas(id, codigo, nome, ano_letivo),
       ano_serie:anos_series(id, codigo, nome, ano_letivo)
     `)
@@ -50,6 +53,7 @@ export const createTurma = async (input: CreateTurmaInput): Promise<Turma> => {
     .insert([
       {
         nome: input.nome.trim(),
+        unidade_escolar_id: input.unidade_escolar_id || null,
         etapa_id: input.etapa_id || null,
         ano_letivo: ano,
         ano_serie_id: input.ano_serie_id || null,
@@ -57,6 +61,7 @@ export const createTurma = async (input: CreateTurmaInput): Promise<Turma> => {
     ])
     .select(`
       *,
+      unidade_escolar:unidades_escolares(id, codigo, nome, tipo_atendimento),
       etapa:etapas(id, codigo, nome, ano_letivo),
       ano_serie:anos_series(id, codigo, nome, ano_letivo)
     `)
@@ -95,6 +100,7 @@ export const updateTurma = async (id: string, input: UpdateTurmaInput): Promise<
     .from('turmas')
     .update({
       nome: input.nome.trim(),
+      unidade_escolar_id: input.unidade_escolar_id || null,
       etapa_id: input.etapa_id || null,
       ano_letivo: ano,
       ano_serie_id: input.ano_serie_id || null,
@@ -103,6 +109,7 @@ export const updateTurma = async (id: string, input: UpdateTurmaInput): Promise<
     .eq('id', id)
     .select(`
       *,
+      unidade_escolar:unidades_escolares(id, codigo, nome, tipo_atendimento),
       etapa:etapas(id, codigo, nome, ano_letivo),
       ano_serie:anos_series(id, codigo, nome, ano_letivo)
     `)
@@ -133,6 +140,7 @@ export const deleteTurma = async (id: string): Promise<void> => {
     .from('turmas')
     .select(`
       *,
+      unidade_escolar:unidades_escolares(id, codigo, nome, tipo_atendimento),
       etapa:etapas(id, codigo, nome, ano_letivo),
       ano_serie:anos_series(id, codigo, nome, ano_letivo)
     `)

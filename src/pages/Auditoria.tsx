@@ -291,6 +291,7 @@ export default function Auditoria() {
                   <SelectItem value="Configurações de RH (CRH)">
                     Configurações de RH (CRH)
                   </SelectItem>
+                  <SelectItem value="Cargos e Funções (CARE)">Cargos e Funções (CARE)</SelectItem>
                   <SelectItem value="Níveis de Porte">Níveis de Porte</SelectItem>
                   <SelectItem value="Usuários">Usuários</SelectItem>
                   <SelectItem value="Contas de E-mail">Contas de E-mail</SelectItem>

@@ -12,6 +12,7 @@ import Funcoes from './pages/Funcoes'
 import Etapas from './pages/Etapas'
 import AnosSeries from './pages/AnosSeries'
 import Crh from './pages/Crh'
+import Care from './pages/Care'
 import CadastrosMestres from './pages/CadastrosMestres'
 import Turmas from './pages/Turmas'
 import Administracao from './pages/Administracao'
@@ -96,6 +97,14 @@ const App = () => (
               element={
                 <RouteGuard menuKey="crh">
                   <Crh />
+                </RouteGuard>
+              }
+            />
+            <Route
+              path="/cadastros-apoio/care"
+              element={
+                <RouteGuard menuKey="care">
+                  <Care />
                 </RouteGuard>
               }
             />

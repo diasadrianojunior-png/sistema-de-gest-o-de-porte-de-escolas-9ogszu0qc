@@ -63,11 +63,13 @@ export interface Turma {
   id: string
   codigo?: string
   nome: string
+  unidade_escolar_id?: string | null
   etapa_id: string | null
   ano_letivo: number
   ano_serie_id: string | null
   created_at?: string
   updated_at?: string
+  unidade_escolar?: UnidadeEscolar | null
   etapa?: Etapa | null
   ano_serie?: AnoSerie | null
 }
@@ -265,6 +267,7 @@ export type EntidadeAuditoria =
   | 'Etapas'
   | 'Ano/Série'
   | 'Configurações de RH (CRH)'
+  | 'Cargos e Funções (CARE)'
   | 'Níveis de Porte'
   | 'Usuários'
   | 'Contas de E-mail'
@@ -280,6 +283,7 @@ export type SistemaMenuKey =
   | 'etapas'
   | 'anos_series'
   | 'crh'
+  | 'care'
   | 'usuarios'
   | 'contas_email'
   | 'auditoria'
@@ -345,6 +349,31 @@ export interface PermissaoUsuario {
   ordem: number
   created_at?: string
   updated_at?: string
+}
+
+export type CareStatusVaga = 'Aberta' | 'Preenchida'
+
+export interface CareVaga {
+  id: string
+  codigo?: string // VAG-0001
+  unidade_escolar_id: string
+  ano_letivo: number
+  crh_configuracao_id: string
+  crh_codigo?: string | null
+  cargo_id: string
+  funcao_id: string
+  numero_sequencial_vaga: number
+  quantidade_referencia: number
+  criterio_dimensionamento: 'Por Unidade' | 'Por Turma' | 'Por Período' | string
+  natureza_cargo: 'Fixo' | 'Itinerante' | string
+  status: CareStatusVaga
+  created_at?: string
+  updated_at?: string
+  // Relações carregadas opcionalmente
+  unidade_escolar?: UnidadeEscolar | null
+  cargo?: Cargo | null
+  funcao?: Funcao | null
+  crh_configuracao?: CrhConfiguracao | null
 }
 
 export interface RegistroAuditoria {
