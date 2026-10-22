@@ -167,18 +167,16 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
   const [cepError, setCepError] = useState<string | null>(null)
   const [addressSuccessMsg, setAddressSuccessMsg] = useState<string | null>(null)
 
-  // Referências para a geocodificação imediata pelo Número, controle de concorrência e cache
+  // Referências para controle de concorrência e requisições explícitas
   const valueRef = useRef<EnderecoUnidadeData>(value)
   useEffect(() => {
     valueRef.current = value
   }, [value])
 
-  // Contador sequencial de requisição para descartar respostas desatualizadas (race condition)
+  // Contador sequencial de requisição para descartar respostas desatualizadas
   const numeroRequestIdRef = useRef(0)
   // AbortController para cancelar requisições HTTP (OSM/Nominatim) em andamento
   const numeroAbortControllerRef = useRef<AbortController | null>(null)
-  // Guarda a chave do último endereço/número geocodificado com sucesso para evitar chamadas redundantes
-  const lastGeocodedNumeroKeyRef = useRef<string | null>(null)
 
   // Cancela buscas pendentes ao desmontar
   useEffect(() => {
@@ -408,9 +406,8 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
   }
 
   // Recurso de geocodificação via Nominatim / OpenStreetMap com múltiplos formatos de query:
-  // 1) Busca estruturada (street=...&city=Cambé&state=Paraná)
-  // 2) Busca por query simples (ex.: "Logradouro, Cambé, PR, Brasil")
-  // 3) Busca por variações de nome de logradouro
+  // IMPORTANTE: viewbox + bounded=1 garante que os resultados estejam restritos a Cambé - PR,
+  // evitando que consultas com CEPs desconhecidos no OSM recaiam em cidades homônimas ou centros aleatórios.
   const geocodificarNominatimConsulta = async (
     params: Record<string, string>,
     signal?: AbortSignal,
@@ -418,10 +415,11 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     try {
       const searchParams = new URLSearchParams({
         format: 'json',
-        limit: '3',
+        limit: '5',
         countrycodes: 'br',
-        // Viewbox de Cambé para priorizar resultados locais: west, north, east, south
+        // Viewbox estrito de Cambé (west, north, east, south) com bounded=1 para evitar retornar fora de Cambé
         viewbox: `${CAMBE_BOUNDS_BUSCA.west},${CAMBE_BOUNDS_BUSCA.north},${CAMBE_BOUNDS_BUSCA.east},${CAMBE_BOUNDS_BUSCA.south}`,
+        bounded: '1',
         ...params,
       })
       const res = await fetch(
@@ -438,6 +436,17 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
       if (!Array.isArray(lista) || lista.length === 0) return null
 
       for (const item of lista) {
+        // Ignora resultados genéricos de nível municipal quando estamos buscando endereço específico
+        const osmType = item?.type || ''
+        const osmClass = item?.class || ''
+        if (
+          (osmClass === 'place' &&
+            ['city', 'town', 'municipality', 'county', 'state'].includes(osmType)) ||
+          (osmClass === 'boundary' && osmType === 'administrative')
+        ) {
+          continue
+        }
+
         const lat = Number(item?.lat)
         const lng = Number(item?.lon)
         if (Number.isFinite(lat) && Number.isFinite(lng) && estaDentroDeCambe(lat, lng)) {
@@ -450,7 +459,8 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     }
   }
 
-  // Geocodificação resiliente fora da API do Google (OSM Nominatim) para endereços de Cambé
+  // Geocodificação resiliente fora da API do Google (OSM Nominatim) para endereços de Cambé.
+  // Garante busca com logradouro COMPLETO (obtido do ViaCEP) e não termos genéricos.
   const geocodificarOSM = async (
     logradouro: string,
     numero?: string,
@@ -462,58 +472,72 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     const temNum = !!numLimpo && !/^s\s*\/?\s*n$/i.test(numLimpo)
     const bairroLimpo = (bairro || '').trim()
 
-    // Estratégias estruturadas e por texto livre no Nominatim
-    // Note que bairros em OSM muitas vezes diferem da base dos Correios, então
-    // sempre testamos SEM bairro também para não anular a busca.
+    if (!logradouroLimpo) {
+      return null
+    }
+
     const tentativas: Array<Record<string, string>> = []
 
-    if (logradouroLimpo) {
-      // 1. Estruturada: rua com número (se houver)
-      if (temNum) {
-        tentativas.push({
-          street: `${numLimpo} ${logradouroLimpo}`,
-          city: 'Cambé',
-          state: 'Paraná',
-        })
-      }
-      // 2. Estruturada: rua pura
+    // 1. Busca livre completa: Logradouro + número + bairro + Cambé, PR, Brasil
+    if (temNum && bairroLimpo) {
       tentativas.push({
-        street: logradouroLimpo,
+        q: `${logradouroLimpo}, ${numLimpo}, ${bairroLimpo}, Cambé, PR, Brasil`,
+      })
+    }
+    // 2. Busca livre: Logradouro + número + Cambé, PR, Brasil
+    if (temNum) {
+      tentativas.push({
+        q: `${logradouroLimpo}, ${numLimpo}, Cambé, PR, Brasil`,
+      })
+    }
+    // 3. Busca estruturada com número
+    if (temNum) {
+      tentativas.push({
+        street: `${numLimpo} ${logradouroLimpo}`,
         city: 'Cambé',
         state: 'Paraná',
       })
+    }
+    // 4. Busca livre: Logradouro + bairro + Cambé, PR
+    if (bairroLimpo) {
+      tentativas.push({
+        q: `${logradouroLimpo}, ${bairroLimpo}, Cambé, PR`,
+      })
+    }
+    // 5. Busca estruturada da rua pura
+    tentativas.push({
+      street: logradouroLimpo,
+      city: 'Cambé',
+      state: 'Paraná',
+    })
+    // 6. Query simples da rua em Cambé, PR
+    tentativas.push({
+      q: `${logradouroLimpo}, Cambé, PR`,
+    })
 
-      // 3. Query livre: Logradouro [com número], Cambé, PR
+    // 7. Se o logradouro começar com tipo (ex.: Avenida, Rua, Travessa, etc.), tenta sem o prefixo
+    const semTipo = logradouroLimpo
+      .replace(/^(rua|avenida|av\.?|travessa|alameda|rodovia|praça|praca)\s+/i, '')
+      .trim()
+    if (semTipo && semTipo !== logradouroLimpo) {
       if (temNum) {
         tentativas.push({
-          q: `${logradouroLimpo}, ${numLimpo}, Cambé, PR`,
+          q: `${semTipo}, ${numLimpo}, Cambé, PR`,
         })
-      }
-      tentativas.push({
-        q: `${logradouroLimpo}, Cambé, PR`,
-      })
-
-      // 4. Se tiver bairro, tenta com bairro também
-      if (bairroLimpo) {
         tentativas.push({
-          q: `${logradouroLimpo}, ${bairroLimpo}, Cambé, PR`,
-        })
-      }
-
-      // 5. Se o logradouro começar com tipo (ex.: Avenida, Rua), tenta sem o tipo e vice-versa
-      const semTipo = logradouroLimpo
-        .replace(/^(rua|avenida|av\.?|travessa|alameda|rodovia|praça|praca)\s+/i, '')
-        .trim()
-      if (semTipo && semTipo !== logradouroLimpo) {
-        tentativas.push({
-          street: semTipo,
+          street: `${numLimpo} ${semTipo}`,
           city: 'Cambé',
           state: 'Paraná',
         })
-        tentativas.push({
-          q: `${semTipo}, Cambé, PR`,
-        })
       }
+      tentativas.push({
+        street: semTipo,
+        city: 'Cambé',
+        state: 'Paraná',
+      })
+      tentativas.push({
+        q: `${semTipo}, Cambé, PR`,
+      })
     }
 
     for (const params of tentativas) {
@@ -609,40 +633,43 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     })
   }
 
-  // Geocodificação híbrida ultra-resiliente para Cambé:
-  // Tenta Google primeiro (se Geocoding API estiver ativa na chave), e em seguida
-  // OSM Nominatim estruturado e por variações de logradouro.
-  // Garante que todo logradouro válido de Cambé retorne coordenadas.
+  // Geocodificação precisa para Cambé:
+  // (a) Busca com o logradouro e bairro reais do ViaCEP.
+  // (b) Geocodifica com a rua completa ("logradouro, número se houver, bairro, Cambé, Paraná").
+  // (c) Valida que o resultado está estritamente dentro dos limites de Cambé.
+  // (d) NUNCA cai num centróide genérico do município como "localização do CEP".
+  //     Se nenhuma fonte retornar coordenada precisa da rua, retorna null para exibir erro claro.
   const geocodificarLogradouroCambe = async (
     logradouro: string,
     numero?: string,
     bairro?: string,
-    cep?: string,
-  ): Promise<{ lat: number; lng: number; fonte: 'google' | 'osm' | 'centroide' } | null> => {
+    _cep?: string,
+  ): Promise<{ lat: number; lng: number; fonte: 'google' | 'osm' } | null> => {
     const logradouroBase = (logradouro || '').trim()
     const numeroLimpo = (numero || '').trim()
     const temNumero = !!numeroLimpo && !/^s\s*\/?\s*n$/i.test(numeroLimpo)
     const bairroLimpo = (bairro || '').trim()
-    const cepLimpo = (cep || '').replace(/\D/g, '')
+
+    if (!logradouroBase) {
+      return null
+    }
 
     // 1) Tentativa via Google Geocoder (quando a chave possui Geocoding habilitada)
     const google = (window as any).google
     if (google?.maps?.Geocoder) {
       const googleEstrategias: string[] = []
-      if (logradouroBase && temNumero) {
+      if (temNumero && bairroLimpo) {
         googleEstrategias.push(
-          `${logradouroBase}, ${numeroLimpo}, ${bairroLimpo}, Cambé, PR, Brasil`,
+          `${logradouroBase}, ${numeroLimpo}, ${bairroLimpo}, Cambé, Paraná, Brasil`,
         )
       }
-      if (logradouroBase && bairroLimpo) {
-        googleEstrategias.push(`${logradouroBase}, ${bairroLimpo}, Cambé, PR, Brasil`)
+      if (temNumero) {
+        googleEstrategias.push(`${logradouroBase}, ${numeroLimpo}, Cambé, Paraná, Brasil`)
       }
-      if (logradouroBase) {
-        googleEstrategias.push(`${logradouroBase}, Cambé, PR, Brasil`)
+      if (bairroLimpo) {
+        googleEstrategias.push(`${logradouroBase}, ${bairroLimpo}, Cambé, Paraná, Brasil`)
       }
-      if (cepLimpo) {
-        googleEstrategias.push(`${cepLimpo}, Cambé, PR, Brasil`)
-      }
+      googleEstrategias.push(`${logradouroBase}, Cambé, Paraná, Brasil`)
 
       for (const query of googleEstrategias) {
         const ponto = await geocodeEnderecoCambe(query)
@@ -652,35 +679,19 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
       }
     }
 
-    // 2) Provedor OpenStreetMap / Nominatim (altamente eficaz e resiliente no Brasil)
+    // 2) Provedor OpenStreetMap / Nominatim com endereço COMPLETO (logradouro + número/bairro + Cambé, PR)
     const pontoOSM = await geocodificarOSM(logradouroBase, numeroLimpo, bairroLimpo)
     if (pontoOSM) {
       return { ...pontoOSM, fonte: 'osm' }
     }
 
-    // 3) Busca específica por CEP no OpenStreetMap Nominatim
-    if (cepLimpo) {
-      const pontoCepOSM = await geocodificarNominatimConsulta({
-        postalcode: cepLimpo,
-        city: 'Cambé',
-        state: 'Paraná',
-      })
-      if (pontoCepOSM) {
-        return { ...pontoCepOSM, fonte: 'osm' }
-      }
-    }
-
-    // 4) Fallback geográfico municipal: centro urbano de Cambé - PR
-    // Se o logradouro/CEP foi comprovado em Cambé pelo ViaCEP mas nenhuma base externa tem a rua mapeada,
-    // posiciona no centro urbano de Cambé para nunca deixar latitude/longitude nulas.
-    return {
-      lat: CAMBE_DEFAULT_COORDS.lat,
-      lng: CAMBE_DEFAULT_COORDS.lng,
-      fonte: 'centroide',
-    }
+    // Se nenhuma fonte retornou coordenada precisa da rua em Cambé, NÃO usar centróide genérico!
+    return null
   }
-  // Busca do CEP: ViaCEP valida a localidade (Cambé) e fornece o endereço;
-  // a geocodificação híbrida (Google / OpenStreetMap) posiciona o mapa e preenche lat/lng.
+
+  // Busca do CEP: ViaCEP valida a localidade (somente Cambé/PR) e fornece os dados oficiais da rua;
+  // em seguida a geocodificação (Google / OpenStreetMap) localiza o logradouro exato em Cambé.
+  // Se nenhuma fonte encontrar a rua com precisão, um erro claro é apresentado sem posicionar em local falso.
   const handleCepSearch = async (cepToSearch: string) => {
     const cleanCep = cepToSearch.replace(/\D/g, '')
     if (cleanCep.length !== 8) {
@@ -718,13 +729,13 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
       }
 
       // 2) É Cambé: preenche logradouro/bairro/cidade/UF a partir do ViaCEP
-      const logradouroViaCep = data.logradouro || ''
-      const bairroViaCep = data.bairro || ''
+      const logradouroViaCep = (data.logradouro || '').trim()
+      const bairroViaCep = (data.bairro || '').trim()
       const numeroAtual = (valueRef.current.numero || '').trim()
       const logradouroBase = logradouroViaCep || (valueRef.current.logradouro || '').trim()
       const bairroBase = bairroViaCep || (valueRef.current.bairro || '').trim()
 
-      // 3) Geocodificação resiliente: Google -> OpenStreetMap -> centro urbano de Cambé
+      // 3) Geocodificação estrita da rua em Cambé: Google -> OpenStreetMap Nominatim
       const ponto = await geocodificarLogradouroCambe(
         logradouroBase,
         numeroAtual,
@@ -732,54 +743,78 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
         cleanCep,
       )
 
-      // 4) Latitude e Longitude garantidas (arredondadas em 6 casas decimais)
-      const latFinal = ponto ? Number(ponto.lat.toFixed(6)) : CAMBE_DEFAULT_COORDS.lat
-      const lngFinal = ponto ? Number(ponto.lng.toFixed(6)) : CAMBE_DEFAULT_COORDS.lng
+      if (ponto) {
+        const latFinal = Number(ponto.lat.toFixed(6))
+        const lngFinal = Number(ponto.lng.toFixed(6))
 
-      const updatedData: EnderecoUnidadeData = {
-        ...valueRef.current,
-        cep: formatCep(cleanCep),
-        logradouro: logradouroViaCep || valueRef.current.logradouro,
-        bairro: bairroViaCep || valueRef.current.bairro,
-        cidade: 'Cambé',
-        estado_uf: 'PR',
-        latitude: latFinal,
-        longitude: lngFinal,
-      }
-      onChange(updatedData)
-
-      if (onLocationSummaryChange) {
-        const parts = [
-          updatedData.logradouro,
-          updatedData.numero ? `nº ${updatedData.numero}` : '',
-          updatedData.bairro,
-          `${updatedData.cidade || 'Cambé'} - ${updatedData.estado_uf || 'PR'}`,
-        ].filter(Boolean)
-        if (parts.length > 0) {
-          onLocationSummaryChange(parts.join(', '))
+        const updatedData: EnderecoUnidadeData = {
+          ...valueRef.current,
+          cep: formatCep(cleanCep),
+          logradouro: logradouroViaCep || valueRef.current.logradouro,
+          bairro: bairroViaCep || valueRef.current.bairro,
+          cidade: 'Cambé',
+          estado_uf: 'PR',
+          latitude: latFinal,
+          longitude: lngFinal,
         }
-      }
+        onChange(updatedData)
 
-      // 5) Atualiza mapa e marcador
-      if (mapInstanceRef.current && markerInstanceRef.current) {
-        const zoom = ponto?.fonte === 'google' || ponto?.fonte === 'osm' ? 18 : 15
-        focusMapOnPoint(latFinal, lngFinal, zoom)
-      } else {
-        // Se o mapa ainda estiver terminando de carregar, atualiza assim que disponível
-        garantirGoogleMapsPronto().then((ok) => {
-          if (ok) {
-            focusMapOnPoint(latFinal, lngFinal, 18)
+        if (onLocationSummaryChange) {
+          const parts = [
+            updatedData.logradouro,
+            updatedData.numero ? `nº ${updatedData.numero}` : '',
+            updatedData.bairro,
+            `${updatedData.cidade || 'Cambé'} - ${updatedData.estado_uf || 'PR'}`,
+          ].filter(Boolean)
+          if (parts.length > 0) {
+            onLocationSummaryChange(parts.join(', '))
           }
-        })
+        }
+
+        // Foca mapa na posição exata da rua em Cambé
+        if (mapInstanceRef.current && markerInstanceRef.current) {
+          focusMapOnPoint(latFinal, lngFinal, 18)
+        } else {
+          garantirGoogleMapsPronto().then((ok) => {
+            if (ok) {
+              focusMapOnPoint(latFinal, lngFinal, 18)
+            }
+          })
+        }
+
+        setAddressSuccessMsg(
+          `Endereço "${logradouroBase}" localizado em Cambé - PR com sucesso! (Lat ${latFinal}, Lng ${lngFinal})`,
+        )
+        setTimeout(() => setAddressSuccessMsg(null), 5000)
+      } else {
+        // Nenhuma base externa retornou coordenadas exatas para esta rua específica em Cambé
+        // Preenche os dados textuais oficiais do ViaCEP mas NÃO posiciona em local falso/repetido
+        const updatedData: EnderecoUnidadeData = {
+          ...valueRef.current,
+          cep: formatCep(cleanCep),
+          logradouro: logradouroViaCep || valueRef.current.logradouro,
+          bairro: bairroViaCep || valueRef.current.bairro,
+          cidade: 'Cambé',
+          estado_uf: 'PR',
+        }
+        onChange(updatedData)
+
+        if (onLocationSummaryChange) {
+          const parts = [
+            updatedData.logradouro,
+            updatedData.numero ? `nº ${updatedData.numero}` : '',
+            updatedData.bairro,
+            `${updatedData.cidade || 'Cambé'} - ${updatedData.estado_uf || 'PR'}`,
+          ].filter(Boolean)
+          if (parts.length > 0) {
+            onLocationSummaryChange(parts.join(', '))
+          }
+        }
+
+        setCepError(
+          `Dados da rua preenchidos via Correios ("${logradouroBase || 'Logradouro de Cambé'}"). Nenhuma base cartográfica retornou coordenadas precisas desta rua; por favor, clique no mapa ou arraste o marcador para definir a posição exata da unidade.`,
+        )
       }
-
-      const mensagemSucesso =
-        ponto?.fonte === 'centroide'
-          ? `Endereço em Cambé - PR identificado. Posição aproximada centralizada no município; você pode ajustar o marcador no mapa.`
-          : `Endereço localizado em Cambé - PR com sucesso! (Lat ${latFinal}, Lng ${lngFinal})`
-
-      setAddressSuccessMsg(mensagemSucesso)
-      setTimeout(() => setAddressSuccessMsg(null), 5000)
     } catch (err: any) {
       setCepError(err?.message || 'Erro ao pesquisar CEP. Tente novamente.')
     } finally {
@@ -800,14 +835,11 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     }
   }
 
-  // Geocodifica o endereço completo imediatamente quando o usuário altera o Número do logradouro
-  // ou clica no botão "Localizar" ao lado do Número.
-  // Move o marcador para a posição exata daquele número (ROOFTOP quando disponível),
-  // atualizando Latitude/Longitude com 6 casas decimais. Restrito à cidade de Cambé (PR).
-  const handleNumeroGeocode = async (
-    currentValue: EnderecoUnidadeData,
-    forceExplicitClick = false,
-  ) => {
+  // Geocodificação EXPLÍCITA do endereço ao clicar no botão "Localizar" ou teclar Enter no campo Número.
+  // Nenhum disparo automático acontece na digitação (sem debounce/change handlers de busca).
+  // Move o marcador para a posição exata daquele endereço em Cambé (PR),
+  // atualizando Latitude/Longitude com 6 casas decimais.
+  const handleNumeroGeocodeExplicit = async (currentValue: EnderecoUnidadeData) => {
     const numeroTrim = (currentValue.numero || '').trim()
 
     // Cancela qualquer busca HTTP anterior em andamento
@@ -817,18 +849,12 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     const abortController = new AbortController()
     numeroAbortControllerRef.current = abortController
 
-    // Incrementa o identificador sequencial da busca atual
     const thisRequestId = ++numeroRequestIdRef.current
 
-    // Sem número (vazio ou S/N): mantém o último posicionamento válido, apenas limpa avisos
+    // Sem número (vazio ou S/N): solicita número válido
     if (!numeroTrim || /^s\s*\/?\s*n$/i.test(numeroTrim)) {
-      if (forceExplicitClick) {
-        setCepError('Informe um número válido para localizar a posição exata do imóvel.')
-      } else {
-        setCepError(null)
-      }
+      setCepError('Informe um número válido para localizar a posição exata do imóvel.')
       setSearchingNumero(false)
-      lastGeocodedNumeroKeyRef.current = null
       return
     }
 
@@ -840,13 +866,6 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
 
     if (!logradouroTrim) {
       setCepError('Informe o Logradouro antes do Número para posicionar o mapa no endereço exato.')
-      setSearchingNumero(false)
-      return
-    }
-
-    // Verifica se este número/endereço já foi geocodificado com sucesso (evita chamadas redundantes na digitação)
-    const geocodeKey = `${normalizarTexto(logradouroTrim)}|${numeroTrim.toLowerCase()}|${normalizarTexto(bairroAtual)}|${normalizarTexto(cidadeAtual)}`
-    if (!forceExplicitClick && lastGeocodedNumeroKeyRef.current === geocodeKey) {
       setSearchingNumero(false)
       return
     }
@@ -872,12 +891,11 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
         ponto = await geocodeEnderecoCambe(enderecoCompleto)
       }
 
-      // Se uma busca mais recente começou durante a requisição Google, descarta este resultado
       if (thisRequestId !== numeroRequestIdRef.current || abortController.signal.aborted) {
         return
       }
 
-      // 2) Fallback para OpenStreetMap se Google não devolver coordenadas
+      // 2) Fallback para OpenStreetMap Nominatim se Google não devolver coordenadas
       if (!ponto) {
         ponto = await geocodificarOSM(
           logradouroTrim,
@@ -887,7 +905,6 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
         )
       }
 
-      // Verifica novamente se esta requisição ainda é a mais recente
       if (thisRequestId !== numeroRequestIdRef.current || abortController.signal.aborted) {
         return
       }
@@ -897,7 +914,6 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
         const roundedLng = Number(ponto.lng.toFixed(6))
         focusMapOnPoint(roundedLat, roundedLng, 18)
 
-        // Preserva o número e logradouro digitados pelo usuário (não sobrescreve)
         const updatedData: EnderecoUnidadeData = {
           ...valueRef.current,
           numero: currentValue.numero,
@@ -918,29 +934,19 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
           }
         }
 
-        lastGeocodedNumeroKeyRef.current = geocodeKey
         setAddressSuccessMsg(
-          `Número ${numeroTrim} localizado em Cambé - PR com sucesso! (Lat ${roundedLat}, Lng ${roundedLng})`,
+          `Endereço "${logradouroTrim}, nº ${numeroTrim}" localizado em Cambé - PR com sucesso! (Lat ${roundedLat}, Lng ${roundedLng})`,
         )
         setTimeout(() => setAddressSuccessMsg(null), 4000)
       } else {
-        if (forceExplicitClick) {
-          setCepError(
-            `Não foi possível obter uma coordenada específica para o número "${numeroTrim}" em Cambé. A posição geral do logradouro foi mantida no mapa; se preferir, ajuste o marcador manualmente.`,
-          )
-        } else {
-          // Se não achou o número específico durante digitação, mantém o logradouro sem apagar as coordenadas
-          console.warn(
-            `Número ${numeroTrim} não diferenciado no mapa; mantida a coordenada do logradouro.`,
-          )
-        }
+        setCepError(
+          `Não foi possível obter uma coordenada específica para "${logradouroTrim}, ${numeroTrim}" em Cambé. Se preferir, clique no mapa ou arraste o marcador para ajustar o local manualmente.`,
+        )
       }
     } catch (err: any) {
       if (!abortController.signal.aborted) {
         console.warn('Falha ao geocodificar o número informado:', err)
-        if (forceExplicitClick) {
-          setCepError('Falha ao localizar endereço com o número informado. Tente novamente.')
-        }
+        setCepError('Falha ao localizar endereço com o número informado. Tente novamente.')
       }
     } finally {
       if (thisRequestId === numeroRequestIdRef.current) {
@@ -949,16 +955,13 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     }
   }
 
-  // Ao alterar o campo "Número", dispara a geocodificação imediatamente
+  // Ao alterar o campo "Número", apenas atualiza o estado (NÃO dispara busca automática)
   const handleNumeroChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const novoNumero = e.target.value
     const novoValue: EnderecoUnidadeData = { ...value, numero: novoNumero }
     valueRef.current = novoValue
     onChange(novoValue)
     setCepError(null)
-
-    // Dispara a geocodificação imediatamente ao trocar o número
-    handleNumeroGeocode(novoValue)
   }
 
   const cidadesDisponiveis = useMemo(() => {
@@ -1124,7 +1127,7 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
-                  handleNumeroGeocode(valueRef.current, true)
+                  handleNumeroGeocodeExplicit(valueRef.current)
                 }
               }}
               placeholder="Ex: 120 ou S/N"
@@ -1133,7 +1136,7 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
             />
             <Button
               type="button"
-              onClick={() => handleNumeroGeocode(valueRef.current, true)}
+              onClick={() => handleNumeroGeocodeExplicit(valueRef.current)}
               disabled={disabled || searchingNumero || !(value.numero || '').trim()}
               title="Localizar posição exata do número no mapa"
               className="shrink-0 bg-[#0B2545] hover:bg-[#133A68] text-white px-3 h-9 text-xs font-medium"
