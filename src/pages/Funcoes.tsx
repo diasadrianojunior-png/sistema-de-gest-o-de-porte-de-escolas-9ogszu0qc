@@ -36,6 +36,7 @@ import {
   ShieldAlert,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
+import { useAuth } from '@/hooks/use-auth'
 import {
   getCargos,
   createCargo,
@@ -47,6 +48,8 @@ import {
 import { Cargo, Funcao } from '@/types/gestao-escolar'
 
 export default function Funcoes() {
+  const { isAdmin, canEdit } = useAuth()
+  const canEditFuncoes = isAdmin || canEdit('funcoes')
   const [funcoes, setFuncoes] = useState<Funcao[]>([])
   const [cargos, setCargos] = useState<Cargo[]>([])
   const [searchFuncao, setSearchFuncao] = useState('')
@@ -287,13 +290,15 @@ export default function Funcoes() {
               Total de {funcoes.length} função(ões) cadastrada(s) na tabela de apoio
             </CardDescription>
           </div>
-          <Button
-            onClick={handleOpenCreateFuncao}
-            className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
-          >
-            <Plus className="w-4 h-4" />
-            Nova Função
-          </Button>
+          {canEditFuncoes && (
+            <Button
+              onClick={handleOpenCreateFuncao}
+              className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+            >
+              <Plus className="w-4 h-4" />
+              Nova Função
+            </Button>
+          )}
         </CardHeader>
 
         <CardContent className="space-y-4">
@@ -388,22 +393,26 @@ export default function Funcoes() {
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
-                          <Button
-                            size="icon"
-                            className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
-                            onClick={() => handleOpenEditFuncao(f)}
-                            title="Editar"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
-                            onClick={() => setDeletingFuncao(f)}
-                            title="Excluir"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {canEditFuncoes && (
+                            <>
+                              <Button
+                                size="icon"
+                                className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
+                                onClick={() => handleOpenEditFuncao(f)}
+                                title="Editar"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
+                                onClick={() => setDeletingFuncao(f)}
+                                title="Excluir"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
                         </td>
                       </tr>
                     )
@@ -660,7 +669,7 @@ export default function Funcoes() {
           )}
 
           <DialogFooter className="border-t pt-3 flex sm:justify-between items-center">
-            {viewingFuncao && (
+            {viewingFuncao && canEditFuncoes && (
               <Button
                 type="button"
                 size="sm"

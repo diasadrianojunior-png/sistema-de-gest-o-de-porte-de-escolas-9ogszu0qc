@@ -12,7 +12,9 @@ import Funcoes from './pages/Funcoes'
 import CadastrosMestres from './pages/CadastrosMestres'
 import Administracao from './pages/Administracao'
 import ContasEmail from './pages/ContasEmail'
+import Permissoes from './pages/Permissoes'
 import Auditoria from './pages/Auditoria'
+import { RouteGuard } from './components/RouteGuard'
 import NotFound from './pages/NotFound'
 import Layout from './components/Layout'
 
@@ -29,20 +31,77 @@ const App = () => (
 
           {/* Rotas protegidas dentro do Layout */}
           <Route element={<Layout />}>
-            <Route path="/painel" element={<Painel />} />
-            <Route path="/cadastros-mestres" element={<CadastrosMestres />} />
+            <Route
+              path="/painel"
+              element={
+                <RouteGuard menuKey="painel">
+                  <Painel />
+                </RouteGuard>
+              }
+            />
+            <Route
+              path="/cadastros-mestres"
+              element={
+                <RouteGuard menuKey="unidades_escolares">
+                  <CadastrosMestres />
+                </RouteGuard>
+              }
+            />
             <Route path="/cadastros-apoio" element={<CadastrosApoio />} />
-            <Route path="/cadastros-apoio/cargos" element={<Cargos />} />
-            <Route path="/cadastros-apoio/funcoes" element={<Funcoes />} />
+            <Route
+              path="/cadastros-apoio/cargos"
+              element={
+                <RouteGuard menuKey="cargos">
+                  <Cargos />
+                </RouteGuard>
+              }
+            />
+            <Route
+              path="/cadastros-apoio/funcoes"
+              element={
+                <RouteGuard menuKey="funcoes">
+                  <Funcoes />
+                </RouteGuard>
+              }
+            />
             {/* Submenus da Administração do Sistema */}
-            <Route path="/administracao/usuarios" element={<Administracao />} />
-            <Route path="/administracao/contas-email" element={<ContasEmail />} />
+            <Route
+              path="/administracao/usuarios"
+              element={
+                <RouteGuard menuKey="usuarios">
+                  <Administracao />
+                </RouteGuard>
+              }
+            />
+            <Route
+              path="/administracao/contas-email"
+              element={
+                <RouteGuard menuKey="contas_email">
+                  <ContasEmail />
+                </RouteGuard>
+              }
+            />
+            <Route
+              path="/administracao/permissoes"
+              element={
+                <RouteGuard adminOnly>
+                  <Permissoes />
+                </RouteGuard>
+              }
+            />
             {/* Rota legada/atalho redirecionando para /administracao/usuarios */}
             <Route
               path="/administracao"
               element={<Navigate to="/administracao/usuarios" replace />}
             />
-            <Route path="/auditoria" element={<Auditoria />} />
+            <Route
+              path="/auditoria"
+              element={
+                <RouteGuard menuKey="auditoria">
+                  <Auditoria />
+                </RouteGuard>
+              }
+            />
           </Route>
 
           {/* Rota 404 */}

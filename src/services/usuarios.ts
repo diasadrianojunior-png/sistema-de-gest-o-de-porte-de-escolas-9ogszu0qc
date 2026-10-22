@@ -124,7 +124,41 @@ export const createUsuario = async (
 export const updateUsuario = async (
   id: string,
   input: UpdateUsuarioInput,
+  currentUserEmail?: string,
 ): Promise<UsuarioSistema> => {
+  // Verificação de segurança: não deixar o sistema sem Administrador ativo
+  const { data: todosUsuarios, error: fetchError } = await db
+    .from('usuarios_sistema')
+    .select('id, email, perfil, estado')
+
+  if (!fetchError && todosUsuarios) {
+    const usuarioAlvo = todosUsuarios.find((u: any) => u.id === id)
+    if (usuarioAlvo && usuarioAlvo.perfil === 'Administrador') {
+      const outrosAdminsAtivos = todosUsuarios.filter(
+        (u: any) => u.id !== id && u.perfil === 'Administrador' && u.estado === 'Ativo',
+      )
+
+      // Se está tentando rebaixar para Operador ou inativar o admin
+      const deixandoDeSerAdminAtivo = input.perfil !== 'Administrador' || input.estado !== 'Ativo'
+      if (deixandoDeSerAdminAtivo && outrosAdminsAtivos.length === 0) {
+        throw new Error(
+          'Operação não permitida: O sistema deve possuir pelo menos um Administrador ativo.',
+        )
+      }
+
+      // Se o próprio administrador logado está tentando rebaixar a si mesmo e não há outro
+      if (
+        currentUserEmail &&
+        usuarioAlvo.email.toLowerCase() === currentUserEmail.toLowerCase() &&
+        input.perfil !== 'Administrador'
+      ) {
+        if (outrosAdminsAtivos.length === 0) {
+          throw new Error('Você não pode remover seu próprio perfil de Administrador.')
+        }
+      }
+    }
+  }
+
   const { data, error } = await db
     .from('usuarios_sistema')
     .update({
@@ -155,7 +189,27 @@ export const updateUsuario = async (
   return updated
 }
 
-export const deleteUsuario = async (usuario: UsuarioSistema): Promise<void> => {
+export const deleteUsuario = async (
+  usuario: UsuarioSistema,
+  currentUserEmail?: string,
+): Promise<void> => {
+  // Verificação de segurança: não permitir excluir a si mesmo caso seja o único admin
+  if (currentUserEmail && usuario.email.toLowerCase() === currentUserEmail.toLowerCase()) {
+    throw new Error('Operação não permitida: Você não pode excluir a sua própria conta logada.')
+  }
+
+  if (usuario.perfil === 'Administrador') {
+    const { data: todosUsuarios } = await db.from('usuarios_sistema').select('id, perfil, estado')
+    const outrosAdminsAtivos = (todosUsuarios || []).filter(
+      (u: any) => u.id !== usuario.id && u.perfil === 'Administrador' && u.estado === 'Ativo',
+    )
+    if (outrosAdminsAtivos.length === 0) {
+      throw new Error(
+        'Operação não permitida: O sistema deve possuir pelo menos um Administrador ativo.',
+      )
+    }
+  }
+
   // 1. Tentar excluir do auth através da edge function se tiver user_id ou email
   try {
     await supabase.functions.invoke('admin-users', {

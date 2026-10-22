@@ -23,10 +23,13 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Plus, Edit2, Trash2, Loader2, Search, Briefcase } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
+import { useAuth } from '@/hooks/use-auth'
 import { getCargos, createCargo, updateCargo, deleteCargo } from '@/services/apoio'
 import { Cargo } from '@/types/gestao-escolar'
 
 export default function Cargos() {
+  const { isAdmin, canEdit } = useAuth()
+  const canEditCargos = isAdmin || canEdit('cargos')
   const [cargos, setCargos] = useState<Cargo[]>([])
   const [searchCargo, setSearchCargo] = useState('')
   const [loadingCargos, setLoadingCargos] = useState(true)
@@ -151,13 +154,15 @@ export default function Cargos() {
               Total de {cargos.length} cargo(s) cadastrado(s) na tabela de apoio
             </CardDescription>
           </div>
-          <Button
-            onClick={handleOpenCreateCargo}
-            className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
-          >
-            <Plus className="w-4 h-4" />
-            Novo Cargo
-          </Button>
+          {canEditCargos && (
+            <Button
+              onClick={handleOpenCreateCargo}
+              className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+            >
+              <Plus className="w-4 h-4" />
+              Novo Cargo
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="relative max-w-sm">
@@ -201,22 +206,28 @@ export default function Cargos() {
                       </td>
                       <td className="py-3 px-4 font-medium text-slate-900">{c.nome}</td>
                       <td className="py-3 px-4 text-right space-x-1">
-                        <Button
-                          size="icon"
-                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
-                          onClick={() => handleOpenEditCargo(c)}
-                          title="Editar"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
-                          onClick={() => setDeletingCargo(c)}
-                          title="Excluir"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {canEditCargos ? (
+                          <>
+                            <Button
+                              size="icon"
+                              className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
+                              onClick={() => handleOpenEditCargo(c)}
+                              title="Editar"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
+                              onClick={() => setDeletingCargo(c)}
+                              title="Excluir"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">Somente leitura</span>
+                        )}
                       </td>
                     </tr>
                   ))}

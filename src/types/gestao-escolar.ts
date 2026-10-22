@@ -197,7 +197,31 @@ export type EntidadeAuditoria =
   | 'Funções'
   | 'Usuários'
   | 'Contas de E-mail'
+  | 'Permissões'
   | 'Autenticação'
+
+export type SistemaMenuKey =
+  | 'painel'
+  | 'unidades_escolares'
+  | 'cargos'
+  | 'funcoes'
+  | 'usuarios'
+  | 'contas_email'
+  | 'auditoria'
+
+export interface PermissaoPerfil {
+  id: string
+  codigo?: string
+  perfil: PerfilUsuario
+  menu_key: SistemaMenuKey
+  menu_label: string
+  pode_ver: boolean
+  pode_editar: boolean
+  suporta_edicao: boolean
+  ordem: number
+  created_at?: string
+  updated_at?: string
+}
 
 export interface RegistroAuditoria {
   id: string

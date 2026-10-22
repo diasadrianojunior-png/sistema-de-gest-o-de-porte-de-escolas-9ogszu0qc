@@ -37,8 +37,11 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { getUsuarios, createUsuario, updateUsuario, deleteUsuario } from '@/services/usuarios'
 import { UsuarioSistema, PerfilUsuario, EstadoUsuario } from '@/types/gestao-escolar'
+import { useAuth } from '@/hooks/use-auth'
 
 export default function Administracao() {
+  const { user, isAdmin, canEdit } = useAuth()
+  const canEditUsuarios = isAdmin || canEdit('usuarios')
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -160,11 +163,15 @@ export default function Administracao() {
 
     try {
       setSaving(true)
-      await updateUsuario(editingUsuario.id, {
-        nome_completo: formNome.trim(),
-        perfil: formPerfil,
-        estado: formEstado,
-      })
+      await updateUsuario(
+        editingUsuario.id,
+        {
+          nome_completo: formNome.trim(),
+          perfil: formPerfil,
+          estado: formEstado,
+        },
+        user?.email || '',
+      )
       toast({
         title: 'Usuário atualizado',
         description: 'Alterações salvas com sucesso!',
@@ -187,7 +194,7 @@ export default function Administracao() {
     if (!deletingUsuario) return
     try {
       setSaving(true)
-      await deleteUsuario(deletingUsuario)
+      await deleteUsuario(deletingUsuario, user?.email || '')
       toast({
         title: 'Usuário excluído',
         description: 'Registro e acesso removidos com sucesso.',
@@ -237,13 +244,15 @@ export default function Administracao() {
               Total de {usuarios.length} usuário(s) registrado(s) na plataforma
             </CardDescription>
           </div>
-          <Button
-            onClick={handleOpenCreate}
-            className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
-          >
-            <Plus className="w-4 h-4" />
-            Novo Usuário
-          </Button>
+          {canEditUsuarios && (
+            <Button
+              onClick={handleOpenCreate}
+              className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+            >
+              <Plus className="w-4 h-4" />
+              Novo Usuário
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="relative max-w-sm">
@@ -279,76 +288,96 @@ export default function Administracao() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredUsuarios.map((u) => (
-                    <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4">
-                        <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                          {u.codigo || 'USR-0000'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-medium text-slate-900">{u.nome_completo}</td>
-                      <td className="py-3 px-4 text-slate-600 font-mono text-xs">{u.email}</td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            u.perfil === 'Administrador'
-                              ? 'bg-purple-100 text-purple-800 border border-purple-200'
-                              : 'bg-slate-100 text-slate-700 border border-slate-200'
-                          }`}
-                        >
-                          {u.perfil === 'Administrador' ? (
-                            <ShieldCheck className="w-3 h-3 text-purple-600" />
-                          ) : (
-                            <UserCheck className="w-3 h-3 text-slate-600" />
-                          )}
-                          {u.perfil}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            u.estado === 'Ativo'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-rose-50 text-rose-700 border border-rose-200'
-                          }`}
-                        >
+                  {filteredUsuarios.map((u) => {
+                    const isCurrentUser =
+                      Boolean(user?.email) && u.email.toLowerCase() === user?.email?.toLowerCase()
+
+                    return (
+                      <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-4">
+                          <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                            {u.codigo || 'USR-0000'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-medium text-slate-900">
+                          <div className="flex items-center gap-2">
+                            <span>{u.nome_completo}</span>
+                            {isCurrentUser && (
+                              <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded font-semibold">
+                                Você
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 font-mono text-xs">{u.email}</td>
+                        <td className="py-3 px-4">
                           <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              u.estado === 'Ativo' ? 'bg-emerald-500' : 'bg-rose-500'
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              u.perfil === 'Administrador'
+                                ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
                             }`}
-                          />
-                          {u.estado}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-slate-500 text-xs">
-                        {u.created_at
-                          ? new Date(u.created_at).toLocaleDateString('pt-BR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                            })
-                          : '-'}
-                      </td>
-                      <td className="py-3 px-4 text-right space-x-1">
-                        <Button
-                          size="icon"
-                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
-                          onClick={() => handleOpenEdit(u)}
-                          title="Editar"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
-                          onClick={() => setDeletingUsuario(u)}
-                          title="Excluir"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                          >
+                            {u.perfil === 'Administrador' ? (
+                              <ShieldCheck className="w-3 h-3 text-purple-600" />
+                            ) : (
+                              <UserCheck className="w-3 h-3 text-slate-600" />
+                            )}
+                            {u.perfil}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              u.estado === 'Ativo'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                u.estado === 'Ativo' ? 'bg-emerald-500' : 'bg-rose-500'
+                              }`}
+                            />
+                            {u.estado}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-500 text-xs">
+                          {u.created_at
+                            ? new Date(u.created_at).toLocaleDateString('pt-BR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                              })
+                            : '-'}
+                        </td>
+                        <td className="py-3 px-4 text-right space-x-1">
+                          {canEditUsuarios ? (
+                            <>
+                              <Button
+                                size="icon"
+                                className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
+                                onClick={() => handleOpenEdit(u)}
+                                title="Editar"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
+                                onClick={() => setDeletingUsuario(u)}
+                                title="Excluir"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">Somente leitura</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

@@ -398,6 +398,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      obter_conta_smtp_ativa: {
+        Args: { p_encryption_key?: string }
+        Returns: {
+          codigo: string
+          criptografia: string
+          descricao: string
+          email_from: string
+          host: string
+          id: string
+          limite_diario: number
+          nome_from: string
+          porta: number
+          reply_to: string
+          senha_smtp: string
+          usuario_smtp: string
+        }[]
+      }
       salvar_conta_email: {
         Args: {
           p_ativa: boolean

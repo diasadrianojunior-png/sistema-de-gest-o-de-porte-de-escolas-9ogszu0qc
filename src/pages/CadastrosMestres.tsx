@@ -41,6 +41,7 @@ import {
   Clock,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
+import { useAuth } from '@/hooks/use-auth'
 import {
   getUnidadesEscolares,
   createUnidadeEscolar,
@@ -60,6 +61,8 @@ import {
 } from '@/components/LocalizacaoUnidadeSection'
 
 export default function CadastrosMestres() {
+  const { isAdmin, canEdit } = useAuth()
+  const canEditUnidades = isAdmin || canEdit('unidades_escolares')
   const [unidades, setUnidades] = useState<UnidadeEscolar[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -381,13 +384,15 @@ export default function CadastrosMestres() {
               Total de {unidades.length} unidade(s) escolar(es) cadastrada(s)
             </CardDescription>
           </div>
-          <Button
-            onClick={handleOpenCreate}
-            className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
-          >
-            <Plus className="w-4 h-4" />
-            Nova Unidade Escolar
-          </Button>
+          {canEditUnidades && (
+            <Button
+              onClick={handleOpenCreate}
+              className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+            >
+              <Plus className="w-4 h-4" />
+              Nova Unidade Escolar
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="relative max-w-sm">
@@ -483,22 +488,26 @@ export default function CadastrosMestres() {
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button
-                          size="icon"
-                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
-                          onClick={() => handleOpenEdit(unidade)}
-                          title="Editar"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
-                          onClick={() => setDeletingUnidade(unidade)}
-                          title="Excluir"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {canEditUnidades && (
+                          <>
+                            <Button
+                              size="icon"
+                              className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
+                              onClick={() => handleOpenEdit(unidade)}
+                              title="Editar"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
+                              onClick={() => setDeletingUnidade(unidade)}
+                              title="Excluir"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))}

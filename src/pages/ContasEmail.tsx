@@ -41,6 +41,7 @@ import {
   ArrowDown,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
+import { useAuth } from '@/hooks/use-auth'
 import {
   getContasEmail,
   salvarContaEmail,
@@ -50,6 +51,8 @@ import {
 import { ContaEmail, CriptografiaSmtp } from '@/types/gestao-escolar'
 
 export default function ContasEmail() {
+  const { isAdmin, canEdit } = useAuth()
+  const canEditContasEmail = isAdmin || canEdit('contas_email')
   const [contas, setContas] = useState<ContaEmail[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -345,14 +348,16 @@ export default function ContasEmail() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            type="button"
-            onClick={handleOpenCreate}
-            className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white shadow-2xs font-medium text-xs sm:text-sm h-10 px-4"
-          >
-            <Plus className="w-4 h-4" />
-            Nova Conta de E-mail
-          </Button>
+          {canEditContasEmail && (
+            <Button
+              type="button"
+              onClick={handleOpenCreate}
+              className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white shadow-2xs font-medium text-xs sm:text-sm h-10 px-4"
+            >
+              <Plus className="w-4 h-4" />
+              Nova Conta de E-mail
+            </Button>
+          )}
         </div>
       </div>
 
@@ -564,37 +569,43 @@ export default function ContasEmail() {
                     {/* Ações */}
                     <td className="py-4 px-4 align-top text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        <Button
-                          size="sm"
-                          onClick={() => handleTestar(item)}
-                          disabled={testingId === item.id}
-                          className="h-8 px-2.5 text-xs font-medium bg-[#0B2545] hover:bg-[#133A68] text-white gap-1.5 shadow-2xs"
-                          title="Testar parâmetros da conta"
-                        >
-                          {testingId === item.id ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Send className="w-3.5 h-3.5" />
-                          )}
-                          <span>Testar</span>
-                        </Button>
-                        <Button
-                          size="icon"
-                          onClick={() => handleOpenEdit(item)}
-                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
-                          title="Editar conta"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
+                        {canEditContasEmail ? (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => handleTestar(item)}
+                              disabled={testingId === item.id}
+                              className="h-8 px-2.5 text-xs font-medium bg-[#0B2545] hover:bg-[#133A68] text-white gap-1.5 shadow-2xs"
+                              title="Testar parâmetros da conta"
+                            >
+                              {testingId === item.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Send className="w-3.5 h-3.5" />
+                              )}
+                              <span>Testar</span>
+                            </Button>
+                            <Button
+                              size="icon"
+                              onClick={() => handleOpenEdit(item)}
+                              className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
+                              title="Editar conta"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
 
-                        <Button
-                          size="icon"
-                          onClick={() => setDeletingConta(item)}
-                          className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
-                          title="Excluir conta"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                            <Button
+                              size="icon"
+                              onClick={() => setDeletingConta(item)}
+                              className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
+                              title="Excluir conta"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">Somente leitura</span>
+                        )}
                       </div>
                     </td>
                   </tr>
