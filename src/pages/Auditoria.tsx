@@ -281,6 +281,7 @@ export default function Auditoria() {
                 <SelectContent>
                   <SelectItem value="todas">Todas as entidades</SelectItem>
                   <SelectItem value="Unidades escolares">Unidades escolares</SelectItem>
+                  <SelectItem value="Turmas">Turmas</SelectItem>
                   <SelectItem value="Municípios/Redes">Municípios/Redes</SelectItem>
                   <SelectItem value="Tipos de escola">Tipos de escola</SelectItem>
                   <SelectItem value="Cargos">Cargos</SelectItem>
@@ -448,9 +449,11 @@ export default function Auditoria() {
                             item.detalhes !== null
                               ? (item.detalhes as any).codigo ||
                                 (item.detalhes as any).registro_codigo ||
+                                (item.detalhes as any).turma?.codigo ||
                                 (item.detalhes as any).funcao?.codigo ||
                                 (item.detalhes as any).etapa?.codigo ||
                                 (item.detalhes as any).cargo?.codigo ||
+                                (item.detalhes as any).ano_serie?.codigo ||
                                 (item.detalhes as any).registro_anterior?.codigo ||
                                 null
                               : null)
@@ -528,9 +531,11 @@ export default function Auditoria() {
                       detalhesItem.detalhes !== null
                         ? (detalhesItem.detalhes as any).codigo ||
                           (detalhesItem.detalhes as any).registro_codigo ||
+                          (detalhesItem.detalhes as any).turma?.codigo ||
                           (detalhesItem.detalhes as any).funcao?.codigo ||
                           (detalhesItem.detalhes as any).etapa?.codigo ||
                           (detalhesItem.detalhes as any).cargo?.codigo ||
+                          (detalhesItem.detalhes as any).ano_serie?.codigo ||
                           (detalhesItem.detalhes as any).registro_anterior?.codigo ||
                           '—'
                         : '—')}

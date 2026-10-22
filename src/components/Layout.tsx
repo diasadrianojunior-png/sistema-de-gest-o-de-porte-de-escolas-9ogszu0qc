@@ -71,7 +71,9 @@ export default function Layout() {
   }
 
   const isPainelActive = location.pathname === '/painel'
-  const isMestresActive = location.pathname === '/cadastros-mestres'
+  const isUnidadesActive = location.pathname === '/cadastros-mestres'
+  const isTurmasActive = location.pathname === '/cadastros-mestres/turmas'
+  const isMestresActive = location.pathname.startsWith('/cadastros-mestres')
   const isCargosActive = location.pathname === '/cadastros-apoio/cargos'
   const isFuncoesActive = location.pathname === '/cadastros-apoio/funcoes'
   const isEtapasActive = location.pathname === '/cadastros-apoio/etapas'
@@ -86,6 +88,7 @@ export default function Layout() {
   // Permissões de visualização por item de menu
   const canViewPainel = canView('painel')
   const canViewUnidades = canView('unidades_escolares')
+  const canViewTurmas = canView('turmas')
   const canViewCargos = canView('cargos')
   const canViewFuncoes = canView('funcoes')
   const canViewEtapas = canView('etapas')
@@ -95,7 +98,7 @@ export default function Layout() {
   const canViewAuditoria = canView('auditoria')
 
   // Seções agrupadas têm visibilidade se pelo menos um submenu puder ser visto
-  const showCadastrosMestres = canViewUnidades
+  const showCadastrosMestres = canViewUnidades || canViewTurmas
   const showCadastrosApoio = canViewCargos || canViewFuncoes || canViewEtapas || canViewAnosSeries
   const showAdministracao = canViewUsuarios || canViewContasEmail
 
@@ -278,15 +281,31 @@ export default function Layout() {
                               to="/cadastros-mestres"
                               onClick={() => setMestresPopoverOpen(false)}
                               className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-                                isMestresActive
+                                isUnidadesActive
                                   ? 'bg-blue-600 text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
                               <Building
-                                className={`w-4 h-4 shrink-0 ${isMestresActive ? 'text-white' : 'text-slate-500'}`}
+                                className={`w-4 h-4 shrink-0 ${isUnidadesActive ? 'text-white' : 'text-slate-500'}`}
                               />
                               <span>Unidades escolares</span>
+                            </NavLink>
+                          )}
+                          {canViewTurmas && (
+                            <NavLink
+                              to="/cadastros-mestres/turmas"
+                              onClick={() => setMestresPopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                isTurmasActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Users
+                                className={`w-4 h-4 shrink-0 ${isTurmasActive ? 'text-white' : 'text-slate-500'}`}
+                              />
+                              <span>Turmas</span>
                             </NavLink>
                           )}
                         </div>
@@ -328,15 +347,32 @@ export default function Layout() {
                               onClick={() => isMobile && setMobileSidebarOpen(false)}
                               title="Unidades escolares"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                isMestresActive
+                                isUnidadesActive
                                   ? 'bg-blue-600 text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
                               <Building
-                                className={`w-3.5 h-3.5 shrink-0 ${isMestresActive ? 'text-white' : 'text-slate-400'}`}
+                                className={`w-3.5 h-3.5 shrink-0 ${isUnidadesActive ? 'text-white' : 'text-slate-400'}`}
                               />
                               <span className="truncate">Unidades escolares</span>
+                            </NavLink>
+                          )}
+                          {canViewTurmas && (
+                            <NavLink
+                              to="/cadastros-mestres/turmas"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Turmas"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isTurmasActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Users
+                                className={`w-3.5 h-3.5 shrink-0 ${isTurmasActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Turmas</span>
                             </NavLink>
                           )}
                         </div>
@@ -937,7 +973,9 @@ export default function Layout() {
                 <>
                   <span className="text-slate-600">Cadastros Mestres</span>
                   <span className="mx-2 text-slate-300">/</span>
-                  <span className="text-blue-700 font-semibold">Unidades escolares</span>
+                  <span className="text-blue-700 font-semibold">
+                    {isTurmasActive ? 'Turmas' : 'Unidades escolares'}
+                  </span>
                 </>
               )}
               {isApoioActive && (

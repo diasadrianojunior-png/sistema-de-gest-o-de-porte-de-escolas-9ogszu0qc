@@ -59,6 +59,19 @@ export interface AnoSerie {
   updated_at?: string
 }
 
+export interface Turma {
+  id: string
+  codigo?: string
+  nome: string
+  etapa_id: string | null
+  ano_letivo: number
+  ano_serie_id: string | null
+  created_at?: string
+  updated_at?: string
+  etapa?: Etapa | null
+  ano_serie?: AnoSerie | null
+}
+
 export type TipoAtendimentoUnidade =
   | 'Ensino Fundamental e Educação Infantil (20h)'
   | 'Educação Infantil (40h)'
@@ -244,6 +257,7 @@ export interface SalvarContaEmailInput {
 
 export type EntidadeAuditoria =
   | 'Unidades escolares'
+  | 'Turmas'
   | 'Municípios/Redes'
   | 'Tipos de escola'
   | 'Cargos'
@@ -258,6 +272,7 @@ export type EntidadeAuditoria =
 export type SistemaMenuKey =
   | 'painel'
   | 'unidades_escolares'
+  | 'turmas'
   | 'cargos'
   | 'funcoes'
   | 'etapas'

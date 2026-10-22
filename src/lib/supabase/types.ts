@@ -446,6 +446,54 @@ export type Database = {
         }
         Relationships: []
       }
+      turmas: {
+        Row: {
+          ano_letivo: number
+          ano_serie_id: string | null
+          codigo: string | null
+          created_at: string
+          etapa_id: string | null
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ano_letivo: number
+          ano_serie_id?: string | null
+          codigo?: string | null
+          created_at?: string
+          etapa_id?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ano_letivo?: number
+          ano_serie_id?: string | null
+          codigo?: string | null
+          created_at?: string
+          etapa_id?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'turmas_ano_serie_id_fkey'
+            columns: ['ano_serie_id']
+            isOneToOne: false
+            referencedRelation: 'anos_series'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'turmas_etapa_id_fkey'
+            columns: ['etapa_id']
+            isOneToOne: false
+            referencedRelation: 'etapas'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       unidades_escolares: {
         Row: {
           bairro: string | null
