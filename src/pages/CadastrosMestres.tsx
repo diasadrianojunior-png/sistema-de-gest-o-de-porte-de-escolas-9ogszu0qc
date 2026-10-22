@@ -259,18 +259,16 @@ export default function CadastrosMestres() {
         })
         return
       }
-      if (!formData.endereco.estado_uf.trim()) {
+      // Validação REGRA 2: antes de salvar, validar que a cidade é Cambé (PR)
+      const cidadeNorm = (formData.endereco.cidade || '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+      if (cidadeNorm !== 'cambe') {
         toast({
-          title: 'Atenção',
-          description: 'Selecione o Estado (UF) da unidade.',
-          variant: 'destructive',
-        })
-        return
-      }
-      if (!formData.endereco.cidade.trim()) {
-        toast({
-          title: 'Atenção',
-          description: 'Selecione a Cidade da unidade.',
+          title: 'Cidade não permitida',
+          description: 'Só é possível cadastrar unidades escolares na cidade de Cambé (PR).',
           variant: 'destructive',
         })
         return

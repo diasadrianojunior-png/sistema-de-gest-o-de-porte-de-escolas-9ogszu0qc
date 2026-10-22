@@ -5,8 +5,11 @@ const GOOGLE_MAPS_SCRIPT_ID = '__google_maps_api_script__'
 let loadPromise: Promise<void> | null = null
 
 export function getGoogleMapsApiKey(): string {
-  const envKey = (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY
-  return envKey || 'AIzaSyAVd864TUJT0mMHGa0ZzRUSq2KEUWm5jUw'
+  const envKey =
+    (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY ||
+    (import.meta as any).env?.GOOGLE_MAPS_API_KEY ||
+    ''
+  return envKey
 }
 
 // A API só está realmente pronta quando google.maps.Map existir.
