@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
-import { Cargo, Funcao, MunicipioRede, TipoEscola } from '@/types/gestao-escolar'
+import { Cargo, Etapa, Funcao, MunicipioRede, TipoEscola } from '@/types/gestao-escolar'
 import { registrarAuditoria } from './auditoria'
 
 const db = supabase as any
@@ -451,6 +451,110 @@ export const deleteFuncao = async (id: string): Promise<void> => {
     acao: 'Exclusão',
     registro_codigo: anterior?.codigo || null,
     descricao: `Exclusão da função "${anterior?.nome || id}".`,
+    detalhes: { id, registro_anterior: anterior },
+  })
+}
+
+// --- Etapas ---
+export interface CreateEtapaInput {
+  nome: string
+  ano_letivo: number
+}
+
+export interface UpdateEtapaInput {
+  nome: string
+  ano_letivo: number
+}
+
+export const getEtapas = async (): Promise<Etapa[]> => {
+  const { data, error } = await db
+    .from('etapas')
+    .select('*')
+    .order('ano_letivo', { ascending: false })
+    .order('codigo', { ascending: true })
+
+  if (error) {
+    console.error('Erro ao buscar etapas:', error)
+    throw error
+  }
+  return (data as Etapa[]) || []
+}
+
+export const createEtapa = async (input: CreateEtapaInput): Promise<Etapa> => {
+  const { data, error } = await db
+    .from('etapas')
+    .insert([
+      {
+        nome: input.nome.trim(),
+        ano_letivo: Number(input.ano_letivo),
+      },
+    ])
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Erro ao criar etapa:', error)
+    throw error
+  }
+
+  const created = data as Etapa
+
+  await registrarAuditoria({
+    entidade: 'Etapas',
+    acao: 'Criação',
+    registro_codigo: created.codigo || null,
+    descricao: `Cadastro da etapa "${created.nome}" (Ano Letivo: ${created.ano_letivo}).`,
+    detalhes: { etapa: created },
+  })
+
+  return created
+}
+
+export const updateEtapa = async (id: string, input: UpdateEtapaInput): Promise<Etapa> => {
+  const { data, error } = await db
+    .from('etapas')
+    .update({
+      nome: input.nome.trim(),
+      ano_letivo: Number(input.ano_letivo),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Erro ao atualizar etapa:', error)
+    throw error
+  }
+
+  const updated = data as Etapa
+
+  await registrarAuditoria({
+    entidade: 'Etapas',
+    acao: 'Edição',
+    registro_codigo: updated.codigo || null,
+    descricao: `Edição da etapa "${updated.nome}" (Ano Letivo: ${updated.ano_letivo}).`,
+    detalhes: { id, alteracoes: input },
+  })
+
+  return updated
+}
+
+export const deleteEtapa = async (id: string): Promise<void> => {
+  const { data: anterior } = await db.from('etapas').select('*').eq('id', id).maybeSingle()
+
+  const { error } = await db.from('etapas').delete().eq('id', id)
+
+  if (error) {
+    console.error('Erro ao excluir etapa:', error)
+    throw error
+  }
+
+  await registrarAuditoria({
+    entidade: 'Etapas',
+    acao: 'Exclusão',
+    registro_codigo: anterior?.codigo || null,
+    descricao: `Exclusão da etapa "${anterior?.nome || id}" (Ano Letivo: ${anterior?.ano_letivo || '-'}).`,
     detalhes: { id, registro_anterior: anterior },
   })
 }

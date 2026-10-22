@@ -9,6 +9,7 @@ import Painel from './pages/Painel'
 import CadastrosApoio from './pages/CadastrosApoio'
 import Cargos from './pages/Cargos'
 import Funcoes from './pages/Funcoes'
+import Etapas from './pages/Etapas'
 import CadastrosMestres from './pages/CadastrosMestres'
 import Administracao from './pages/Administracao'
 import ContasEmail from './pages/ContasEmail'
@@ -60,6 +61,14 @@ const App = () => (
               element={
                 <RouteGuard menuKey="funcoes">
                   <Funcoes />
+                </RouteGuard>
+              }
+            />
+            <Route
+              path="/cadastros-apoio/etapas"
+              element={
+                <RouteGuard menuKey="etapas">
+                  <Etapas />
                 </RouteGuard>
               }
             />

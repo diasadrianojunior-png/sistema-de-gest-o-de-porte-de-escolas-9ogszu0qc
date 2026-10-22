@@ -56,11 +56,19 @@ export const MENUS_SISTEMA_PADRAO: Array<{
     categoria: 'Cadastros de Apoio',
   },
   {
+    key: 'etapas',
+    label: 'Etapas',
+    path: '/cadastros-apoio/etapas',
+    suporta_edicao: true,
+    ordem: 5,
+    categoria: 'Cadastros de Apoio',
+  },
+  {
     key: 'usuarios',
     label: 'Usuários',
     path: '/administracao/usuarios',
     suporta_edicao: true,
-    ordem: 5,
+    ordem: 6,
     categoria: 'Administração do sistema',
   },
   {
@@ -68,7 +76,7 @@ export const MENUS_SISTEMA_PADRAO: Array<{
     label: 'Contas de Email',
     path: '/administracao/contas-email',
     suporta_edicao: true,
-    ordem: 6,
+    ordem: 7,
     categoria: 'Administração do sistema',
   },
   {
@@ -76,7 +84,7 @@ export const MENUS_SISTEMA_PADRAO: Array<{
     label: 'Auditoria',
     path: '/auditoria',
     suporta_edicao: false,
-    ordem: 7,
+    ordem: 8,
     categoria: 'Auditoria',
   },
 ]
@@ -119,12 +127,20 @@ export const getPermissoesPadraoOperador = (): PermissaoItemForm[] => {
       ordem: 4,
     },
     {
+      menu_key: 'etapas',
+      menu_label: 'Etapas',
+      pode_ver: true,
+      pode_editar: true,
+      suporta_edicao: true,
+      ordem: 5,
+    },
+    {
       menu_key: 'usuarios',
       menu_label: 'Usuários',
       pode_ver: false,
       pode_editar: false,
       suporta_edicao: true,
-      ordem: 5,
+      ordem: 6,
     },
     {
       menu_key: 'contas_email',
@@ -132,7 +148,7 @@ export const getPermissoesPadraoOperador = (): PermissaoItemForm[] => {
       pode_ver: false,
       pode_editar: false,
       suporta_edicao: true,
-      ordem: 6,
+      ordem: 7,
     },
     {
       menu_key: 'auditoria',
@@ -140,7 +156,7 @@ export const getPermissoesPadraoOperador = (): PermissaoItemForm[] => {
       pode_ver: true,
       pode_editar: false,
       suporta_edicao: false,
-      ordem: 7,
+      ordem: 8,
     },
   ]
 }

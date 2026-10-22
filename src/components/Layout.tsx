@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   Briefcase,
   Layers,
+  GraduationCap,
   PanelLeftOpen,
   Mail,
   Users,
@@ -72,6 +73,7 @@ export default function Layout() {
   const isMestresActive = location.pathname === '/cadastros-mestres'
   const isCargosActive = location.pathname === '/cadastros-apoio/cargos'
   const isFuncoesActive = location.pathname === '/cadastros-apoio/funcoes'
+  const isEtapasActive = location.pathname === '/cadastros-apoio/etapas'
   const isApoioActive = location.pathname.startsWith('/cadastros-apoio')
   const isUsuariosActive =
     location.pathname === '/administracao/usuarios' || location.pathname === '/administracao'
@@ -84,13 +86,14 @@ export default function Layout() {
   const canViewUnidades = canView('unidades_escolares')
   const canViewCargos = canView('cargos')
   const canViewFuncoes = canView('funcoes')
+  const canViewEtapas = canView('etapas')
   const canViewUsuarios = canView('usuarios')
   const canViewContasEmail = canView('contas_email')
   const canViewAuditoria = canView('auditoria')
 
   // Seções agrupadas têm visibilidade se pelo menos um submenu puder ser visto
   const showCadastrosMestres = canViewUnidades
-  const showCadastrosApoio = canViewCargos || canViewFuncoes
+  const showCadastrosApoio = canViewCargos || canViewFuncoes || canViewEtapas
   const showAdministracao = canViewUsuarios || canViewContasEmail
 
   // Conteúdo unificado da barra lateral (Sidebar)
@@ -415,6 +418,23 @@ export default function Layout() {
                               <span>Funções</span>
                             </NavLink>
                           )}
+
+                          {canViewEtapas && (
+                            <NavLink
+                              to="/cadastros-apoio/etapas"
+                              onClick={() => setApoioPopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                isEtapasActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <GraduationCap
+                                className={`w-4 h-4 shrink-0 ${isEtapasActive ? 'text-white' : 'text-slate-500'}`}
+                              />
+                              <span>Etapas</span>
+                            </NavLink>
+                          )}
                         </div>
                       </PopoverContent>
                     </Popover>
@@ -481,6 +501,24 @@ export default function Layout() {
                                 className={`w-3.5 h-3.5 shrink-0 ${isFuncoesActive ? 'text-white' : 'text-slate-400'}`}
                               />
                               <span className="truncate">Funções</span>
+                            </NavLink>
+                          )}
+
+                          {canViewEtapas && (
+                            <NavLink
+                              to="/cadastros-apoio/etapas"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Etapas"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isEtapasActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <GraduationCap
+                                className={`w-3.5 h-3.5 shrink-0 ${isEtapasActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Etapas</span>
                             </NavLink>
                           )}
                         </div>
@@ -869,7 +907,7 @@ export default function Layout() {
                   <span className="text-slate-600">Cadastros de Apoio</span>
                   <span className="mx-2 text-slate-300">/</span>
                   <span className="text-blue-700 font-semibold">
-                    {isFuncoesActive ? 'Funções' : 'Cargos'}
+                    {isEtapasActive ? 'Etapas' : isFuncoesActive ? 'Funções' : 'Cargos'}
                   </span>
                 </>
               )}

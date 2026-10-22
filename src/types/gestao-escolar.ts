@@ -41,6 +41,15 @@ export interface FuncaoCargoVinculo {
   created_at?: string
 }
 
+export interface Etapa {
+  id: string
+  codigo?: string
+  nome: string
+  ano_letivo: number
+  created_at?: string
+  updated_at?: string
+}
+
 export type TipoAtendimentoUnidade =
   | 'Ensino Fundamental e Educação Infantil (20h)'
   | 'Educação Infantil (40h)'
@@ -195,6 +204,7 @@ export type EntidadeAuditoria =
   | 'Tipos de escola'
   | 'Cargos'
   | 'Funções'
+  | 'Etapas'
   | 'Usuários'
   | 'Contas de E-mail'
   | 'Permissões'
@@ -205,6 +215,7 @@ export type SistemaMenuKey =
   | 'unidades_escolares'
   | 'cargos'
   | 'funcoes'
+  | 'etapas'
   | 'usuarios'
   | 'contas_email'
   | 'auditoria'

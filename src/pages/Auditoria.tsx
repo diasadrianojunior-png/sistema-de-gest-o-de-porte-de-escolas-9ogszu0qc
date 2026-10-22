@@ -285,6 +285,7 @@ export default function Auditoria() {
                   <SelectItem value="Tipos de escola">Tipos de escola</SelectItem>
                   <SelectItem value="Cargos">Cargos</SelectItem>
                   <SelectItem value="Funções">Funções</SelectItem>
+                  <SelectItem value="Etapas">Etapas</SelectItem>
                   <SelectItem value="Usuários">Usuários</SelectItem>
                   <SelectItem value="Contas de E-mail">Contas de E-mail</SelectItem>
                   <SelectItem value="Permissões">Permissões de Acesso</SelectItem>

@@ -315,6 +315,56 @@ export type Database = {
         }
         Relationships: []
       }
+      permissoes_usuario: {
+        Row: {
+          codigo: string | null
+          created_at: string
+          id: string
+          menu_key: string
+          menu_label: string
+          ordem: number
+          pode_editar: boolean
+          pode_ver: boolean
+          suporta_edicao: boolean
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          menu_key: string
+          menu_label: string
+          ordem?: number
+          pode_editar?: boolean
+          pode_ver?: boolean
+          suporta_edicao?: boolean
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          menu_key?: string
+          menu_label?: string
+          ordem?: number
+          pode_editar?: boolean
+          pode_ver?: boolean
+          suporta_edicao?: boolean
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'permissoes_usuario_usuario_id_fkey'
+            columns: ['usuario_id']
+            isOneToOne: false
+            referencedRelation: 'usuarios_sistema'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       tipos_escola: {
         Row: {
           codigo: string | null
