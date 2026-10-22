@@ -9,6 +9,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      anos_series: {
+        Row: {
+          ano_letivo: number
+          codigo: string | null
+          created_at: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ano_letivo: number
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ano_letivo?: number
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       auditoria: {
         Row: {
           acao: string
