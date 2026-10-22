@@ -23,6 +23,7 @@ import {
   PanelLeftOpen,
   Mail,
   Users,
+  Scale,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -78,6 +79,7 @@ export default function Layout() {
   const isFuncoesActive = location.pathname === '/cadastros-apoio/funcoes'
   const isEtapasActive = location.pathname === '/cadastros-apoio/etapas'
   const isAnosSeriesActive = location.pathname === '/cadastros-apoio/anos-series'
+  const isCrhActive = location.pathname === '/cadastros-apoio/crh'
   const isApoioActive = location.pathname.startsWith('/cadastros-apoio')
   const isUsuariosActive =
     location.pathname === '/administracao/usuarios' || location.pathname === '/administracao'
@@ -93,13 +95,15 @@ export default function Layout() {
   const canViewFuncoes = canView('funcoes')
   const canViewEtapas = canView('etapas')
   const canViewAnosSeries = canView('anos_series')
+  const canViewCrh = canView('crh')
   const canViewUsuarios = canView('usuarios')
   const canViewContasEmail = canView('contas_email')
   const canViewAuditoria = canView('auditoria')
 
   // Seções agrupadas têm visibilidade se pelo menos um submenu puder ser visto
   const showCadastrosMestres = canViewUnidades || canViewTurmas
-  const showCadastrosApoio = canViewCargos || canViewFuncoes || canViewEtapas || canViewAnosSeries
+  const showCadastrosApoio =
+    canViewCargos || canViewFuncoes || canViewEtapas || canViewAnosSeries || canViewCrh
   const showAdministracao = canViewUsuarios || canViewContasEmail
 
   // Conteúdo unificado da barra lateral (Sidebar)
@@ -491,6 +495,23 @@ export default function Layout() {
                               <span>Ano/Série</span>
                             </NavLink>
                           )}
+
+                          {canViewCrh && (
+                            <NavLink
+                              to="/cadastros-apoio/crh"
+                              onClick={() => setApoioPopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                isCrhActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Scale
+                                className={`w-4 h-4 shrink-0 ${isCrhActive ? 'text-white' : 'text-slate-500'}`}
+                              />
+                              <span>Configurações de RH (CRH)</span>
+                            </NavLink>
+                          )}
                         </div>
                       </PopoverContent>
                     </Popover>
@@ -593,6 +614,24 @@ export default function Layout() {
                                 className={`w-3.5 h-3.5 shrink-0 ${isAnosSeriesActive ? 'text-white' : 'text-slate-400'}`}
                               />
                               <span className="truncate">Ano/Série</span>
+                            </NavLink>
+                          )}
+
+                          {canViewCrh && (
+                            <NavLink
+                              to="/cadastros-apoio/crh"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Configurações de Recursos Humanos (CRH)"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isCrhActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Scale
+                                className={`w-3.5 h-3.5 shrink-0 ${isCrhActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Configurações de RH (CRH)</span>
                             </NavLink>
                           )}
                         </div>

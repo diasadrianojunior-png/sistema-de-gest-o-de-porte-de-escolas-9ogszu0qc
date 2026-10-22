@@ -288,6 +288,10 @@ export default function Auditoria() {
                   <SelectItem value="Funções">Funções</SelectItem>
                   <SelectItem value="Etapas">Etapas</SelectItem>
                   <SelectItem value="Ano/Série">Ano/Série</SelectItem>
+                  <SelectItem value="Configurações de RH (CRH)">
+                    Configurações de RH (CRH)
+                  </SelectItem>
+                  <SelectItem value="Níveis de Porte">Níveis de Porte</SelectItem>
                   <SelectItem value="Usuários">Usuários</SelectItem>
                   <SelectItem value="Contas de E-mail">Contas de E-mail</SelectItem>
                   <SelectItem value="Permissões">Permissões de Acesso</SelectItem>
@@ -454,6 +458,8 @@ export default function Auditoria() {
                                 (item.detalhes as any).etapa?.codigo ||
                                 (item.detalhes as any).cargo?.codigo ||
                                 (item.detalhes as any).ano_serie?.codigo ||
+                                (item.detalhes as any).crh?.codigo ||
+                                (item.detalhes as any).nivel_porte?.codigo ||
                                 (item.detalhes as any).registro_anterior?.codigo ||
                                 null
                               : null)
@@ -536,6 +542,8 @@ export default function Auditoria() {
                           (detalhesItem.detalhes as any).etapa?.codigo ||
                           (detalhesItem.detalhes as any).cargo?.codigo ||
                           (detalhesItem.detalhes as any).ano_serie?.codigo ||
+                          (detalhesItem.detalhes as any).crh?.codigo ||
+                          (detalhesItem.detalhes as any).nivel_porte?.codigo ||
                           (detalhesItem.detalhes as any).registro_anterior?.codigo ||
                           '—'
                         : '—')}

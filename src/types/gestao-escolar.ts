@@ -264,6 +264,8 @@ export type EntidadeAuditoria =
   | 'Funções'
   | 'Etapas'
   | 'Ano/Série'
+  | 'Configurações de RH (CRH)'
+  | 'Níveis de Porte'
   | 'Usuários'
   | 'Contas de E-mail'
   | 'Permissões'
@@ -277,9 +279,45 @@ export type SistemaMenuKey =
   | 'funcoes'
   | 'etapas'
   | 'anos_series'
+  | 'crh'
   | 'usuarios'
   | 'contas_email'
   | 'auditoria'
+
+export interface NivelPorte {
+  id: string
+  codigo?: string
+  tipo_atendimento: TipoAtendimentoUnidade | string
+  nivel: string
+  alunos_min: number
+  alunos_max: number | null
+  ordem: number
+  descricao?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CrhConfiguracao {
+  id: string
+  codigo?: string
+  ano_letivo: number
+  unidade_escolar_id: string
+  tipo_atendimento: TipoAtendimentoUnidade | string
+  nivel_unidade: string
+  cargo_id: string
+  quantidade_profissionais: number
+  por_turma: 'Sim' | 'Não'
+  por_periodo: 'Sim' | 'Não'
+  natureza_cargo: 'Fixo' | 'Itinerante'
+  funcao_id: string
+  quantidade_por_funcao: number
+  created_at?: string
+  updated_at?: string
+  // Relações carregadas opcionalmente
+  unidade_escolar?: UnidadeEscolar | null
+  cargo?: Cargo | null
+  funcao?: Funcao | null
+}
 
 export interface PermissaoPerfil {
   id: string
