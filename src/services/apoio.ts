@@ -300,12 +300,12 @@ export const getFuncoes = async (): Promise<Funcao[]> => {
   const { data: cargosValidosData } = await db.from('cargos').select('id, codigo, nome')
   const mapaCargosValidos = new Map<string, Cargo>()
   for (const c of cargosValidosData || []) {
-    if (c?.id) {
+    if (c?.id && c?.nome) {
       mapaCargosValidos.set(c.id, c as Cargo)
     }
   }
 
-  // Agrupar cargos válidos por funcao_id, ignorando qualquer vínculo que aponte para cargo inexistente
+  // Agrupar cargos válidos por funcao_id, ignorando qualquer vínculo que aponte para cargo inexistente/órfão
   const cargosPorFuncao = new Map<string, Cargo[]>()
   for (const v of vinculosData || []) {
     const cargoValido =

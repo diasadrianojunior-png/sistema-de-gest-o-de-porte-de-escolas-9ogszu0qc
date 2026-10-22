@@ -102,8 +102,20 @@ export const registrarAuditoria = async (
       if (!usuario_email) usuario_email = atual.email
     }
 
+    // Sanitização do código do registro vinculado: se não foi fornecido explicitamente, extrai de detalhes com segurança
+    const codigoRegistro =
+      params.registro_codigo ||
+      (params.detalhes && typeof params.detalhes === 'object' && params.detalhes !== null
+        ? (params.detalhes as any).codigo ||
+          (params.detalhes as any).registro_codigo ||
+          (params.detalhes as any).funcao?.codigo ||
+          (params.detalhes as any).etapa?.codigo ||
+          (params.detalhes as any).cargo?.codigo ||
+          null
+        : null)
+
     const payload = {
-      registro_codigo: params.registro_codigo || null,
+      registro_codigo: codigoRegistro || null,
       entidade: params.entidade,
       acao: params.acao,
       descricao: params.descricao,

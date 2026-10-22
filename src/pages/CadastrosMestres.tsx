@@ -208,12 +208,13 @@ export default function CadastrosMestres() {
       return
     }
 
-    // Validação estrita de compatibilidade entre tipo de atendimento e nível/porte selecionado
+    // Validação e normalização de compatibilidade entre tipo de atendimento e nível/porte selecionado
+    const nivelNormalizado = normalizarNivelPorte(formData.tipo_atendimento, formData.nivel_porte)
     const ehCompativel =
       (formData.tipo_atendimento === 'Ensino Fundamental e Educação Infantil (20h)' &&
-        (OPCOES_NIVEL_20H as readonly string[]).includes(formData.nivel_porte)) ||
+        (OPCOES_NIVEL_20H as readonly string[]).includes(nivelNormalizado)) ||
       (formData.tipo_atendimento === 'Educação Infantil (40h)' &&
-        (OPCOES_NIVEL_40H as readonly string[]).includes(formData.nivel_porte))
+        (OPCOES_NIVEL_40H as readonly string[]).includes(nivelNormalizado))
 
     if (!ehCompativel) {
       toast({
@@ -303,7 +304,7 @@ export default function CadastrosMestres() {
       const payload = {
         nome: formData.nome.trim(),
         tipo_atendimento: formData.tipo_atendimento as TipoAtendimentoUnidade,
-        nivel_porte: formData.nivel_porte,
+        nivel_porte: nivelNormalizado,
         localizacao: localizacaoFinal,
         cep: formData.endereco.cep ? formData.endereco.cep.trim() : null,
         logradouro: formData.endereco.logradouro ? formData.endereco.logradouro.trim() : null,
@@ -467,7 +468,8 @@ export default function CadastrosMestres() {
                       <td className="py-3 px-4 text-slate-700">
                         <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md font-semibold bg-blue-50 text-blue-800 border border-blue-200">
                           <Layers className="w-3 h-3 text-blue-600" />
-                          {unidade.nivel_porte}
+                          {normalizarNivelPorte(unidade.tipo_atendimento, unidade.nivel_porte) ||
+                            unidade.nivel_porte}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-slate-600">

@@ -79,8 +79,10 @@ export default function Funcoes() {
     try {
       setLoading(true)
       const [listaFuncoes, listaCargos] = await Promise.all([getFuncoes(), getCargos()])
+      // Sanitização de cargos: mantém apenas cargos existentes e ativos com ID e nome válidos
+      const cargosValidos = (listaCargos || []).filter((c) => Boolean(c && c.id && c.nome))
       setFuncoes(listaFuncoes)
-      setCargos(listaCargos)
+      setCargos(cargosValidos)
     } catch (err: any) {
       toast({
         title: 'Erro ao carregar dados',
@@ -122,8 +124,9 @@ export default function Funcoes() {
     setOpenViewDialog(true)
   }
 
-  // Alternar um cargo no checklist
+  // Alternar um cargo no checklist garantindo que apenas cargos existentes possam ser alternados
   const handleToggleCargo = (cargoId: string) => {
+    if (!cargos.some((c) => c.id === cargoId)) return
     setSelectedCargoIds((prev) =>
       prev.includes(cargoId) ? prev.filter((id) => id !== cargoId) : [...prev, cargoId],
     )
@@ -357,38 +360,48 @@ export default function Funcoes() {
                         {/* Nome da função */}
                         <td className="py-3 px-4 font-medium text-slate-900">{f.nome}</td>
 
-                        {/* Cargos que podem exercer */}
+                        {/* Cargos que podem exercer com descarte de vínculos fantasmas/órfãos */}
                         <td className="py-3 px-4">
-                          {cargosVinculados.length === 0 ? (
-                            <span className="text-xs text-slate-400 italic">
-                              Nenhum cargo vinculado
-                            </span>
-                          ) : (
-                            <div className="flex flex-wrap gap-1.5 items-center">
-                              {cargosVinculados.slice(0, 3).map((c) => (
-                                <span
-                                  key={c.id}
-                                  title={`${c.codigo || ''}: ${c.nome}`}
-                                  className="inline-flex items-center gap-1 text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 max-w-[220px] truncate"
-                                >
-                                  <Briefcase className="w-3 h-3 text-slate-400 shrink-0" />
-                                  <strong className="font-mono text-blue-700 font-medium">
-                                    {c.codigo}
-                                  </strong>
-                                  <span className="truncate">{c.nome}</span>
+                          {(() => {
+                            const validos = cargosVinculados.filter((c) =>
+                              Boolean(c && c.id && c.nome),
+                            )
+                            if (validos.length === 0) {
+                              return (
+                                <span className="text-xs text-slate-400 italic">
+                                  Nenhum cargo vinculado
                                 </span>
-                              ))}
-                              {cargosVinculados.length > 3 && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenViewFuncao(f)}
-                                  className="text-[11px] font-semibold text-blue-700 hover:text-blue-900 hover:underline px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200"
-                                >
-                                  +{cargosVinculados.length - 3} mais
-                                </button>
-                              )}
-                            </div>
-                          )}
+                              )
+                            }
+                            return (
+                              <div className="flex flex-wrap gap-1.5 items-center">
+                                {validos.slice(0, 3).map((c) => (
+                                  <span
+                                    key={c.id}
+                                    title={`${c.codigo || ''}: ${c.nome}`}
+                                    className="inline-flex items-center gap-1 text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 max-w-[220px] truncate"
+                                  >
+                                    <Briefcase className="w-3 h-3 text-slate-400 shrink-0" />
+                                    {c.codigo && (
+                                      <strong className="font-mono text-blue-700 font-medium">
+                                        {c.codigo}
+                                      </strong>
+                                    )}
+                                    <span className="truncate">{c.nome}</span>
+                                  </span>
+                                ))}
+                                {validos.length > 3 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenViewFuncao(f)}
+                                    className="text-[11px] font-semibold text-blue-700 hover:text-blue-900 hover:underline px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200"
+                                  >
+                                    +{validos.length - 3} mais
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          })()}
                         </td>
 
                         {/* Ações */}

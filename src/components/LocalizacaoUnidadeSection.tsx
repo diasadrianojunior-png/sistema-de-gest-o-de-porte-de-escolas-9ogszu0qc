@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -95,7 +95,7 @@ const ESTADOS_BRASIL = [
   { uf: 'TO', nome: 'Tocantins' },
 ]
 
-// Cidades por estado para suporte ao select dependente
+// Cidades por estado para suporte ao select dependente dinâmico
 const CIDADES_POR_UF: Record<string, string[]> = {
   PR: [
     'Cambé',
@@ -109,11 +109,47 @@ const CIDADES_POR_UF: Record<string, string[]> = {
     'Ponta Grossa',
     'Foz do Iguaçu',
   ],
-  SP: ['São Paulo', 'Campinas', 'Santos', 'Sorocaba', 'Ribeirão Preto', 'Presidente Prudente'],
-  RJ: ['Rio de Janeiro', 'Niterói', 'Duque de Caxias', 'São Gonçalo'],
-  MG: ['Belo Horizonte', 'Uberlândia', 'Contagem', 'Juiz de Fora'],
-  SC: ['Florianópolis', 'Joinville', 'Blumenau'],
-  RS: ['Porto Alegre', 'Caxias do Sul', 'Canoas'],
+  SP: [
+    'São Paulo',
+    'Campinas',
+    'Santos',
+    'Sorocaba',
+    'Ribeirão Preto',
+    'Presidente Prudente',
+    'São José dos Campos',
+  ],
+  RJ: [
+    'Rio de Janeiro',
+    'Niterói',
+    'Duque de Caxias',
+    'São Gonçalo',
+    'Petrópolis',
+    'Volta Redonda',
+  ],
+  MG: ['Belo Horizonte', 'Uberlândia', 'Contagem', 'Juiz de Fora', 'Betim', 'Montes Claros'],
+  SC: ['Florianópolis', 'Joinville', 'Blumenau', 'Chapecó', 'Itajaí', 'Criciúma'],
+  RS: ['Porto Alegre', 'Caxias do Sul', 'Canoas', 'Pelotas', 'Santa Maria', 'Passo Fundo'],
+  BA: ['Salvador', 'Feira de Santana', 'Vitória da Conquista', 'Camaçari', 'Itabuna'],
+  PE: ['Recife', 'Jaboatão dos Guararapes', 'Olinda', 'Caruaru', 'Petrolina'],
+  CE: ['Fortaleza', 'Caucaia', 'Juazeiro do Norte', 'Maracanaú', 'Sobral'],
+  GO: ['Goiânia', 'Aparecida de Goiânia', 'Anápolis', 'Rio Verde', 'Luziânia'],
+  ES: ['Vitória', 'Vila Velha', 'Serra', 'Cariacica', 'Cachoeiro de Itapemirim'],
+  DF: ['Brasília', 'Taguatinga', 'Ceilândia', 'Águas Claras'],
+  MT: ['Cuiabá', 'Várzea Grande', 'Rondonópolis', 'Sinop'],
+  MS: ['Campo Grande', 'Dourados', 'Três Lagoas', 'Corumbá'],
+  AM: ['Manaus', 'Parintins', 'Itacoatiara'],
+  PA: ['Belém', 'Ananindeua', 'Santarém', 'Marabá'],
+  PB: ['João Pessoa', 'Campina Grande', 'Santa Rita'],
+  RN: ['Natal', 'Mossoró', 'Parnamirim'],
+  AL: ['Maceió', 'Arapiraca', 'Rio Largo'],
+  PI: ['Teresina', 'Parnaíba', 'Picos'],
+  MA: ['São Luís', 'Imperatriz', 'São José de Ribamar'],
+  SE: ['Aracaju', 'Nossa Senhora do Socorro', 'Lagarto'],
+  RO: ['Porto Velho', 'Ji-Paraná', 'Ariquemes'],
+  TO: ['Palmas', 'Araguaína', 'Gurupi'],
+  AC: ['Rio Branco', 'Cruzeiro do Sul', 'Sena Madureira'],
+  AP: ['Macapá', 'Santana', 'Laranjal do Jari'],
+  RR: ['Boa Vista', 'Rorainópolis', 'Caracaraí'],
 }
 
 // Formatação com máscara de CEP (00000-000)
@@ -978,8 +1014,13 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
     handleNumeroGeocode(novoValue)
   }
 
-  const cidadesDisponiveis =
-    CIDADES_POR_UF[value.estado_uf] || (value.cidade ? [value.cidade] : ['Cambé'])
+  const cidadesDisponiveis = useMemo(() => {
+    const lista = CIDADES_POR_UF[value.estado_uf] || []
+    if (value.cidade && !lista.includes(value.cidade)) {
+      return [value.cidade, ...lista]
+    }
+    return lista.length > 0 ? lista : ['Cambé']
+  }, [value.estado_uf, value.cidade])
 
   return (
     <div className="space-y-4 pt-2">
@@ -1195,11 +1236,21 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
               // Dependência dinâmica: ao mudar o estado, atualiza as opções de cidade e redefine a seleção
               const cidades = CIDADES_POR_UF[uf] || []
               const cidadeValida = uf === 'PR' ? 'Cambé' : cidades[0] || ''
-              onChange({
+              const novoEndereco = {
                 ...value,
                 estado_uf: uf,
                 cidade: cidadeValida,
-              })
+              }
+              onChange(novoEndereco)
+              if (onLocationSummaryChange && novoEndereco.logradouro) {
+                const parts = [
+                  novoEndereco.logradouro,
+                  novoEndereco.numero ? `nº ${novoEndereco.numero}` : '',
+                  novoEndereco.bairro,
+                  `${cidadeValida} - ${uf}`,
+                ].filter(Boolean)
+                onLocationSummaryChange(parts.join(', '))
+              }
             }}
             disabled={disabled}
           >
@@ -1222,12 +1273,26 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
             Cidade <span className="text-destructive">*</span>
           </Label>
           <Select
-            value={value.cidade || 'Cambé'}
-            onValueChange={(cid) => onChange({ ...value, cidade: cid })}
+            value={
+              cidadesDisponiveis.includes(value.cidade) ? value.cidade : cidadesDisponiveis[0] || ''
+            }
+            onValueChange={(cid) => {
+              const novoEndereco = { ...value, cidade: cid }
+              onChange(novoEndereco)
+              if (onLocationSummaryChange && novoEndereco.logradouro) {
+                const parts = [
+                  novoEndereco.logradouro,
+                  novoEndereco.numero ? `nº ${novoEndereco.numero}` : '',
+                  novoEndereco.bairro,
+                  `${cid} - ${novoEndereco.estado_uf || 'PR'}`,
+                ].filter(Boolean)
+                onLocationSummaryChange(parts.join(', '))
+              }
+            }}
             disabled={disabled}
           >
             <SelectTrigger id="cidade" className="text-sm bg-white">
-              <SelectValue placeholder="Selecione o estado..." />
+              <SelectValue placeholder="Selecione a cidade..." />
             </SelectTrigger>
             <SelectContent>
               {cidadesDisponiveis.map((cidade) => (

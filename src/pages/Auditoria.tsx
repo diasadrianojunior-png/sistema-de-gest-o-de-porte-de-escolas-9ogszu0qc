@@ -437,18 +437,36 @@ export default function Auditoria() {
                       {/* Ação */}
                       <td className="py-3 px-4">{getAcaoBadge(item.acao)}</td>
 
-                      {/* Cadastro / Entidade - exibe o código do registro vinculado apenas se existir */}
+                      {/* Cadastro / Entidade - exibe o código do registro vinculado apenas quando ele existir */}
                       <td className="py-3 px-4 text-xs text-slate-700">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-slate-900">
-                            {item.entidade || 'Sistema'}
-                          </span>
-                          {item.registro_codigo ? (
-                            <span className="font-mono text-[11px] text-blue-600 font-semibold">
-                              Ref: {item.registro_codigo}
-                            </span>
-                          ) : null}
-                        </div>
+                        {(() => {
+                          const codigoVinculado =
+                            item.registro_codigo ||
+                            (item.detalhes &&
+                            typeof item.detalhes === 'object' &&
+                            item.detalhes !== null
+                              ? (item.detalhes as any).codigo ||
+                                (item.detalhes as any).registro_codigo ||
+                                (item.detalhes as any).funcao?.codigo ||
+                                (item.detalhes as any).etapa?.codigo ||
+                                (item.detalhes as any).cargo?.codigo ||
+                                (item.detalhes as any).registro_anterior?.codigo ||
+                                null
+                              : null)
+
+                          return (
+                            <div className="flex flex-col">
+                              <span className="font-medium text-slate-900">
+                                {item.entidade || 'Sistema'}
+                              </span>
+                              {codigoVinculado ? (
+                                <span className="font-mono text-[11px] text-blue-600 font-semibold">
+                                  Ref: {codigoVinculado}
+                                </span>
+                              ) : null}
+                            </div>
+                          )
+                        })()}
                       </td>
 
                       {/* Descrição */}
@@ -500,12 +518,23 @@ export default function Auditoria() {
               <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 border rounded-lg">
                 <div>
                   <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold block">
-                    Identificador do Evento
+                    Código do Registro Afetado
                   </span>
                   <span className="font-mono font-bold text-sm text-blue-700 mt-0.5 block">
-                    {detalhesItem.codigo || 'AUD-0000'}
+                    {detalhesItem.registro_codigo ||
+                      (detalhesItem.detalhes &&
+                      typeof detalhesItem.detalhes === 'object' &&
+                      detalhesItem.detalhes !== null
+                        ? (detalhesItem.detalhes as any).codigo ||
+                          (detalhesItem.detalhes as any).registro_codigo ||
+                          (detalhesItem.detalhes as any).funcao?.codigo ||
+                          (detalhesItem.detalhes as any).etapa?.codigo ||
+                          (detalhesItem.detalhes as any).cargo?.codigo ||
+                          (detalhesItem.detalhes as any).registro_anterior?.codigo ||
+                          '—'
+                        : '—')}
                   </span>
-                </div>
+                </div>{' '}
                 <div>
                   <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold block">
                     Data e Hora
