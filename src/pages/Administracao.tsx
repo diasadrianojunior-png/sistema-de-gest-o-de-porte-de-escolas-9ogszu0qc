@@ -98,6 +98,20 @@ export default function Administracao() {
     setOpenCreateDialog(true)
   }
 
+  // Alternar perfil do usuário com dependência dinâmica de permissões:
+  // Se mudar para Administrador, as permissões individuais de operador são limpas para evitar inconsistências
+  // Se mudar para Operador, assegura que a matriz de permissões seja populada
+  const handleSelectPerfil = (novoPerfil: PerfilUsuario) => {
+    setFormPerfil(novoPerfil)
+    if (novoPerfil === 'Operador') {
+      if (formPermissoes.length === 0) {
+        setFormPermissoes(getPermissoesPadraoOperador())
+      }
+    } else {
+      setFormPermissoes([])
+    }
+  }
+
   const handleOpenEdit = async (targetUser: UsuarioSistema) => {
     setEditingUsuario(targetUser)
     setFormNome(targetUser.nome_completo)
@@ -521,7 +535,7 @@ export default function Administracao() {
                   {/* Card Administrador */}
                   <button
                     type="button"
-                    onClick={() => setFormPerfil('Administrador')}
+                    onClick={() => handleSelectPerfil('Administrador')}
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-xs font-medium transition-all ${
                       formPerfil === 'Administrador'
                         ? 'border-blue-600 bg-white ring-1 ring-blue-600 text-slate-900 shadow-xs'
@@ -544,7 +558,7 @@ export default function Administracao() {
                   {/* Card Operador */}
                   <button
                     type="button"
-                    onClick={() => setFormPerfil('Operador')}
+                    onClick={() => handleSelectPerfil('Operador')}
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-xs font-medium transition-all ${
                       formPerfil === 'Operador'
                         ? 'border-blue-600 bg-white ring-1 ring-blue-600 text-slate-900 shadow-xs'
@@ -740,7 +754,7 @@ export default function Administracao() {
                 <div className="space-y-2">
                   <button
                     type="button"
-                    onClick={() => setFormPerfil('Administrador')}
+                    onClick={() => handleSelectPerfil('Administrador')}
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-xs font-medium transition-all ${
                       formPerfil === 'Administrador'
                         ? 'border-blue-600 bg-white ring-1 ring-blue-600 text-slate-900 shadow-xs'
@@ -762,7 +776,7 @@ export default function Administracao() {
 
                   <button
                     type="button"
-                    onClick={() => setFormPerfil('Operador')}
+                    onClick={() => handleSelectPerfil('Operador')}
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-xs font-medium transition-all ${
                       formPerfil === 'Operador'
                         ? 'border-blue-600 bg-white ring-1 ring-blue-600 text-slate-900 shadow-xs'

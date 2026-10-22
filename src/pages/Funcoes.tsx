@@ -107,8 +107,12 @@ export default function Funcoes() {
   const handleOpenEditFuncao = (funcao: Funcao) => {
     setEditingFuncao(funcao)
     setFuncaoFormNome(funcao.nome)
-    const idsVinculados = (funcao.cargos_vinculados || []).map((c) => c.id)
-    setSelectedCargoIds(idsVinculados)
+    // Sanitização dinâmica: manter apenas IDs de cargos que realmente existem na base atual
+    const idsCargosAtivos = new Set(cargos.map((c) => c.id))
+    const idsVinculadosValidos = (funcao.cargos_vinculados || [])
+      .map((c) => c.id)
+      .filter((id) => idsCargosAtivos.has(id))
+    setSelectedCargoIds(idsVinculadosValidos)
     setSearchChecklist('')
     setOpenFuncaoDialog(true)
   }
@@ -125,10 +129,10 @@ export default function Funcoes() {
     )
   }
 
-  // Marcar todos os cargos (considerando filtro do checklist se houver, ou todos)
+  // Marcar todos os cargos disponíveis (apenas os ativos/filtrados válidos)
   const handleSelectAllCargos = () => {
-    const idsParaMarcar = cargos.map((c) => c.id)
-    setSelectedCargoIds(idsParaMarcar)
+    const idsParaMarcar = cargosFiltradosChecklist.map((c) => c.id)
+    setSelectedCargoIds((prev) => Array.from(new Set([...prev, ...idsParaMarcar])))
   }
 
   // Desmarcar todos os cargos
@@ -193,18 +197,22 @@ export default function Funcoes() {
       return
     }
 
+    // Filtrar estritamente apenas cargos que ainda existem na lista atual do sistema
+    const idsCargosAtivos = new Set(cargos.map((c) => c.id))
+    const cargoIdsFiltrados = selectedCargoIds.filter((id) => idsCargosAtivos.has(id))
+
     try {
       setSaving(true)
       if (editingFuncao) {
         await updateFuncao(editingFuncao.id, {
           nome: funcaoFormNome.trim(),
-          cargo_ids: selectedCargoIds,
+          cargo_ids: cargoIdsFiltrados,
         })
         toast({ title: 'Sucesso', description: 'Função atualizada com sucesso!' })
       } else {
         await createFuncao({
           nome: funcaoFormNome.trim(),
-          cargo_ids: selectedCargoIds,
+          cargo_ids: cargoIdsFiltrados,
         })
         toast({ title: 'Sucesso', description: 'Função cadastrada com sucesso!' })
       }

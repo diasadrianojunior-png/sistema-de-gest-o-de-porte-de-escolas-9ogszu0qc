@@ -1192,12 +1192,13 @@ export const LocalizacaoUnidadeSection: React.FC<LocalizacaoUnidadeProps> = ({
           <Select
             value={value.estado_uf || 'PR'}
             onValueChange={(uf) => {
-              // Se mudar o estado para diferente de PR, ajusta cidade padrão
+              // Dependência dinâmica: ao mudar o estado, atualiza as opções de cidade e redefine a seleção
               const cidades = CIDADES_POR_UF[uf] || []
+              const cidadeValida = uf === 'PR' ? 'Cambé' : cidades[0] || ''
               onChange({
                 ...value,
                 estado_uf: uf,
-                cidade: uf === 'PR' ? 'Cambé' : cidades[0] || '',
+                cidade: cidadeValida,
               })
             }}
             disabled={disabled}

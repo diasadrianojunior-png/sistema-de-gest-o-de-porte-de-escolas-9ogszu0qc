@@ -174,7 +174,7 @@ export default function CadastrosMestres() {
     setFormData((prev) => ({
       ...prev,
       tipo_atendimento: novoTipo,
-      nivel_porte: '', // Reset obrigatório ao alternar o combo primário
+      nivel_porte: '', // Reset obrigatório ao alternar o combo primário: remove vínculo incompatível
     }))
   }
 
@@ -202,7 +202,24 @@ export default function CadastrosMestres() {
     if (!formData.nivel_porte) {
       toast({
         title: 'Atenção',
-        description: 'Selecione a opção de nível/porte da unidade escolar.',
+        description: 'Selecione a opção de nível/porte compatível com o atendimento selecionado.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Validação estrita de compatibilidade entre tipo de atendimento e nível/porte selecionado
+    const ehCompativel =
+      (formData.tipo_atendimento === 'Ensino Fundamental e Educação Infantil (20h)' &&
+        (OPCOES_NIVEL_20H as readonly string[]).includes(formData.nivel_porte)) ||
+      (formData.tipo_atendimento === 'Educação Infantil (40h)' &&
+        (OPCOES_NIVEL_40H as readonly string[]).includes(formData.nivel_porte))
+
+    if (!ehCompativel) {
+      toast({
+        title: 'Vínculo incompatível',
+        description:
+          'O nível/porte selecionado não é compatível com o tipo de atendimento escolhido. Por favor selecione uma opção válida.',
         variant: 'destructive',
       })
       return
@@ -593,13 +610,6 @@ export default function CadastrosMestres() {
                     <SelectValue placeholder="Selecione nível e faixa de alunos" />
                   </SelectTrigger>
                   <SelectContent>
-                    {/* Se o valor atual for legado e não estiver na lista padrão, exibe também para não perder */}
-                    {formData.nivel_porte &&
-                      !(OPCOES_NIVEL_20H as readonly string[]).includes(formData.nivel_porte) && (
-                        <SelectItem value={formData.nivel_porte}>
-                          {formData.nivel_porte} (atual)
-                        </SelectItem>
-                      )}
                     {OPCOES_NIVEL_20H.map((opcao) => (
                       <SelectItem key={opcao} value={opcao}>
                         {opcao}
@@ -626,13 +636,6 @@ export default function CadastrosMestres() {
                     <SelectValue placeholder="Selecione nível e faixa de alunos" />
                   </SelectTrigger>
                   <SelectContent>
-                    {/* Se o valor atual for legado e não estiver na lista padrão, exibe também para não perder */}
-                    {formData.nivel_porte &&
-                      !(OPCOES_NIVEL_40H as readonly string[]).includes(formData.nivel_porte) && (
-                        <SelectItem value={formData.nivel_porte}>
-                          {formData.nivel_porte} (atual)
-                        </SelectItem>
-                      )}
                     {OPCOES_NIVEL_40H.map((opcao) => (
                       <SelectItem key={opcao} value={opcao}>
                         {opcao}

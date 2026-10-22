@@ -420,26 +420,34 @@ export default function Auditoria() {
                       <td className="py-3 px-4">
                         <div className="flex flex-col min-w-0">
                           <span className="font-medium text-slate-900 text-xs truncate">
-                            {item.usuario_nome}
+                            {item.usuario_nome || 'Sistema'}
                           </span>
-                          <span className="text-[11px] text-slate-500 font-mono truncate">
-                            {item.usuario_email}
-                          </span>
+                          {item.usuario_email ? (
+                            <span className="text-[11px] text-slate-500 font-mono truncate">
+                              {item.usuario_email}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">
+                              Sem e-mail vinculado
+                            </span>
+                          )}
                         </div>
                       </td>
 
                       {/* Ação */}
                       <td className="py-3 px-4">{getAcaoBadge(item.acao)}</td>
 
-                      {/* Cadastro / Entidade */}
+                      {/* Cadastro / Entidade - exibe o código do registro vinculado apenas se existir */}
                       <td className="py-3 px-4 text-xs text-slate-700">
                         <div className="flex flex-col">
-                          <span className="font-medium text-slate-900">{item.entidade}</span>
-                          {item.registro_codigo && (
-                            <span className="font-mono text-[11px] text-blue-600">
+                          <span className="font-medium text-slate-900">
+                            {item.entidade || 'Sistema'}
+                          </span>
+                          {item.registro_codigo ? (
+                            <span className="font-mono text-[11px] text-blue-600 font-semibold">
                               Ref: {item.registro_codigo}
                             </span>
-                          )}
+                          ) : null}
                         </div>
                       </td>
 
@@ -513,8 +521,14 @@ export default function Auditoria() {
                 <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
                   Usuário Responsável
                 </span>
-                <p className="text-sm font-semibold text-slate-900">{detalhesItem.usuario_nome}</p>
-                <p className="text-xs text-slate-600 font-mono">{detalhesItem.usuario_email}</p>
+                <p className="text-sm font-semibold text-slate-900">
+                  {detalhesItem.usuario_nome || 'Sistema'}
+                </p>
+                {detalhesItem.usuario_email ? (
+                  <p className="text-xs text-slate-600 font-mono">{detalhesItem.usuario_email}</p>
+                ) : (
+                  <p className="text-xs text-slate-400 italic">Sem e-mail vinculado</p>
+                )}
                 {detalhesItem.usuario_id && (
                   <p className="text-[11px] text-slate-400 font-mono">
                     ID Auth: {detalhesItem.usuario_id}

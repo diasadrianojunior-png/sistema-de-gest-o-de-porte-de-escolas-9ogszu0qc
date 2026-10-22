@@ -240,6 +240,9 @@ export const updateCargo = async (
 export const deleteCargo = async (id: string): Promise<void> => {
   const { data: anterior } = await db.from('cargos').select('*').eq('id', id).maybeSingle()
 
+  // Limpeza explícita dos vínculos em funcao_cargos para remover cargos órfãos
+  await db.from('funcao_cargos').delete().eq('cargo_id', id)
+
   const { error } = await db.from('cargos').delete().eq('id', id)
 
   if (error) {
@@ -293,12 +296,27 @@ export const getFuncoes = async (): Promise<Funcao[]> => {
     return funcoes.map((f) => ({ ...f, cargos_vinculados: [] }))
   }
 
-  // Agrupar cargos por funcao_id
+  // Sanitizar leitura: buscar os cargos existentes para filtrar vínculos órfãos/fantasmas
+  const { data: cargosValidosData } = await db.from('cargos').select('id, codigo, nome')
+  const mapaCargosValidos = new Map<string, Cargo>()
+  for (const c of cargosValidosData || []) {
+    if (c?.id) {
+      mapaCargosValidos.set(c.id, c as Cargo)
+    }
+  }
+
+  // Agrupar cargos válidos por funcao_id, ignorando qualquer vínculo que aponte para cargo inexistente
   const cargosPorFuncao = new Map<string, Cargo[]>()
   for (const v of vinculosData || []) {
-    if (v.cargos) {
+    const cargoValido =
+      mapaCargosValidos.get(v.cargo_id) ||
+      (v.cargos && v.cargos.id && mapaCargosValidos.get(v.cargos.id))
+    if (cargoValido) {
       const arr = cargosPorFuncao.get(v.funcao_id) || []
-      arr.push(v.cargos as Cargo)
+      // Evitar duplicidades no agrupamento
+      if (!arr.some((item) => item.id === cargoValido.id)) {
+        arr.push(cargoValido)
+      }
       cargosPorFuncao.set(v.funcao_id, arr)
     }
   }
@@ -326,9 +344,22 @@ export const createFuncao = async (input: CreateFuncaoInput): Promise<Funcao> =>
 
   const created = data as Funcao
 
-  // 2. Inserir os vínculos com os cargos selecionados
+  // 2. Sanitizar lista de cargo_ids: apenas cargos reais e existentes no banco
+  let cargosValidosIds: string[] = []
+  let cargosVinculadosObjetos: Cargo[] = []
   if (input.cargo_ids && input.cargo_ids.length > 0) {
-    const vinculosParaInserir = input.cargo_ids.map((cargoId) => ({
+    const { data: cargosExistentes } = await db
+      .from('cargos')
+      .select('id, codigo, nome')
+      .in('id', Array.from(new Set(input.cargo_ids)))
+
+    cargosVinculadosObjetos = (cargosExistentes as Cargo[]) || []
+    cargosValidosIds = cargosVinculadosObjetos.map((c) => c.id)
+  }
+
+  // 3. Inserir os vínculos estritamente válidos
+  if (cargosValidosIds.length > 0) {
+    const vinculosParaInserir = cargosValidosIds.map((cargoId) => ({
       funcao_id: created.id,
       cargo_id: cargoId,
     }))
@@ -340,25 +371,15 @@ export const createFuncao = async (input: CreateFuncaoInput): Promise<Funcao> =>
     }
   }
 
-  // 3. Buscar os cargos vinculados para o retorno e auditoria
-  let nomesCargos: string[] = []
-  if (input.cargo_ids && input.cargo_ids.length > 0) {
-    const { data: cargosVinculados } = await db
-      .from('cargos')
-      .select('id, codigo, nome')
-      .in('id', input.cargo_ids)
-    created.cargos_vinculados = (cargosVinculados as Cargo[]) || []
-    nomesCargos = (cargosVinculados || []).map((c: any) => `${c.codigo}: ${c.nome}`)
-  } else {
-    created.cargos_vinculados = []
-  }
+  created.cargos_vinculados = cargosVinculadosObjetos
+  const nomesCargos = cargosVinculadosObjetos.map((c) => `${c.codigo}: ${c.nome}`)
 
   // 4. Registrar Auditoria com código FUN-XXXX
   await registrarAuditoria({
     entidade: 'Funções',
     acao: 'Criação',
     registro_codigo: created.codigo || null,
-    descricao: `Cadastro da função "${created.nome}" com ${input.cargo_ids.length} cargo(s) vinculado(s): ${nomesCargos.join(', ') || 'Nenhum'}.`,
+    descricao: `Cadastro da função "${created.nome}" com ${cargosVinculadosObjetos.length} cargo(s) vinculado(s): ${nomesCargos.join(', ') || 'Nenhum'}.`,
     detalhes: {
       funcao: created,
       cargos_vinculados: created.cargos_vinculados,
@@ -391,8 +412,21 @@ export const updateFuncao = async (id: string, input: UpdateFuncaoInput): Promis
     throw delError
   }
 
+  // Sanitizar lista de cargo_ids para inserção: apenas cargos que realmente existem
+  let cargosValidosIds: string[] = []
+  let cargosVinculadosObjetos: Cargo[] = []
   if (input.cargo_ids && input.cargo_ids.length > 0) {
-    const vinculosParaInserir = input.cargo_ids.map((cargoId) => ({
+    const { data: cargosExistentes } = await db
+      .from('cargos')
+      .select('id, codigo, nome')
+      .in('id', Array.from(new Set(input.cargo_ids)))
+
+    cargosVinculadosObjetos = (cargosExistentes as Cargo[]) || []
+    cargosValidosIds = cargosVinculadosObjetos.map((c) => c.id)
+  }
+
+  if (cargosValidosIds.length > 0) {
+    const vinculosParaInserir = cargosValidosIds.map((cargoId) => ({
       funcao_id: id,
       cargo_id: cargoId,
     }))
@@ -404,25 +438,16 @@ export const updateFuncao = async (id: string, input: UpdateFuncaoInput): Promis
     }
   }
 
-  // 3. Buscar os cargos vinculados atualizados
-  let nomesCargos: string[] = []
-  if (input.cargo_ids && input.cargo_ids.length > 0) {
-    const { data: cargosVinculados } = await db
-      .from('cargos')
-      .select('id, codigo, nome')
-      .in('id', input.cargo_ids)
-    updated.cargos_vinculados = (cargosVinculados as Cargo[]) || []
-    nomesCargos = (cargosVinculados || []).map((c: any) => `${c.codigo}: ${c.nome}`)
-  } else {
-    updated.cargos_vinculados = []
-  }
+  // 3. Definir os cargos vinculados atualizados e nomes para auditoria
+  updated.cargos_vinculados = cargosVinculadosObjetos
+  const nomesCargos = cargosVinculadosObjetos.map((c) => `${c.codigo}: ${c.nome}`)
 
   // 4. Registrar Auditoria com código FUN-XXXX
   await registrarAuditoria({
     entidade: 'Funções',
     acao: 'Edição',
     registro_codigo: updated.codigo || null,
-    descricao: `Edição da função "${updated.nome}" com ${input.cargo_ids.length} cargo(s) vinculado(s): ${nomesCargos.join(', ') || 'Nenhum'}.`,
+    descricao: `Edição da função "${updated.nome}" com ${cargosVinculadosObjetos.length} cargo(s) vinculado(s): ${nomesCargos.join(', ') || 'Nenhum'}.`,
     detalhes: {
       id,
       funcao: updated,
@@ -437,7 +462,10 @@ export const deleteFuncao = async (id: string): Promise<void> => {
   // 1. Buscar registro anterior para histórico de auditoria
   const { data: anterior } = await db.from('funcoes').select('*').eq('id', id).maybeSingle()
 
-  // 2. Excluir (ON DELETE CASCADE da migration remove os registros em funcao_cargos)
+  // 1.1 Limpeza explícita de vínculos pré-exclusão para garantir consistência
+  await db.from('funcao_cargos').delete().eq('funcao_id', id)
+
+  // 2. Excluir a função (ON DELETE CASCADE da migration remove redundâncias em funcao_cargos)
   const { error } = await db.from('funcoes').delete().eq('id', id)
 
   if (error) {
@@ -481,17 +509,21 @@ export const getEtapas = async (): Promise<Etapa[]> => {
 }
 
 export const createEtapa = async (input: CreateEtapaInput): Promise<Etapa> => {
+  // Validação dinâmica do ano letivo
+  if (input.ano_letivo < 2020 || input.ano_letivo > 2040) {
+    throw new Error('Ano letivo inválido. O ano deve estar entre 2020 e 2040.')
+  }
+
   const { data, error } = await db
     .from('etapas')
     .insert([
       {
         nome: input.nome.trim(),
-        ano_letivo: Number(input.ano_letivo),
+        ano_letivo: input.ano_letivo,
       },
     ])
     .select()
     .single()
-
   if (error) {
     console.error('Erro ao criar etapa:', error)
     throw error
@@ -511,11 +543,16 @@ export const createEtapa = async (input: CreateEtapaInput): Promise<Etapa> => {
 }
 
 export const updateEtapa = async (id: string, input: UpdateEtapaInput): Promise<Etapa> => {
+  const ano = Number(input.ano_letivo)
+  if (ano < 2020 || ano > 2040) {
+    throw new Error('Ano letivo inválido. O ano deve estar entre 2020 e 2040.')
+  }
+
   const { data, error } = await db
     .from('etapas')
     .update({
       nome: input.nome.trim(),
-      ano_letivo: Number(input.ano_letivo),
+      ano_letivo: ano,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)

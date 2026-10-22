@@ -127,7 +127,7 @@ export const createUsuario = async (
 
   const usuarioCriado = data as UsuarioSistema
 
-  // Salvar permissões personalizadas se for perfil Operador
+  // Salvar permissões personalizadas se for perfil Operador; se Administrador, limpar registros para consistência
   if (input.perfil === 'Operador' && input.permissoes && input.permissoes.length > 0) {
     try {
       await salvarPermissoesUsuario(
@@ -141,6 +141,9 @@ export const createUsuario = async (
     } catch (pErr) {
       console.error('Erro ao salvar permissões do novo usuário operador:', pErr)
     }
+  } else if (input.perfil === 'Administrador') {
+    // Administrador tem acesso global: remove vínculos individuais caso existam
+    await db.from('permissoes_usuario').delete().eq('usuario_id', usuarioCriado.id)
   }
 
   await registrarAuditoria({
@@ -215,7 +218,7 @@ export const updateUsuario = async (
 
   const updated = data as UsuarioSistema
 
-  // Se o perfil for Operador e foram passadas permissões, atualizá-las
+  // Se o perfil for Operador e foram passadas permissões, atualizá-las; se alterado para Administrador, limpa vínculos
   if (input.perfil === 'Operador' && input.permissoes && input.permissoes.length > 0) {
     try {
       // Buscar permissões atuais para registrar delta preciso na auditoria
@@ -235,6 +238,9 @@ export const updateUsuario = async (
     } catch (pErr) {
       console.error('Erro ao salvar permissões atualizadas do operador:', pErr)
     }
+  } else if (input.perfil === 'Administrador') {
+    // Ao alternar para Administrador, remove vínculos de operador para não deixar regras fantasmas
+    await db.from('permissoes_usuario').delete().eq('usuario_id', id)
   }
 
   await registrarAuditoria({
@@ -269,7 +275,10 @@ export const deleteUsuario = async (
     }
   }
 
-  // 1. Tentar excluir do auth através da edge function se tiver user_id ou email
+  // 1. Limpar preventivamente vínculos de permissões na tabela permissoes_usuario
+  await db.from('permissoes_usuario').delete().eq('usuario_id', usuario.id)
+
+  // 2. Tentar excluir do auth através da edge function se tiver user_id ou email
   try {
     await supabase.functions.invoke('admin-users', {
       body: {
@@ -283,7 +292,7 @@ export const deleteUsuario = async (
     console.warn('Erro ao chamar edge function para excluir auth user:', err)
   }
 
-  // 2. Excluir da tabela usuarios_sistema
+  // 3. Excluir da tabela usuarios_sistema
   const { error } = await db.from('usuarios_sistema').delete().eq('id', usuario.id)
 
   if (error) {

@@ -14,6 +14,17 @@ export interface RegistrarAuditoriaParams {
   detalhes?: Record<string, any> | null
 }
 
+/**
+ * Sanitiza e filtra vínculos salvos em objetos JSON / metadados para remover referências a IDs inexistentes
+ */
+export const sanitizarVinculosAuditados = <T extends { id: string }>(
+  vinculos: T[] | null | undefined,
+  idsValidos: Set<string>,
+): T[] => {
+  if (!Array.isArray(vinculos)) return []
+  return vinculos.filter((item) => item && typeof item.id === 'string' && idsValidos.has(item.id))
+}
+
 export interface FiltrosAuditoria {
   busca?: string
   usuario?: string
