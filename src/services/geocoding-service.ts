@@ -36,6 +36,24 @@ export interface ViaCepResponse {
   erro?: boolean | string
 }
 
+export interface BrasilApiCepV2Response {
+  cep?: string
+  state?: string
+  city?: string
+  neighborhood?: string
+  street?: string
+  service?: string
+  location?: {
+    type?: string
+    coordinates?: {
+      longitude?: string | number
+      latitude?: string | number
+    }
+  }
+  errors?: any[]
+  message?: string
+}
+
 export interface GeocodeResult {
   latitude: number
   longitude: number
@@ -44,7 +62,36 @@ export interface GeocodeResult {
   cidade: string
   estado_uf: string
   cep: string
-  source: 'google-postal-code' | 'google-address' | 'nominatim-address'
+  source: 'brasilapi-cep' | 'google-postal-code' | 'google-address' | 'nominatim-address'
+}
+
+/**
+ * Consulta a API v2 da BrasilAPI (retorna endereço e coordenadas quando disponíveis)
+ */
+export async function consultarBrasilApi(
+  cepDigits: string,
+): Promise<BrasilApiCepV2Response | null> {
+  const clean = cepDigits.replace(/\D/g, '')
+  if (clean.length !== 8) return null
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 6000)
+    const resp = await fetch(`https://brasilapi.com.br/api/cep/v2/${clean}`, {
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+
+    if (!resp.ok) return null
+    const data: BrasilApiCepV2Response = await resp.json()
+    if (data.errors || data.message) {
+      return null
+    }
+    return data
+  } catch (err) {
+    console.warn('Falha na consulta à BrasilAPI:', err)
+    return null
+  }
 }
 
 /**
