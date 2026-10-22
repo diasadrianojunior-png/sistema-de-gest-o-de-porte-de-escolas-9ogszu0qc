@@ -110,6 +110,7 @@ export const registrarAuditoria = async (
           (params.detalhes as any).registro_codigo ||
           (params.detalhes as any).funcao?.codigo ||
           (params.detalhes as any).etapa?.codigo ||
+          (params.detalhes as any).ano_serie?.codigo ||
           (params.detalhes as any).cargo?.codigo ||
           null
         : null)

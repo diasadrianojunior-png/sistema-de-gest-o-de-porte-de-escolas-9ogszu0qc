@@ -19,6 +19,7 @@ import {
   Briefcase,
   Layers,
   GraduationCap,
+  BookOpen,
   PanelLeftOpen,
   Mail,
   Users,
@@ -74,6 +75,7 @@ export default function Layout() {
   const isCargosActive = location.pathname === '/cadastros-apoio/cargos'
   const isFuncoesActive = location.pathname === '/cadastros-apoio/funcoes'
   const isEtapasActive = location.pathname === '/cadastros-apoio/etapas'
+  const isAnosSeriesActive = location.pathname === '/cadastros-apoio/anos-series'
   const isApoioActive = location.pathname.startsWith('/cadastros-apoio')
   const isUsuariosActive =
     location.pathname === '/administracao/usuarios' || location.pathname === '/administracao'
@@ -87,13 +89,14 @@ export default function Layout() {
   const canViewCargos = canView('cargos')
   const canViewFuncoes = canView('funcoes')
   const canViewEtapas = canView('etapas')
+  const canViewAnosSeries = canView('anos_series')
   const canViewUsuarios = canView('usuarios')
   const canViewContasEmail = canView('contas_email')
   const canViewAuditoria = canView('auditoria')
 
   // Seções agrupadas têm visibilidade se pelo menos um submenu puder ser visto
   const showCadastrosMestres = canViewUnidades
-  const showCadastrosApoio = canViewCargos || canViewFuncoes || canViewEtapas
+  const showCadastrosApoio = canViewCargos || canViewFuncoes || canViewEtapas || canViewAnosSeries
   const showAdministracao = canViewUsuarios || canViewContasEmail
 
   // Conteúdo unificado da barra lateral (Sidebar)
@@ -435,6 +438,23 @@ export default function Layout() {
                               <span>Etapas</span>
                             </NavLink>
                           )}
+
+                          {canViewAnosSeries && (
+                            <NavLink
+                              to="/cadastros-apoio/anos-series"
+                              onClick={() => setApoioPopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                isAnosSeriesActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <BookOpen
+                                className={`w-4 h-4 shrink-0 ${isAnosSeriesActive ? 'text-white' : 'text-slate-500'}`}
+                              />
+                              <span>Ano/Série</span>
+                            </NavLink>
+                          )}
                         </div>
                       </PopoverContent>
                     </Popover>
@@ -519,6 +539,24 @@ export default function Layout() {
                                 className={`w-3.5 h-3.5 shrink-0 ${isEtapasActive ? 'text-white' : 'text-slate-400'}`}
                               />
                               <span className="truncate">Etapas</span>
+                            </NavLink>
+                          )}
+
+                          {canViewAnosSeries && (
+                            <NavLink
+                              to="/cadastros-apoio/anos-series"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Ano/Série"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isAnosSeriesActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <BookOpen
+                                className={`w-3.5 h-3.5 shrink-0 ${isAnosSeriesActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Ano/Série</span>
                             </NavLink>
                           )}
                         </div>
@@ -907,7 +945,13 @@ export default function Layout() {
                   <span className="text-slate-600">Cadastros de Apoio</span>
                   <span className="mx-2 text-slate-300">/</span>
                   <span className="text-blue-700 font-semibold">
-                    {isEtapasActive ? 'Etapas' : isFuncoesActive ? 'Funções' : 'Cargos'}
+                    {isAnosSeriesActive
+                      ? 'Ano/Série'
+                      : isEtapasActive
+                        ? 'Etapas'
+                        : isFuncoesActive
+                          ? 'Funções'
+                          : 'Cargos'}
                   </span>
                 </>
               )}

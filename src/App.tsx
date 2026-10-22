@@ -10,6 +10,7 @@ import CadastrosApoio from './pages/CadastrosApoio'
 import Cargos from './pages/Cargos'
 import Funcoes from './pages/Funcoes'
 import Etapas from './pages/Etapas'
+import AnosSeries from './pages/AnosSeries'
 import CadastrosMestres from './pages/CadastrosMestres'
 import Administracao from './pages/Administracao'
 import ContasEmail from './pages/ContasEmail'
@@ -69,6 +70,14 @@ const App = () => (
               element={
                 <RouteGuard menuKey="etapas">
                   <Etapas />
+                </RouteGuard>
+              }
+            />
+            <Route
+              path="/cadastros-apoio/anos-series"
+              element={
+                <RouteGuard menuKey="anos_series">
+                  <AnosSeries />
                 </RouteGuard>
               }
             />

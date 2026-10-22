@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
-import { Cargo, Etapa, Funcao, MunicipioRede, TipoEscola } from '@/types/gestao-escolar'
+import { AnoSerie, Cargo, Etapa, Funcao, MunicipioRede, TipoEscola } from '@/types/gestao-escolar'
 import { registrarAuditoria } from './auditoria'
 
 const db = supabase as any
@@ -592,6 +592,119 @@ export const deleteEtapa = async (id: string): Promise<void> => {
     acao: 'Exclusão',
     registro_codigo: anterior?.codigo || null,
     descricao: `Exclusão da etapa "${anterior?.nome || id}" (Ano Letivo: ${anterior?.ano_letivo || '-'}).`,
+    detalhes: { id, registro_anterior: anterior },
+  })
+}
+
+// --- Anos / Séries ---
+export interface CreateAnoSerieInput {
+  nome: string
+  ano_letivo: number
+}
+
+export interface UpdateAnoSerieInput {
+  nome: string
+  ano_letivo: number
+}
+
+export const getAnosSeries = async (): Promise<AnoSerie[]> => {
+  const { data, error } = await db
+    .from('anos_series')
+    .select('*')
+    .order('ano_letivo', { ascending: false })
+    .order('codigo', { ascending: true })
+
+  if (error) {
+    console.error('Erro ao buscar anos/séries:', error)
+    throw error
+  }
+  return (data as AnoSerie[]) || []
+}
+
+export const createAnoSerie = async (input: CreateAnoSerieInput): Promise<AnoSerie> => {
+  if (input.ano_letivo < 2020 || input.ano_letivo > 2040) {
+    throw new Error('Ano letivo inválido. O ano deve estar entre 2020 e 2040.')
+  }
+
+  const { data, error } = await db
+    .from('anos_series')
+    .insert([
+      {
+        nome: input.nome.trim(),
+        ano_letivo: input.ano_letivo,
+      },
+    ])
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Erro ao criar ano/série:', error)
+    throw error
+  }
+
+  const created = data as AnoSerie
+
+  await registrarAuditoria({
+    entidade: 'Ano/Série',
+    acao: 'Criação',
+    registro_codigo: created.codigo || null,
+    descricao: `Cadastro de Ano/Série "${created.nome}" (Ano Letivo: ${created.ano_letivo}).`,
+    detalhes: { ano_serie: created },
+  })
+
+  return created
+}
+
+export const updateAnoSerie = async (id: string, input: UpdateAnoSerieInput): Promise<AnoSerie> => {
+  const ano = Number(input.ano_letivo)
+  if (ano < 2020 || ano > 2040) {
+    throw new Error('Ano letivo inválido. O ano deve estar entre 2020 e 2040.')
+  }
+
+  const { data, error } = await db
+    .from('anos_series')
+    .update({
+      nome: input.nome.trim(),
+      ano_letivo: ano,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Erro ao atualizar ano/série:', error)
+    throw error
+  }
+
+  const updated = data as AnoSerie
+
+  await registrarAuditoria({
+    entidade: 'Ano/Série',
+    acao: 'Edição',
+    registro_codigo: updated.codigo || null,
+    descricao: `Edição de Ano/Série "${updated.nome}" (Ano Letivo: ${updated.ano_letivo}).`,
+    detalhes: { id, alteracoes: input },
+  })
+
+  return updated
+}
+
+export const deleteAnoSerie = async (id: string): Promise<void> => {
+  const { data: anterior } = await db.from('anos_series').select('*').eq('id', id).maybeSingle()
+
+  const { error } = await db.from('anos_series').delete().eq('id', id)
+
+  if (error) {
+    console.error('Erro ao excluir ano/série:', error)
+    throw error
+  }
+
+  await registrarAuditoria({
+    entidade: 'Ano/Série',
+    acao: 'Exclusão',
+    registro_codigo: anterior?.codigo || null,
+    descricao: `Exclusão de Ano/Série "${anterior?.nome || id}" (Ano Letivo: ${anterior?.ano_letivo || '-'}).`,
     detalhes: { id, registro_anterior: anterior },
   })
 }

@@ -50,6 +50,15 @@ export interface Etapa {
   updated_at?: string
 }
 
+export interface AnoSerie {
+  id: string
+  codigo?: string
+  nome: string
+  ano_letivo: number
+  created_at?: string
+  updated_at?: string
+}
+
 export type TipoAtendimentoUnidade =
   | 'Ensino Fundamental e Educação Infantil (20h)'
   | 'Educação Infantil (40h)'
@@ -240,6 +249,7 @@ export type EntidadeAuditoria =
   | 'Cargos'
   | 'Funções'
   | 'Etapas'
+  | 'Ano/Série'
   | 'Usuários'
   | 'Contas de E-mail'
   | 'Permissões'
@@ -251,6 +261,7 @@ export type SistemaMenuKey =
   | 'cargos'
   | 'funcoes'
   | 'etapas'
+  | 'anos_series'
   | 'usuarios'
   | 'contas_email'
   | 'auditoria'
