@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
-import { PerfilUsuario, SistemaMenuKey, PermissaoPerfil } from '@/types/gestao-escolar'
+import { PerfilUsuario, SistemaMenuKey, PermissaoUsuario } from '@/types/gestao-escolar'
 
 export interface UserPermissions {
   isAdmin: boolean
@@ -9,7 +9,7 @@ export interface UserPermissions {
   perfil: PerfilUsuario | null
   canView: (menu: SistemaMenuKey) => boolean
   canEdit: (menu: SistemaMenuKey) => boolean
-  permissoes: PermissaoPerfil[]
+  permissoes: PermissaoUsuario[]
   refreshPermissoes: () => Promise<void>
 }
 
@@ -26,7 +26,7 @@ interface AuthContextType {
   isOperador: boolean
   canView: (menu: SistemaMenuKey) => boolean
   canEdit: (menu: SistemaMenuKey) => boolean
-  permissoes: PermissaoPerfil[]
+  permissoes: PermissaoUsuario[]
   refreshPermissoes: () => Promise<void>
 }
 
@@ -43,7 +43,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [perfil, setPerfil] = useState<PerfilUsuario | null>(null)
-  const [permissoes, setPermissoes] = useState<PermissaoPerfil[]>([])
+  const [permissoes, setPermissoes] = useState<PermissaoUsuario[]>([])
 
   const carregarPerfilEPermissoes = useCallback(async (targetUser: User | null) => {
     if (!targetUser) {
@@ -56,10 +56,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const email = targetUser.email || ''
       const db = supabase as any
 
-      // 1. Obter perfil do usuário logado na tabela usuarios_sistema
+      // 1. Obter registro do usuário logado na tabela usuarios_sistema
       const { data: usuarioData, error: usrErr } = await db
         .from('usuarios_sistema')
-        .select('perfil, estado')
+        .select('id, perfil, estado')
         .or(`user_id.eq.${targetUser.id},email.eq.${email}`)
         .maybeSingle()
 
@@ -76,15 +76,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       setPerfil(perfilResolvido)
 
-      // 2. Se for Operador (ou mesmo para cache), carregar regras da tabela permissoes_perfil
-      const { data: permsData, error: permErr } = await db
-        .from('permissoes_perfil')
-        .select('*')
-        .eq('perfil', 'Operador')
-        .order('ordem', { ascending: true })
+      // 2. Se for Operador e tiver id de usuário cadastrado, carregar permissões individuais
+      if (usuarioData?.id) {
+        const { data: permsData, error: permErr } = await db
+          .from('permissoes_usuario')
+          .select('*')
+          .eq('usuario_id', usuarioData.id)
+          .order('ordem', { ascending: true })
 
-      if (!permErr && permsData) {
-        setPermissoes(permsData as PermissaoPerfil[])
+        if (!permErr && permsData && permsData.length > 0) {
+          setPermissoes(permsData as PermissaoUsuario[])
+        } else {
+          // Fallback transitório: se o usuário ainda não tiver registros em permissoes_usuario,
+          // herda as regras globais de permissoes_perfil
+          const { data: legacyPerms } = await db
+            .from('permissoes_perfil')
+            .select('*')
+            .eq('perfil', 'Operador')
+            .order('ordem', { ascending: true })
+
+          if (legacyPerms && legacyPerms.length > 0) {
+            setPermissoes(
+              legacyPerms.map((lp: any) => ({
+                id: lp.id,
+                codigo: lp.codigo,
+                usuario_id: usuarioData.id,
+                menu_key: lp.menu_key,
+                menu_label: lp.menu_label,
+                pode_ver: lp.pode_ver,
+                pode_editar: lp.pode_editar,
+                suporta_edicao: lp.suporta_edicao,
+                ordem: lp.ordem,
+                created_at: lp.created_at,
+                updated_at: lp.updated_at,
+              })),
+            )
+          } else {
+            setPermissoes([])
+          }
+        }
+      } else {
+        setPermissoes([])
       }
     } catch (err) {
       console.warn('Exceção ao resolver permissões do usuário:', err)

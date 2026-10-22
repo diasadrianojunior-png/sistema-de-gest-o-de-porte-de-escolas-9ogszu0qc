@@ -37,10 +37,16 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { getUsuarios, createUsuario, updateUsuario, deleteUsuario } from '@/services/usuarios'
 import { UsuarioSistema, PerfilUsuario, EstadoUsuario } from '@/types/gestao-escolar'
+import {
+  PermissaoItemForm,
+  getPermissoesPadraoOperador,
+  getPermissoesUsuario,
+} from '@/services/permissoes'
+import { PermissoesFormTable } from '@/components/PermissoesFormTable'
 import { useAuth } from '@/hooks/use-auth'
 
 export default function Administracao() {
-  const { user, isAdmin, canEdit } = useAuth()
+  const { user, isAdmin, canEdit, refreshPermissoes } = useAuth()
   const canEditUsuarios = isAdmin || canEdit('usuarios')
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([])
   const [loading, setLoading] = useState(true)
@@ -53,11 +59,15 @@ export default function Administracao() {
   const [editingUsuario, setEditingUsuario] = useState<UsuarioSistema | null>(null)
   const [deletingUsuario, setDeletingUsuario] = useState<UsuarioSistema | null>(null)
 
-  // Formulário Novo Usuário (exatamente como na imagem)
+  // Formulário Novo Usuário (exatamente como na imagem + permissões se for Operador)
   const [formNome, setFormNome] = useState('')
   const [formEmail, setFormEmail] = useState('')
   const [formPerfil, setFormPerfil] = useState<PerfilUsuario>('Operador')
   const [formEstado, setFormEstado] = useState<EstadoUsuario>('Ativo')
+  const [formPermissoes, setFormPermissoes] = useState<PermissaoItemForm[]>(
+    getPermissoesPadraoOperador(),
+  )
+  const [loadingPermissoesEdit, setLoadingPermissoesEdit] = useState(false)
 
   const loadData = async () => {
     try {
@@ -84,15 +94,48 @@ export default function Administracao() {
     setFormEmail('')
     setFormPerfil('Operador')
     setFormEstado('Ativo')
+    setFormPermissoes(getPermissoesPadraoOperador())
     setOpenCreateDialog(true)
   }
 
-  const handleOpenEdit = (user: UsuarioSistema) => {
-    setEditingUsuario(user)
-    setFormNome(user.nome_completo)
-    setFormEmail(user.email)
-    setFormPerfil(user.perfil)
-    setFormEstado(user.estado)
+  const handleOpenEdit = async (targetUser: UsuarioSistema) => {
+    setEditingUsuario(targetUser)
+    setFormNome(targetUser.nome_completo)
+    setFormEmail(targetUser.email)
+    setFormPerfil(targetUser.perfil)
+    setFormEstado(targetUser.estado)
+
+    // Se for operador, carregar permissões específicas deste usuário
+    if (targetUser.perfil === 'Operador') {
+      try {
+        setLoadingPermissoesEdit(true)
+        const perms = await getPermissoesUsuario(targetUser.id)
+        if (perms && perms.length > 0) {
+          setFormPermissoes(
+            perms.map((p) => ({
+              id: p.id,
+              codigo: p.codigo,
+              menu_key: p.menu_key,
+              menu_label: p.menu_label,
+              pode_ver: p.pode_ver,
+              pode_editar: p.pode_editar,
+              suporta_edicao: p.suporta_edicao,
+              ordem: p.ordem,
+            })),
+          )
+        } else {
+          setFormPermissoes(getPermissoesPadraoOperador())
+        }
+      } catch (err) {
+        console.error('Erro ao carregar permissões do operador para edição:', err)
+        setFormPermissoes(getPermissoesPadraoOperador())
+      } finally {
+        setLoadingPermissoesEdit(false)
+      }
+    } else {
+      setFormPermissoes(getPermissoesPadraoOperador())
+    }
+
     setOpenEditDialog(true)
   }
 
@@ -122,6 +165,7 @@ export default function Administracao() {
         email: formEmail.trim().toLowerCase(),
         perfil: formPerfil,
         estado: formEstado,
+        permissoes: formPerfil === 'Operador' ? formPermissoes : undefined,
       })
 
       if (res.inviteSent) {
@@ -169,6 +213,7 @@ export default function Administracao() {
           nome_completo: formNome.trim(),
           perfil: formPerfil,
           estado: formEstado,
+          permissoes: formPerfil === 'Operador' ? formPermissoes : undefined,
         },
         user?.email || '',
       )
@@ -176,6 +221,7 @@ export default function Administracao() {
         title: 'Usuário atualizado',
         description: 'Alterações salvas com sucesso!',
       })
+      await refreshPermissoes()
       setOpenEditDialog(false)
       setEditingUsuario(null)
       await loadData()
@@ -386,10 +432,14 @@ export default function Administracao() {
       </Card>
 
       {/* ========================================================================= */}
-      {/* MODAL "NOVO USUÁRIO" — REPRODUÇÃO EXATA DA IMAGEM ANEXADA                   */}
+      {/* MODAL "NOVO USUÁRIO" — COM PERMISSÕES EMBUTIDAS PARA OPERADOR              */}
       {/* ========================================================================= */}
       <Dialog open={openCreateDialog} onOpenChange={setOpenCreateDialog}>
-        <DialogContent className="sm:max-w-[460px] p-6 rounded-2xl">
+        <DialogContent
+          className={`p-6 rounded-2xl max-h-[92vh] overflow-y-auto transition-all ${
+            formPerfil === 'Operador' ? 'sm:max-w-[760px]' : 'sm:max-w-[480px]'
+          }`}
+        >
           <DialogHeader className="space-y-1.5 text-left">
             <DialogTitle className="text-xl font-bold text-slate-900 tracking-tight">
               Novo Usuário
@@ -562,6 +612,15 @@ export default function Administracao() {
               </div>
             </div>
 
+            {/* SEÇÃO CONDICIONAL DE PERMISSÕES: EXIBIDA SOMENTE QUANDO FOR OPERADOR */}
+            {formPerfil === 'Operador' && (
+              <PermissoesFormTable
+                permissoes={formPermissoes}
+                onChangePermissoes={setFormPermissoes}
+                disabled={saving}
+              />
+            )}
+
             {/* Rodapé de botões */}
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
               <Button
@@ -586,10 +645,14 @@ export default function Administracao() {
       </Dialog>
 
       {/* ========================================================================= */}
-      {/* MODAL: EDITAR USUÁRIO                                                     */}
+      {/* MODAL: EDITAR USUÁRIO — COM PERMISSÕES EMBUTIDAS PARA OPERADOR             */}
       {/* ========================================================================= */}
       <Dialog open={openEditDialog} onOpenChange={setOpenEditDialog}>
-        <DialogContent className="sm:max-w-[460px] p-6 rounded-2xl">
+        <DialogContent
+          className={`p-6 rounded-2xl max-h-[92vh] overflow-y-auto transition-all ${
+            formPerfil === 'Operador' ? 'sm:max-w-[760px]' : 'sm:max-w-[480px]'
+          }`}
+        >
           <DialogHeader className="space-y-1.5 text-left">
             <DialogTitle className="text-xl font-bold text-slate-900 tracking-tight">
               Editar Usuário
@@ -763,6 +826,24 @@ export default function Administracao() {
                 </div>
               </div>
             </div>
+
+            {/* SEÇÃO CONDICIONAL DE PERMISSÕES: EXIBIDA SOMENTE QUANDO FOR OPERADOR */}
+            {formPerfil === 'Operador' && (
+              <>
+                {loadingPermissoesEdit ? (
+                  <div className="py-8 flex items-center justify-center text-xs text-slate-500 gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                    Carregando permissões do operador...
+                  </div>
+                ) : (
+                  <PermissoesFormTable
+                    permissoes={formPermissoes}
+                    onChangePermissoes={setFormPermissoes}
+                    disabled={saving}
+                  />
+                )}
+              </>
+            )}
 
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
               <Button

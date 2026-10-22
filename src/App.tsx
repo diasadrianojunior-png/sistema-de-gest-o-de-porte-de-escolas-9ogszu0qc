@@ -12,7 +12,6 @@ import Funcoes from './pages/Funcoes'
 import CadastrosMestres from './pages/CadastrosMestres'
 import Administracao from './pages/Administracao'
 import ContasEmail from './pages/ContasEmail'
-import Permissoes from './pages/Permissoes'
 import Auditoria from './pages/Auditoria'
 import { RouteGuard } from './components/RouteGuard'
 import NotFound from './pages/NotFound'
@@ -81,17 +80,13 @@ const App = () => (
                 </RouteGuard>
               }
             />
-            <Route
-              path="/administracao/permissoes"
-              element={
-                <RouteGuard adminOnly>
-                  <Permissoes />
-                </RouteGuard>
-              }
-            />
             {/* Rota legada/atalho redirecionando para /administracao/usuarios */}
             <Route
               path="/administracao"
+              element={<Navigate to="/administracao/usuarios" replace />}
+            />
+            <Route
+              path="/administracao/permissoes"
               element={<Navigate to="/administracao/usuarios" replace />}
             />
             <Route

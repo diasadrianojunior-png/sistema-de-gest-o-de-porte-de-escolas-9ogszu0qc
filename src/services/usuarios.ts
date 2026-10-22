@@ -4,17 +4,21 @@ import { registrarAuditoria } from './auditoria'
 
 const db = supabase as any
 
+import { PermissaoItemForm, salvarPermissoesUsuario } from './permissoes'
+
 export interface CreateUsuarioInput {
   nome_completo: string
   email: string
   perfil: PerfilUsuario
   estado: EstadoUsuario
+  permissoes?: PermissaoItemForm[]
 }
 
 export interface UpdateUsuarioInput {
   nome_completo: string
   perfil: PerfilUsuario
   estado: EstadoUsuario
+  permissoes?: PermissaoItemForm[]
 }
 
 export const getUsuarios = async (): Promise<UsuarioSistema[]> => {
@@ -64,6 +68,23 @@ export const createUsuario = async (
 
       if (fnData.usuario) {
         const usrCriado = fnData.usuario as UsuarioSistema
+
+        // Salvar permissões personalizadas se for perfil Operador
+        if (input.perfil === 'Operador' && input.permissoes && input.permissoes.length > 0) {
+          try {
+            await salvarPermissoesUsuario(
+              usrCriado.id,
+              usrCriado.nome_completo,
+              usrCriado.email,
+              input.permissoes,
+              undefined,
+              usrCriado.codigo,
+            )
+          } catch (pErr) {
+            console.error('Erro ao salvar permissões do novo usuário operador:', pErr)
+          }
+        }
+
         await registrarAuditoria({
           entidade: 'Usuários',
           acao: 'Criação',
@@ -105,6 +126,22 @@ export const createUsuario = async (
   }
 
   const usuarioCriado = data as UsuarioSistema
+
+  // Salvar permissões personalizadas se for perfil Operador
+  if (input.perfil === 'Operador' && input.permissoes && input.permissoes.length > 0) {
+    try {
+      await salvarPermissoesUsuario(
+        usuarioCriado.id,
+        usuarioCriado.nome_completo,
+        usuarioCriado.email,
+        input.permissoes,
+        undefined,
+        usuarioCriado.codigo,
+      )
+    } catch (pErr) {
+      console.error('Erro ao salvar permissões do novo usuário operador:', pErr)
+    }
+  }
 
   await registrarAuditoria({
     entidade: 'Usuários',
@@ -177,6 +214,28 @@ export const updateUsuario = async (
   }
 
   const updated = data as UsuarioSistema
+
+  // Se o perfil for Operador e foram passadas permissões, atualizá-las
+  if (input.perfil === 'Operador' && input.permissoes && input.permissoes.length > 0) {
+    try {
+      // Buscar permissões atuais para registrar delta preciso na auditoria
+      const { data: permsAtuais } = await db
+        .from('permissoes_usuario')
+        .select('*')
+        .eq('usuario_id', id)
+
+      await salvarPermissoesUsuario(
+        updated.id,
+        updated.nome_completo,
+        updated.email,
+        input.permissoes,
+        permsAtuais || [],
+        updated.codigo,
+      )
+    } catch (pErr) {
+      console.error('Erro ao salvar permissões atualizadas do operador:', pErr)
+    }
+  }
 
   await registrarAuditoria({
     entidade: 'Usuários',

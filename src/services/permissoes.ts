@@ -1,13 +1,18 @@
 import { supabase } from '@/lib/supabase/client'
-import { PermissaoPerfil, SistemaMenuKey, PerfilUsuario } from '@/types/gestao-escolar'
+import { PermissaoUsuario, SistemaMenuKey } from '@/types/gestao-escolar'
 import { registrarAuditoria } from './auditoria'
 
 const db = supabase as any
 
-export interface AtualizarPermissaoInput {
-  id: string
+export interface PermissaoItemForm {
+  id?: string
+  codigo?: string
+  menu_key: SistemaMenuKey
+  menu_label: string
   pode_ver: boolean
   pode_editar: boolean
+  suporta_edicao: boolean
+  ordem: number
 }
 
 export const MENUS_SISTEMA_PADRAO: Array<{
@@ -77,77 +82,141 @@ export const MENUS_SISTEMA_PADRAO: Array<{
 ]
 
 /**
- * Busca todas as permissões cadastradas para determinado perfil (por padrão 'Operador')
+ * Gera conjunto padrão de permissões para inicializar formulário de novo operador
  */
-export const getPermissoesPerfil = async (
-  perfil: PerfilUsuario = 'Operador',
-): Promise<PermissaoPerfil[]> => {
-  const { data, error } = await db
-    .from('permissoes_perfil')
-    .select('*')
-    .eq('perfil', perfil)
-    .order('ordem', { ascending: true })
-
-  if (error) {
-    console.error(`Erro ao buscar permissões para o perfil ${perfil}:`, error)
-    throw error
-  }
-
-  return (data as PermissaoPerfil[]) || []
+export const getPermissoesPadraoOperador = (): PermissaoItemForm[] => {
+  return [
+    {
+      menu_key: 'painel',
+      menu_label: 'Painel de Início',
+      pode_ver: true,
+      pode_editar: false,
+      suporta_edicao: false,
+      ordem: 1,
+    },
+    {
+      menu_key: 'unidades_escolares',
+      menu_label: 'Unidades escolares',
+      pode_ver: true,
+      pode_editar: false,
+      suporta_edicao: true,
+      ordem: 2,
+    },
+    {
+      menu_key: 'cargos',
+      menu_label: 'Cargos',
+      pode_ver: true,
+      pode_editar: false,
+      suporta_edicao: true,
+      ordem: 3,
+    },
+    {
+      menu_key: 'funcoes',
+      menu_label: 'Funções',
+      pode_ver: true,
+      pode_editar: false,
+      suporta_edicao: true,
+      ordem: 4,
+    },
+    {
+      menu_key: 'usuarios',
+      menu_label: 'Usuários',
+      pode_ver: false,
+      pode_editar: false,
+      suporta_edicao: true,
+      ordem: 5,
+    },
+    {
+      menu_key: 'contas_email',
+      menu_label: 'Contas de Email',
+      pode_ver: false,
+      pode_editar: false,
+      suporta_edicao: true,
+      ordem: 6,
+    },
+    {
+      menu_key: 'auditoria',
+      menu_label: 'Auditoria',
+      pode_ver: true,
+      pode_editar: false,
+      suporta_edicao: false,
+      ordem: 7,
+    },
+  ]
 }
 
 /**
- * Atualiza um conjunto de permissões do perfil Operador.
- * Registra o evento de alteração na Auditoria mantendo padrão AUD-XXXX.
+ * Busca todas as permissões cadastradas para determinado usuário
  */
-export const salvarPermissoesPerfil = async (
-  perfil: PerfilUsuario,
-  permissoes: Array<{
-    id: string
-    menu_key: SistemaMenuKey
-    menu_label: string
-    pode_ver: boolean
-    pode_editar: boolean
-    suporta_edicao: boolean
-  }>,
-  permissoesAnteriores?: PermissaoPerfil[],
-): Promise<PermissaoPerfil[]> => {
-  // Administrador tem permissão total inalterável
-  if (perfil === 'Administrador') {
-    throw new Error('As permissões do perfil Administrador são totais e inalteráveis.')
+export const getPermissoesUsuario = async (usuarioId: string): Promise<PermissaoUsuario[]> => {
+  if (!usuarioId) return []
+
+  const { data, error } = await db
+    .from('permissoes_usuario')
+    .select('*')
+    .eq('usuario_id', usuarioId)
+    .order('ordem', { ascending: true })
+
+  if (error) {
+    console.error(`Erro ao buscar permissões do usuário ${usuarioId}:`, error)
+    throw error
   }
 
-  const updates = permissoes.map(async (p) => {
-    // Se não suporta edição ou não pode ver, pode_editar deve ser false
-    const podeEditarFinal = p.suporta_edicao && p.pode_ver ? p.pode_editar : false
-    const podeVerFinal = p.pode_ver
+  return (data as PermissaoUsuario[]) || []
+}
 
-    const { data, error } = await db
-      .from('permissoes_perfil')
-      .update({
-        pode_ver: podeVerFinal,
-        pode_editar: podeEditarFinal,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', p.id)
-      .select()
-      .single()
+/**
+ * Salva (upsert) as permissões individuais de um operador e registra na Auditoria.
+ */
+export const salvarPermissoesUsuario = async (
+  usuarioId: string,
+  usuarioNome: string,
+  usuarioEmail: string,
+  permissoes: PermissaoItemForm[],
+  permissoesAnteriores?: PermissaoUsuario[],
+  usuarioCodigo?: string,
+): Promise<PermissaoUsuario[]> => {
+  if (!usuarioId) {
+    throw new Error('ID do usuário é obrigatório para salvar permissões.')
+  }
 
-    if (error) {
-      console.error(`Erro ao atualizar permissão ${p.menu_key}:`, error)
-      throw error
+  // Sanitizar regras: se não pode_ver ou não suporta edição, pode_editar = false
+  const rows = permissoes.map((p) => {
+    const podeVerFinal = Boolean(p.pode_ver)
+    const podeEditarFinal = p.suporta_edicao && podeVerFinal ? Boolean(p.pode_editar) : false
+
+    return {
+      usuario_id: usuarioId,
+      menu_key: p.menu_key,
+      menu_label: p.menu_label,
+      pode_ver: podeVerFinal,
+      pode_editar: podeEditarFinal,
+      suporta_edicao: p.suporta_edicao,
+      ordem: p.ordem,
+      updated_at: new Date().toISOString(),
     }
-    return data as PermissaoPerfil
   })
 
-  const resultados = await Promise.all(updates)
+  // Upsert com chave de unicidade (usuario_id, menu_key)
+  const { data, error } = await db
+    .from('permissoes_usuario')
+    .upsert(rows, { onConflict: 'usuario_id,menu_key' })
+    .select()
+    .order('ordem', { ascending: true })
+
+  if (error) {
+    console.error('Erro ao salvar permissões do usuário:', error)
+    throw error
+  }
+
+  const resultados = (data as PermissaoUsuario[]) || []
 
   // Calcular resumo textual das alterações para o log de auditoria
   const alteracoesDescricao: string[] = []
-  if (permissoesAnteriores) {
-    const mapaAntigo = new Map(permissoesAnteriores.map((a) => [a.id, a]))
+  if (permissoesAnteriores && permissoesAnteriores.length > 0) {
+    const mapaAntigo = new Map(permissoesAnteriores.map((a) => [a.menu_key, a]))
     for (const novo of resultados) {
-      const antigo = mapaAntigo.get(novo.id)
+      const antigo = mapaAntigo.get(novo.menu_key)
       if (antigo) {
         const mudouVer = antigo.pode_ver !== novo.pode_ver
         const mudouEditar = antigo.pode_editar !== novo.pode_editar
@@ -165,23 +234,27 @@ export const salvarPermissoesPerfil = async (
           }
           alteracoesDescricao.push(`${novo.menu_label} (${partes.join(', ')})`)
         }
+      } else {
+        alteracoesDescricao.push(`${novo.menu_label} (adicionado)`)
       }
     }
   }
 
   const textoAuditoria =
     alteracoesDescricao.length > 0
-      ? `Atualização das permissões do perfil ${perfil}. Alterações: ${alteracoesDescricao.join('; ')}.`
-      : `Revisão e confirmação das permissões de menu para o perfil ${perfil}.`
+      ? `Configuração de permissões do operador "${usuarioNome}" (${usuarioEmail}). Alterações: ${alteracoesDescricao.join('; ')}.`
+      : `Definição inicial de permissões de acesso do operador "${usuarioNome}" (${usuarioEmail}).`
 
-  // Registro na Auditoria
   await registrarAuditoria({
     entidade: 'Permissões',
-    acao: 'Edição',
-    registro_codigo: resultados[0]?.codigo || null,
+    acao: permissoesAnteriores && permissoesAnteriores.length > 0 ? 'Edição' : 'Criação',
+    registro_codigo: usuarioCodigo || resultados[0]?.codigo || null,
     descricao: textoAuditoria,
     detalhes: {
-      perfil,
+      usuario_id: usuarioId,
+      usuario_nome: usuarioNome,
+      usuario_email: usuarioEmail,
+      usuario_codigo: usuarioCodigo,
       permissoes: resultados.map((r) => ({
         menu_key: r.menu_key,
         menu_label: r.menu_label,

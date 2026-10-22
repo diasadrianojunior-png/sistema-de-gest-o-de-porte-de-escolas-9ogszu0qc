@@ -273,6 +273,48 @@ export type Database = {
         }
         Relationships: []
       }
+      permissoes_perfil: {
+        Row: {
+          codigo: string | null
+          created_at: string
+          id: string
+          menu_key: string
+          menu_label: string
+          ordem: number
+          perfil: string
+          pode_editar: boolean
+          pode_ver: boolean
+          suporta_edicao: boolean
+          updated_at: string
+        }
+        Insert: {
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          menu_key: string
+          menu_label: string
+          ordem?: number
+          perfil: string
+          pode_editar?: boolean
+          pode_ver?: boolean
+          suporta_edicao?: boolean
+          updated_at?: string
+        }
+        Update: {
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          menu_key?: string
+          menu_label?: string
+          ordem?: number
+          perfil?: string
+          pode_editar?: boolean
+          pode_ver?: boolean
+          suporta_edicao?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tipos_escola: {
         Row: {
           codigo: string | null

@@ -223,6 +223,20 @@ export interface PermissaoPerfil {
   updated_at?: string
 }
 
+export interface PermissaoUsuario {
+  id: string
+  codigo?: string
+  usuario_id: string
+  menu_key: SistemaMenuKey
+  menu_label: string
+  pode_ver: boolean
+  pode_editar: boolean
+  suporta_edicao: boolean
+  ordem: number
+  created_at?: string
+  updated_at?: string
+}
+
 export interface RegistroAuditoria {
   id: string
   codigo?: string
