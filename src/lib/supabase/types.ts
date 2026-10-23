@@ -174,23 +174,35 @@ export type Database = {
       }
       cargos: {
         Row: {
+          ativo: boolean | null
+          carga_horaria: string | null
           codigo: string | null
           created_at: string
+          docente: boolean | null
           id: string
+          natureza: string | null
           nome: string
           updated_at: string
         }
         Insert: {
+          ativo?: boolean | null
+          carga_horaria?: string | null
           codigo?: string | null
           created_at?: string
+          docente?: boolean | null
           id?: string
+          natureza?: string | null
           nome: string
           updated_at?: string
         }
         Update: {
+          ativo?: boolean | null
+          carga_horaria?: string | null
           codigo?: string | null
           created_at?: string
+          docente?: boolean | null
           id?: string
+          natureza?: string | null
           nome?: string
           updated_at?: string
         }
@@ -445,22 +457,31 @@ export type Database = {
       }
       funcoes: {
         Row: {
+          ativo: boolean | null
           codigo: string | null
           created_at: string
+          descricao: string | null
+          exige_autorizacao_semed: boolean | null
           id: string
           nome: string
           updated_at: string
         }
         Insert: {
+          ativo?: boolean | null
           codigo?: string | null
           created_at?: string
+          descricao?: string | null
+          exige_autorizacao_semed?: boolean | null
           id?: string
           nome: string
           updated_at?: string
         }
         Update: {
+          ativo?: boolean | null
           codigo?: string | null
           created_at?: string
+          descricao?: string | null
+          exige_autorizacao_semed?: boolean | null
           id?: string
           nome?: string
           updated_at?: string
@@ -627,6 +648,684 @@ export type Database = {
             referencedColumns: ['id']
           },
         ]
+      }
+      rh_cargo_funcao: {
+        Row: {
+          cargo_id: string
+          condicao: string
+          created_at: string
+          funcao_id: string
+          id: string
+          versao_id: string
+        }
+        Insert: {
+          cargo_id: string
+          condicao?: string
+          created_at?: string
+          funcao_id: string
+          id?: string
+          versao_id: string
+        }
+        Update: {
+          cargo_id?: string
+          condicao?: string
+          created_at?: string
+          funcao_id?: string
+          id?: string
+          versao_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'rh_cargo_funcao_cargo_id_fkey'
+            columns: ['cargo_id']
+            isOneToOne: false
+            referencedRelation: 'cargos'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_cargo_funcao_funcao_id_fkey'
+            columns: ['funcao_id']
+            isOneToOne: false
+            referencedRelation: 'funcoes'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_cargo_funcao_versao_id_fkey'
+            columns: ['versao_id']
+            isOneToOne: false
+            referencedRelation: 'rh_versoes_configuracao'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      rh_escolas_ano: {
+        Row: {
+          alunos_por_modalidade: Json
+          alunos_total: number
+          ano_letivo: number
+          codigo: string | null
+          created_at: string
+          escola_id: string
+          id: string
+          justificativa_override: string | null
+          metragem_m2: number | null
+          nivel_calculado_id: string | null
+          nivel_override_id: string | null
+          tipo_atendimento_id: string | null
+          turnos: Json
+          updated_at: string
+          versao_id: string | null
+        }
+        Insert: {
+          alunos_por_modalidade?: Json
+          alunos_total?: number
+          ano_letivo: number
+          codigo?: string | null
+          created_at?: string
+          escola_id: string
+          id?: string
+          justificativa_override?: string | null
+          metragem_m2?: number | null
+          nivel_calculado_id?: string | null
+          nivel_override_id?: string | null
+          tipo_atendimento_id?: string | null
+          turnos?: Json
+          updated_at?: string
+          versao_id?: string | null
+        }
+        Update: {
+          alunos_por_modalidade?: Json
+          alunos_total?: number
+          ano_letivo?: number
+          codigo?: string | null
+          created_at?: string
+          escola_id?: string
+          id?: string
+          justificativa_override?: string | null
+          metragem_m2?: number | null
+          nivel_calculado_id?: string | null
+          nivel_override_id?: string | null
+          tipo_atendimento_id?: string | null
+          turnos?: Json
+          updated_at?: string
+          versao_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'rh_escolas_ano_escola_id_fkey'
+            columns: ['escola_id']
+            isOneToOne: false
+            referencedRelation: 'unidades_escolares'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_escolas_ano_nivel_calculado_id_fkey'
+            columns: ['nivel_calculado_id']
+            isOneToOne: false
+            referencedRelation: 'rh_niveis'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_escolas_ano_nivel_override_id_fkey'
+            columns: ['nivel_override_id']
+            isOneToOne: false
+            referencedRelation: 'rh_niveis'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_escolas_ano_tipo_atendimento_id_fkey'
+            columns: ['tipo_atendimento_id']
+            isOneToOne: false
+            referencedRelation: 'rh_tipos_atendimento'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_escolas_ano_versao_id_fkey'
+            columns: ['versao_id']
+            isOneToOne: false
+            referencedRelation: 'rh_versoes_configuracao'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      rh_excecoes_vaga: {
+        Row: {
+          autorizado_por: string
+          codigo: string | null
+          created_at: string
+          data: string
+          delta: number
+          escola_ano_id: string
+          funcao_id: string
+          id: string
+          justificativa: string
+          updated_at: string
+        }
+        Insert: {
+          autorizado_por?: string
+          codigo?: string | null
+          created_at?: string
+          data?: string
+          delta: number
+          escola_ano_id: string
+          funcao_id: string
+          id?: string
+          justificativa: string
+          updated_at?: string
+        }
+        Update: {
+          autorizado_por?: string
+          codigo?: string | null
+          created_at?: string
+          data?: string
+          delta?: number
+          escola_ano_id?: string
+          funcao_id?: string
+          id?: string
+          justificativa?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'rh_excecoes_vaga_escola_ano_id_fkey'
+            columns: ['escola_ano_id']
+            isOneToOne: false
+            referencedRelation: 'rh_escolas_ano'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_excecoes_vaga_funcao_id_fkey'
+            columns: ['funcao_id']
+            isOneToOne: false
+            referencedRelation: 'funcoes'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      rh_lotacoes: {
+        Row: {
+          cargo_id: string
+          codigo: string | null
+          created_at: string
+          escola_id: string
+          funcao_id: string
+          id: string
+          readaptado: boolean | null
+          servidor_id: string
+          turno: string | null
+          updated_at: string
+          vigencia: string | null
+        }
+        Insert: {
+          cargo_id: string
+          codigo?: string | null
+          created_at?: string
+          escola_id: string
+          funcao_id: string
+          id?: string
+          readaptado?: boolean | null
+          servidor_id: string
+          turno?: string | null
+          updated_at?: string
+          vigencia?: string | null
+        }
+        Update: {
+          cargo_id?: string
+          codigo?: string | null
+          created_at?: string
+          escola_id?: string
+          funcao_id?: string
+          id?: string
+          readaptado?: boolean | null
+          servidor_id?: string
+          turno?: string | null
+          updated_at?: string
+          vigencia?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'rh_lotacoes_cargo_id_fkey'
+            columns: ['cargo_id']
+            isOneToOne: false
+            referencedRelation: 'cargos'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_lotacoes_escola_id_fkey'
+            columns: ['escola_id']
+            isOneToOne: false
+            referencedRelation: 'unidades_escolares'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_lotacoes_funcao_id_fkey'
+            columns: ['funcao_id']
+            isOneToOne: false
+            referencedRelation: 'funcoes'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_lotacoes_servidor_id_fkey'
+            columns: ['servidor_id']
+            isOneToOne: false
+            referencedRelation: 'rh_servidores'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      rh_modalidades_excluidas: {
+        Row: {
+          created_at: string
+          id: string
+          modalidade: string
+          tipo_atendimento_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          modalidade: string
+          tipo_atendimento_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          modalidade?: string
+          tipo_atendimento_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'rh_modalidades_excluidas_tipo_atendimento_id_fkey'
+            columns: ['tipo_atendimento_id']
+            isOneToOne: false
+            referencedRelation: 'rh_tipos_atendimento'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      rh_niveis: {
+        Row: {
+          codigo: string | null
+          codigo_nivel: string
+          created_at: string
+          id: string
+          max_alunos: number | null
+          min_alunos: number
+          ordem: number
+          tipo_atendimento_id: string
+          updated_at: string
+          versao_id: string
+        }
+        Insert: {
+          codigo?: string | null
+          codigo_nivel: string
+          created_at?: string
+          id?: string
+          max_alunos?: number | null
+          min_alunos?: number
+          ordem?: number
+          tipo_atendimento_id: string
+          updated_at?: string
+          versao_id: string
+        }
+        Update: {
+          codigo?: string | null
+          codigo_nivel?: string
+          created_at?: string
+          id?: string
+          max_alunos?: number | null
+          min_alunos?: number
+          ordem?: number
+          tipo_atendimento_id?: string
+          updated_at?: string
+          versao_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'rh_niveis_tipo_atendimento_id_fkey'
+            columns: ['tipo_atendimento_id']
+            isOneToOne: false
+            referencedRelation: 'rh_tipos_atendimento'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_niveis_versao_id_fkey'
+            columns: ['versao_id']
+            isOneToOne: false
+            referencedRelation: 'rh_versoes_configuracao'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      rh_regras_nivel: {
+        Row: {
+          base_calculo: string
+          codigo: string | null
+          created_at: string
+          dias_semana: number | null
+          etapas_filtro: Json | null
+          funcao_id: string
+          id: string
+          modalidade: string
+          nivel_id: string
+          observacao: string | null
+          quantidade: number
+          updated_at: string
+        }
+        Insert: {
+          base_calculo: string
+          codigo?: string | null
+          created_at?: string
+          dias_semana?: number | null
+          etapas_filtro?: Json | null
+          funcao_id: string
+          id?: string
+          modalidade?: string
+          nivel_id: string
+          observacao?: string | null
+          quantidade?: number
+          updated_at?: string
+        }
+        Update: {
+          base_calculo?: string
+          codigo?: string | null
+          created_at?: string
+          dias_semana?: number | null
+          etapas_filtro?: Json | null
+          funcao_id?: string
+          id?: string
+          modalidade?: string
+          nivel_id?: string
+          observacao?: string | null
+          quantidade?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'rh_regras_nivel_funcao_id_fkey'
+            columns: ['funcao_id']
+            isOneToOne: false
+            referencedRelation: 'funcoes'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_regras_nivel_nivel_id_fkey'
+            columns: ['nivel_id']
+            isOneToOne: false
+            referencedRelation: 'rh_niveis'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      rh_regras_turmas: {
+        Row: {
+          codigo: string | null
+          created_at: string
+          funcao_id: string
+          id: string
+          max_turmas: number | null
+          min_turmas: number
+          qtd_fixo: number
+          qtd_itinerante: number
+          tipo_atendimento_id: string | null
+          updated_at: string
+          versao_id: string
+        }
+        Insert: {
+          codigo?: string | null
+          created_at?: string
+          funcao_id: string
+          id?: string
+          max_turmas?: number | null
+          min_turmas?: number
+          qtd_fixo?: number
+          qtd_itinerante?: number
+          tipo_atendimento_id?: string | null
+          updated_at?: string
+          versao_id: string
+        }
+        Update: {
+          codigo?: string | null
+          created_at?: string
+          funcao_id?: string
+          id?: string
+          max_turmas?: number | null
+          min_turmas?: number
+          qtd_fixo?: number
+          qtd_itinerante?: number
+          tipo_atendimento_id?: string | null
+          updated_at?: string
+          versao_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'rh_regras_turmas_funcao_id_fkey'
+            columns: ['funcao_id']
+            isOneToOne: false
+            referencedRelation: 'funcoes'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_regras_turmas_tipo_atendimento_id_fkey'
+            columns: ['tipo_atendimento_id']
+            isOneToOne: false
+            referencedRelation: 'rh_tipos_atendimento'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_regras_turmas_versao_id_fkey'
+            columns: ['versao_id']
+            isOneToOne: false
+            referencedRelation: 'rh_versoes_configuracao'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      rh_servidores: {
+        Row: {
+          ativo: boolean | null
+          cargo_id: string | null
+          codigo: string | null
+          cpf: string | null
+          created_at: string
+          id: string
+          laudo_compatibilidade: string | null
+          matricula: string | null
+          nome: string
+          readaptado: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          cargo_id?: string | null
+          codigo?: string | null
+          cpf?: string | null
+          created_at?: string
+          id?: string
+          laudo_compatibilidade?: string | null
+          matricula?: string | null
+          nome: string
+          readaptado?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean | null
+          cargo_id?: string | null
+          codigo?: string | null
+          cpf?: string | null
+          created_at?: string
+          id?: string
+          laudo_compatibilidade?: string | null
+          matricula?: string | null
+          nome?: string
+          readaptado?: boolean | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'rh_servidores_cargo_id_fkey'
+            columns: ['cargo_id']
+            isOneToOne: false
+            referencedRelation: 'cargos'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      rh_tipos_atendimento: {
+        Row: {
+          codigo: string | null
+          created_at: string
+          criterio_porte: string
+          id: string
+          nome: string
+          updated_at: string
+          versao_id: string
+        }
+        Insert: {
+          codigo?: string | null
+          created_at?: string
+          criterio_porte?: string
+          id?: string
+          nome: string
+          updated_at?: string
+          versao_id: string
+        }
+        Update: {
+          codigo?: string | null
+          created_at?: string
+          criterio_porte?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+          versao_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'rh_tipos_atendimento_versao_id_fkey'
+            columns: ['versao_id']
+            isOneToOne: false
+            referencedRelation: 'rh_versoes_configuracao'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      rh_vagas: {
+        Row: {
+          codigo: string | null
+          created_at: string
+          dias_semana: number | null
+          escola_ano_id: string
+          funcao_id: string
+          id: string
+          modalidade: string
+          observacao: string | null
+          origem: string
+          regra_origem_id: string | null
+          sequencial: number
+          servidor_id: string | null
+          status: string
+          turno: string | null
+          updated_at: string
+          versao_id: string | null
+        }
+        Insert: {
+          codigo?: string | null
+          created_at?: string
+          dias_semana?: number | null
+          escola_ano_id: string
+          funcao_id: string
+          id?: string
+          modalidade?: string
+          observacao?: string | null
+          origem: string
+          regra_origem_id?: string | null
+          sequencial?: number
+          servidor_id?: string | null
+          status?: string
+          turno?: string | null
+          updated_at?: string
+          versao_id?: string | null
+        }
+        Update: {
+          codigo?: string | null
+          created_at?: string
+          dias_semana?: number | null
+          escola_ano_id?: string
+          funcao_id?: string
+          id?: string
+          modalidade?: string
+          observacao?: string | null
+          origem?: string
+          regra_origem_id?: string | null
+          sequencial?: number
+          servidor_id?: string | null
+          status?: string
+          turno?: string | null
+          updated_at?: string
+          versao_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'rh_vagas_escola_ano_id_fkey'
+            columns: ['escola_ano_id']
+            isOneToOne: false
+            referencedRelation: 'rh_escolas_ano'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_vagas_funcao_id_fkey'
+            columns: ['funcao_id']
+            isOneToOne: false
+            referencedRelation: 'funcoes'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_vagas_servidor_id_fkey'
+            columns: ['servidor_id']
+            isOneToOne: false
+            referencedRelation: 'rh_servidores'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'rh_vagas_versao_id_fkey'
+            columns: ['versao_id']
+            isOneToOne: false
+            referencedRelation: 'rh_versoes_configuracao'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      rh_versoes_configuracao: {
+        Row: {
+          ano_letivo: number
+          codigo: string | null
+          created_at: string
+          criado_por: string | null
+          descricao: string
+          id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          ano_letivo: number
+          codigo?: string | null
+          created_at?: string
+          criado_por?: string | null
+          descricao: string
+          id?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          ano_letivo?: number
+          codigo?: string | null
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string
+          id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       tipos_escola: {
         Row: {

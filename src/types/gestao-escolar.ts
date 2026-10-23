@@ -303,13 +303,7 @@ export type SistemaMenuKey =
   | 'anos_series'
   | 'crh'
   | 'care'
-  | 'rh_versoes'
-  | 'rh_matriz'
-  | 'rh_niveis_regras'
-  | 'rh_regras_turmas'
-  | 'rh_cenario_escola'
-  | 'rh_painel_geral'
-  | 'rh_vagas_itinerantes'
+  | 'configuracao_rh'
   | 'usuarios'
   | 'contas_email'
   | 'auditoria'
@@ -417,189 +411,79 @@ export interface RegistroAuditoria {
 }
 
 // ==========================================
-// MÓDULO: CONFIGURAÇÃO DE RECURSOS HUMANOS POR TIPO E NÍVEL
+// NOVO MÓDULO: CONFIGURAÇÃO DE RH POR NÍVEL (ETAPA 1)
 // ==========================================
 
-export type StatusVersaoRH = 'RASCUNHO' | 'VIGENTE' | 'ARQUIVADA'
+export type StatusConfiguracaoRh = 'RASCUNHO' | 'VIGENTE' | 'ARQUIVADA'
 
-export interface RhVersaoConfiguracao {
+export type BaseCalculoRh = 'POR_ESCOLA' | 'POR_PERIODO' | 'POR_TURMA' | 'POR_TURMA_ETAPA'
+
+export type ModalidadeRhVaga = 'FIXO' | 'ITINERANTE'
+
+export type CondicaoLinhaCargo = 'NENHUMA' | 'READAPTADO_COMPATIVEL_LAUDO' | 'AUTORIZACAO_SEMED'
+
+export interface ConfiguracaoRh {
   id: string
-  codigo?: string
+  codigo?: string // CRHN-0001
+  tipo_atendimento: string
   ano_letivo: number
-  descricao: string
-  status: StatusVersaoRH
-  criado_por: string
+  status: StatusConfiguracaoRh
+  observacao?: string | null
   created_at?: string
   updated_at?: string
 }
 
-export type ModalidadeExcluidaTipo = 'JORNADA_AMPLIADA' | 'EJA' | 'SALA_RECURSOS_MULTIFUNCIONAIS'
-
-export interface RhTipoAtendimento {
+export interface ConfiguracaoRhNivel {
   id: string
-  codigo?: string
-  versao_id: string
-  nome: string
-  criterio_porte: string // 'ALUNOS'
-  created_at?: string
-  updated_at?: string
-  modalidades_excluidas?: ModalidadeExcluidaTipo[]
-}
-
-export interface RhNivel {
-  id: string
-  codigo?: string
-  versao_id: string
-  tipo_atendimento_id: string
-  codigo_nivel: string // 'I', 'II', 'A', 'B'
+  codigo?: string // NIV-0001
+  configuracao_rh_id: string
+  codigo_nivel: string // I, II, A, B, etc.
   ordem: number
   min_alunos: number
-  max_alunos: number | null // null = sem teto
+  max_alunos: number | null // null = sem limite
+  observacao?: string | null
   created_at?: string
   updated_at?: string
 }
 
-export type CondicaoCargoFuncao = 'NENHUMA' | 'READAPTADO_COMPATIVEL_LAUDO' | 'AUTORIZACAO_SEMED'
-
-export interface RhCargoFuncao {
-  id: string
-  versao_id: string
+export interface ConfiguracaoRhLinhaCargo {
+  id?: string
+  linha_id?: string
   cargo_id: string
-  funcao_id: string
-  condicao: CondicaoCargoFuncao
+  condicao: CondicaoLinhaCargo
   created_at?: string
   cargo?: Cargo
-  funcao?: Funcao
 }
 
-export type BaseCalculoRegraNivel = 'FIXO_ESCOLA' | 'POR_TURNO' | 'POR_TURMA' | 'POR_TURMA_ETAPA'
-
-export type ModalidadeVaga = 'FIXO' | 'ITINERANTE'
-
-export interface RhRegraNivel {
+export interface ConfiguracaoRhLinha {
   id: string
-  codigo?: string
+  codigo?: string // LNH-0001
+  configuracao_rh_id: string
+  funcao_id: string
+  ordem: number
+  base_calculo: BaseCalculoRh
+  etapas_filtro?: string[] | null // ex: ["INFANTIL", "INFANTIL_I", "INFANTIL_II"]
+  observacao?: string | null
+  created_at?: string
+  updated_at?: string
+  funcao?: Funcao
+  cargos?: ConfiguracaoRhLinhaCargo[]
+}
+
+export interface ConfiguracaoRhVaga {
+  id: string
+  codigo?: string // VAG-0001
+  linha_id: string
   nivel_id: string
-  funcao_id: string
   quantidade: number
-  base_calculo: BaseCalculoRegraNivel
-  modalidade: ModalidadeVaga
-  dias_semana?: number | null // nullable (ex: 2 para 2x/semana)
-  etapas_filtro?: string[] | null // ["INFANTIL", "INFANTIL_I", "INFANTIL_II"]
-  observacao?: string | null
-  created_at?: string
-  updated_at?: string
-  funcao?: Funcao
-}
-
-export interface RhRegraPorTurmas {
-  id: string
-  codigo?: string
-  versao_id: string
-  funcao_id: string
-  tipo_atendimento_id?: string | null // null = todos
-  min_turmas: number
-  max_turmas?: number | null
-  qtd_fixo: number
-  qtd_itinerante: number
-  created_at?: string
-  updated_at?: string
-  funcao?: Funcao
-  tipo_atendimento?: RhTipoAtendimento | null
-}
-
-export interface RhAlunosPorModalidade {
-  jornada_ampliada: number
-  eja: number
-  srm: number
-}
-
-export interface RhEscolaAnoLetivo {
-  id: string
-  codigo?: string
-  escola_id: string
-  ano_letivo: number
-  tipo_atendimento_id?: string | null
-  alunos_total: number
-  alunos_por_modalidade: RhAlunosPorModalidade
-  turnos: string[] // ex: ["MATUTINO", "VESPERTINO"]
-  metragem_m2?: number | null
-  nivel_calculado_id?: string | null
-  nivel_override_id?: string | null
-  justificativa_override?: string | null
-  versao_id?: string | null
-  created_at?: string
-  updated_at?: string
-  escola?: UnidadeEscolar
-  nivel_calculado?: RhNivel
-  nivel_override?: RhNivel
-  tipo_atendimento?: RhTipoAtendimento
-}
-
-export interface RhExcecaoVaga {
-  id: string
-  codigo?: string
-  escola_ano_id: string
-  funcao_id: string
-  delta: number // +1, -1, etc
-  justificativa: string
-  autorizado_por: string
-  data: string
-  created_at?: string
-  updated_at?: string
-  funcao?: Funcao
-}
-
-export type OrigemVaga = 'REGRA_NIVEL' | 'REGRA_TURMAS' | 'EXCECAO_MANUAL'
-export type StatusVaga = 'ABERTA' | 'OCUPADA' | 'BLOQUEADA' | 'EXCEDENTE'
-
-export interface RhVaga {
-  id: string
-  codigo?: string
-  escola_ano_id: string
-  versao_id?: string | null
-  funcao_id: string
-  turno?: string | null
-  modalidade: ModalidadeVaga
+  modalidade: ModalidadeRhVaga
   dias_semana?: number | null
-  origem: OrigemVaga
-  regra_origem_id?: string | null
-  status: StatusVaga
-  servidor_id?: string | null
-  sequencial: number
-  observacao?: string | null
   created_at?: string
   updated_at?: string
-  funcao?: Funcao
-  servidor?: RhServidor | null
 }
 
-export interface RhServidor {
-  id: string
-  codigo?: string
-  nome: string
-  cpf?: string | null
-  matricula?: string | null
-  cargo_id?: string | null
-  readaptado?: boolean
-  laudo_compatibilidade?: string | null
-  ativo?: boolean
-  cargo?: Cargo
-}
-
-export interface RhLotacao {
-  id: string
-  codigo?: string
-  servidor_id: string
-  cargo_id: string
-  escola_id: string
-  funcao_id: string
-  turno?: string | null
-  readaptado?: boolean
-  vigencia?: string
-  created_at?: string
-  updated_at?: string
-  servidor?: RhServidor
-  cargo?: Cargo
-  funcao?: Funcao
+export interface ConfiguracaoRhCompleta extends ConfiguracaoRh {
+  niveis: ConfiguracaoRhNivel[]
+  linhas: ConfiguracaoRhLinha[]
+  vagas: ConfiguracaoRhVaga[]
 }
