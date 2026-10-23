@@ -293,8 +293,6 @@ export type SistemaMenuKey =
   | 'funcoes'
   | 'etapas'
   | 'anos_series'
-  | 'crh'
-  | 'care'
   | 'configuracao_rh'
   | 'usuarios'
   | 'contas_email'

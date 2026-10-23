@@ -11,8 +11,6 @@ import Cargos from './pages/Cargos'
 import Funcoes from './pages/Funcoes'
 import Etapas from './pages/Etapas'
 import AnosSeries from './pages/AnosSeries'
-import Crh from './pages/Crh'
-import Care from './pages/Care'
 import ConfigRhNivelPage from './pages/ConfigRhNivel'
 import CadastrosMestres from './pages/CadastrosMestres'
 import Turmas from './pages/Turmas'
@@ -93,21 +91,14 @@ const App = () => (
                 </RouteGuard>
               }
             />
+            {/* Redirecionamentos para rotas legadas removidas */}
             <Route
               path="/cadastros-apoio/crh"
-              element={
-                <RouteGuard menuKey="crh">
-                  <Crh />
-                </RouteGuard>
-              }
+              element={<Navigate to="/cadastros-apoio/configuracao-rh" replace />}
             />
             <Route
               path="/cadastros-apoio/care"
-              element={
-                <RouteGuard menuKey="care">
-                  <Care />
-                </RouteGuard>
-              }
+              element={<Navigate to="/cadastros-apoio/configuracao-rh" replace />}
             />
             {/* ETAPA 1: Configuração de Vagas por Nível (Configuração de RH por Nível) */}
             <Route

@@ -23,8 +23,6 @@ import {
   PanelLeftOpen,
   Mail,
   Users,
-  Scale,
-  UserCheck,
   SlidersHorizontal,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
@@ -81,8 +79,6 @@ export default function Layout() {
   const isFuncoesActive = location.pathname === '/cadastros-apoio/funcoes'
   const isEtapasActive = location.pathname === '/cadastros-apoio/etapas'
   const isAnosSeriesActive = location.pathname === '/cadastros-apoio/anos-series'
-  const isCrhActive = location.pathname === '/cadastros-apoio/crh'
-  const isCareActive = location.pathname === '/cadastros-apoio/care'
   const isConfigRhActive = location.pathname === '/cadastros-apoio/configuracao-rh'
   const isApoioActive = location.pathname.startsWith('/cadastros-apoio')
 
@@ -100,8 +96,6 @@ export default function Layout() {
   const canViewFuncoes = canView('funcoes')
   const canViewEtapas = canView('etapas')
   const canViewAnosSeries = canView('anos_series')
-  const canViewCrh = canView('crh')
-  const canViewCare = canView('care')
   const canViewConfigRh = canView('configuracao_rh')
 
   const canViewUsuarios = canView('usuarios')
@@ -111,13 +105,7 @@ export default function Layout() {
   // Seções agrupadas têm visibilidade se pelo menos um submenu puder ser visto
   const showCadastrosMestres = canViewUnidades || canViewTurmas
   const showCadastrosApoio =
-    canViewCargos ||
-    canViewFuncoes ||
-    canViewEtapas ||
-    canViewAnosSeries ||
-    canViewCrh ||
-    canViewCare ||
-    canViewConfigRh
+    canViewCargos || canViewFuncoes || canViewEtapas || canViewAnosSeries || canViewConfigRh
   const showAdministracao = canViewUsuarios || canViewContasEmail
 
   // Conteúdo unificado da barra lateral (Sidebar)
@@ -510,40 +498,6 @@ export default function Layout() {
                             </NavLink>
                           )}
 
-                          {canViewCrh && (
-                            <NavLink
-                              to="/cadastros-apoio/crh"
-                              onClick={() => setApoioPopoverOpen(false)}
-                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-                                isCrhActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                              }`}
-                            >
-                              <Scale
-                                className={`w-4 h-4 shrink-0 ${isCrhActive ? 'text-white' : 'text-slate-500'}`}
-                              />
-                              <span>Configurações de RH (CRH)</span>
-                            </NavLink>
-                          )}
-
-                          {canViewCare && (
-                            <NavLink
-                              to="/cadastros-apoio/care"
-                              onClick={() => setApoioPopoverOpen(false)}
-                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-                                isCareActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                              }`}
-                            >
-                              <UserCheck
-                                className={`w-4 h-4 shrink-0 ${isCareActive ? 'text-white' : 'text-slate-500'}`}
-                              />
-                              <span>Cargos e Funções (CARE)</span>
-                            </NavLink>
-                          )}
-
                           {canViewConfigRh && (
                             <NavLink
                               to="/cadastros-apoio/configuracao-rh"
@@ -661,42 +615,6 @@ export default function Layout() {
                                 className={`w-3.5 h-3.5 shrink-0 ${isAnosSeriesActive ? 'text-white' : 'text-slate-400'}`}
                               />
                               <span className="truncate">Ano/Série</span>
-                            </NavLink>
-                          )}
-
-                          {canViewCrh && (
-                            <NavLink
-                              to="/cadastros-apoio/crh"
-                              onClick={() => isMobile && setMobileSidebarOpen(false)}
-                              title="Configurações de Recursos Humanos (CRH)"
-                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                isCrhActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                              }`}
-                            >
-                              <Scale
-                                className={`w-3.5 h-3.5 shrink-0 ${isCrhActive ? 'text-white' : 'text-slate-400'}`}
-                              />
-                              <span className="truncate">Configurações de RH (CRH)</span>
-                            </NavLink>
-                          )}
-
-                          {canViewCare && (
-                            <NavLink
-                              to="/cadastros-apoio/care"
-                              onClick={() => isMobile && setMobileSidebarOpen(false)}
-                              title="Cadastro de Cargos e Funções (CARE)"
-                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                isCareActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                              }`}
-                            >
-                              <UserCheck
-                                className={`w-3.5 h-3.5 shrink-0 ${isCareActive ? 'text-white' : 'text-slate-400'}`}
-                              />
-                              <span className="truncate">Cargos e Funções (CARE)</span>
                             </NavLink>
                           )}
 
@@ -1107,17 +1025,13 @@ export default function Layout() {
                   <span className="text-blue-700 font-semibold">
                     {isConfigRhActive
                       ? 'Configuração de Vagas por Nível'
-                      : isCareActive
-                        ? 'Cargos e Funções (CARE)'
-                        : isCrhActive
-                          ? 'Configurações de RH (CRH)'
-                          : isAnosSeriesActive
-                            ? 'Ano/Série'
-                            : isEtapasActive
-                              ? 'Etapas'
-                              : isFuncoesActive
-                                ? 'Funções'
-                                : 'Cargos'}
+                      : isAnosSeriesActive
+                        ? 'Ano/Série'
+                        : isEtapasActive
+                          ? 'Etapas'
+                          : isFuncoesActive
+                            ? 'Funções'
+                            : 'Cargos'}
                   </span>{' '}
                 </>
               )}

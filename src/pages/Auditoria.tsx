@@ -288,11 +288,14 @@ export default function Auditoria() {
                   <SelectItem value="Funções">Funções</SelectItem>
                   <SelectItem value="Etapas">Etapas</SelectItem>
                   <SelectItem value="Ano/Série">Ano/Série</SelectItem>
+                  <SelectItem value="Configuração RH">Configuração de Vagas por Nível</SelectItem>
                   <SelectItem value="Configurações de RH (CRH)">
-                    Configurações de RH (CRH)
+                    Configurações de RH (CRH) [Legado]
                   </SelectItem>
-                  <SelectItem value="Cargos e Funções (CARE)">Cargos e Funções (CARE)</SelectItem>
-                  <SelectItem value="Níveis de Porte">Níveis de Porte</SelectItem>
+                  <SelectItem value="Cargos e Funções (CARE)">
+                    Cargos e Funções (CARE) [Legado]
+                  </SelectItem>
+                  <SelectItem value="Níveis de Porte">Níveis de Porte [Legado]</SelectItem>
                   <SelectItem value="Usuários">Usuários</SelectItem>
                   <SelectItem value="Contas de E-mail">Contas de E-mail</SelectItem>
                   <SelectItem value="Permissões">Permissões de Acesso</SelectItem>
