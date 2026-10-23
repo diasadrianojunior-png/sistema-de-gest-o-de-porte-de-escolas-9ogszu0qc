@@ -28,11 +28,29 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Edit2, Trash2, Loader2, Search, BookOpen, Eye, Calendar } from 'lucide-react'
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  Loader2,
+  Search,
+  BookOpen,
+  Eye,
+  Calendar,
+  GraduationCap,
+  Info,
+} from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
-import { getAnosSeries, createAnoSerie, updateAnoSerie, deleteAnoSerie } from '@/services/apoio'
-import { AnoSerie } from '@/types/gestao-escolar'
+import {
+  getAnosSeries,
+  createAnoSerie,
+  updateAnoSerie,
+  deleteAnoSerie,
+  getEtapas,
+  createEtapa,
+} from '@/services/apoio'
+import { AnoSerie, Etapa } from '@/types/gestao-escolar'
 import { ANOS_LETIVOS } from './Etapas'
 
 export { ANOS_LETIVOS }
@@ -42,8 +60,10 @@ export default function AnosSeries() {
   const canEditAnosSeries = isAdmin || canEdit('anos_series')
 
   const [anosSeries, setAnosSeries] = useState<AnoSerie[]>([])
+  const [etapas, setEtapas] = useState<Etapa[]>([])
   const [search, setSearch] = useState('')
   const [filtroAno, setFiltroAno] = useState<string>('todos')
+  const [filtroEtapa, setFiltroEtapa] = useState<string>('todas')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -51,7 +71,13 @@ export default function AnosSeries() {
   const [openDialog, setOpenDialog] = useState(false)
   const [editingAnoSerie, setEditingAnoSerie] = useState<AnoSerie | null>(null)
   const [formNome, setFormNome] = useState('')
-  const [formAnoLetivo, setFormAnoLetivo] = useState<number>(new Date().getFullYear())
+  const [formEtapaId, setFormEtapaId] = useState<string>('')
+  const [formAnoLetivo, setFormAnoLetivo] = useState<string>('')
+
+  // Modal inline de Criação Rápida de Etapa (+ Novo)
+  const [openNovaEtapaModal, setOpenNovaEtapaModal] = useState(false)
+  const [novaEtapaNome, setNovaEtapaNome] = useState('')
+  const [salvandoNovaEtapa, setSalvandoNovaEtapa] = useState(false)
 
   // Modal de Visualização (Somente leitura)
   const [viewingAnoSerie, setViewingAnoSerie] = useState<AnoSerie | null>(null)
@@ -60,14 +86,15 @@ export default function AnosSeries() {
   // Modal de Exclusão
   const [deletingAnoSerie, setDeletingAnoSerie] = useState<AnoSerie | null>(null)
 
-  const fetchAnosSeries = async () => {
+  const carregarDados = async () => {
     try {
       setLoading(true)
-      const data = await getAnosSeries()
-      setAnosSeries(data)
+      const [dataAnosSeries, dataEtapas] = await Promise.all([getAnosSeries(), getEtapas()])
+      setAnosSeries(dataAnosSeries)
+      setEtapas(dataEtapas)
     } catch (err: any) {
       toast({
-        title: 'Erro ao carregar anos/séries',
+        title: 'Erro ao carregar dados',
         description: err.message || 'Falha ao buscar dados no banco.',
         variant: 'destructive',
       })
@@ -77,21 +104,63 @@ export default function AnosSeries() {
   }
 
   useEffect(() => {
-    fetchAnosSeries()
+    carregarDados()
   }, [])
+
+  // Dependência dinâmica de etapas no formulário:
+  // Se o ano letivo estiver selecionado, filtra apenas etapas compatíveis com aquele ano.
+  // Se ainda não selecionou ano letivo, exibe todas as etapas cadastradas.
+  const etapasDoAnoForm = useMemo(() => {
+    if (!formAnoLetivo) return etapas
+    const anoNum = Number(formAnoLetivo)
+    return etapas.filter((e) => Number(e.ano_letivo) === anoNum)
+  }, [etapas, formAnoLetivo])
+
+  // Lista de etapas disponíveis para o filtro da listagem
+  const etapasFiltroListagem = useMemo(() => {
+    if (filtroAno === 'todos') return etapas
+    const anoNum = Number(filtroAno)
+    return etapas.filter((e) => Number(e.ano_letivo) === anoNum)
+  }, [etapas, filtroAno])
+
+  // Tratar mudança no combobox Ano Letivo (regra permanente de dependência dinâmica)
+  const handleAnoLetivoChange = (novoAnoStr: string) => {
+    setFormAnoLetivo(novoAnoStr)
+    const novoAno = Number(novoAnoStr)
+
+    // Se já houver etapa selecionada e ela não for do novo ano, limpa a etapa
+    if (formEtapaId) {
+      const etapaAtual = etapas.find((e) => e.id === formEtapaId)
+      if (!etapaAtual || Number(etapaAtual.ano_letivo) !== novoAno) {
+        setFormEtapaId('')
+      }
+    }
+  }
+
+  // Tratar mudança no combobox Etapa:
+  // Se o Ano Letivo ainda não foi escolhido, preenche automaticamente a partir da Etapa
+  const handleEtapaChange = (etapaId: string) => {
+    setFormEtapaId(etapaId)
+    const etapaSel = etapas.find((e) => e.id === etapaId)
+    if (etapaSel) {
+      setFormAnoLetivo(String(etapaSel.ano_letivo))
+    }
+  }
 
   const handleOpenCreate = () => {
     setEditingAnoSerie(null)
     setFormNome('')
-    const anoAtual = new Date().getFullYear()
-    setFormAnoLetivo(anoAtual >= 2020 && anoAtual <= 2040 ? anoAtual : 2026)
+    // Inicia sem pré-seleção ("Selecione uma opção") conforme regra do sistema
+    setFormEtapaId('')
+    setFormAnoLetivo('')
     setOpenDialog(true)
   }
 
   const handleOpenEdit = (item: AnoSerie) => {
     setEditingAnoSerie(item)
     setFormNome(item.nome)
-    setFormAnoLetivo(item.ano_letivo)
+    setFormEtapaId(item.etapa_id || '')
+    setFormAnoLetivo(String(item.ano_letivo))
     setOpenDialog(true)
   }
 
@@ -102,6 +171,16 @@ export default function AnosSeries() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!formEtapaId) {
+      toast({
+        title: 'Atenção',
+        description: 'Selecione a Etapa vinculada ao Ano/Série.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     if (!formNome.trim()) {
       toast({
         title: 'Atenção',
@@ -111,10 +190,31 @@ export default function AnosSeries() {
       return
     }
 
-    if (!formAnoLetivo || formAnoLetivo < 2020 || formAnoLetivo > 2040) {
+    const anoNum = Number(formAnoLetivo)
+    if (!anoNum || anoNum < 2020 || anoNum > 2040) {
       toast({
         title: 'Atenção',
         description: 'Selecione um ano letivo válido entre 2020 e 2040.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Validação de consistência dinâmica: a etapa deve pertencer ao mesmo ano letivo
+    const etapaSel = etapas.find((et) => et.id === formEtapaId)
+    if (!etapaSel) {
+      toast({
+        title: 'Atenção',
+        description: 'A etapa selecionada não foi encontrada no cadastro.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (Number(etapaSel.ano_letivo) !== anoNum) {
+      toast({
+        title: 'Vínculo incompatível',
+        description: `A etapa selecionada pertence ao ano letivo ${etapaSel.ano_letivo}, que difere do ano letivo ${anoNum} selecionado.`,
         variant: 'destructive',
       })
       return
@@ -125,18 +225,20 @@ export default function AnosSeries() {
       if (editingAnoSerie) {
         await updateAnoSerie(editingAnoSerie.id, {
           nome: formNome.trim(),
-          ano_letivo: formAnoLetivo,
+          ano_letivo: anoNum,
+          etapa_id: formEtapaId,
         })
         toast({ title: 'Sucesso', description: 'Ano/Série atualizado com sucesso!' })
       } else {
         await createAnoSerie({
           nome: formNome.trim(),
-          ano_letivo: formAnoLetivo,
+          ano_letivo: anoNum,
+          etapa_id: formEtapaId,
         })
         toast({ title: 'Sucesso', description: 'Ano/Série cadastrado com sucesso!' })
       }
       setOpenDialog(false)
-      await fetchAnosSeries()
+      await carregarDados()
     } catch (err: any) {
       toast({
         title: 'Erro ao salvar',
@@ -155,7 +257,7 @@ export default function AnosSeries() {
       await deleteAnoSerie(deletingAnoSerie.id)
       toast({ title: 'Removido', description: 'Ano/Série excluído com sucesso.' })
       setDeletingAnoSerie(null)
-      await fetchAnosSeries()
+      await carregarDados()
     } catch (err: any) {
       toast({
         title: 'Erro ao excluir',
@@ -167,23 +269,83 @@ export default function AnosSeries() {
     }
   }
 
+  // Criação rápida de Etapa inline (+ Novo)
+  const handleOpenNovaEtapaInline = () => {
+    setNovaEtapaNome('')
+    setOpenNovaEtapaModal(true)
+  }
+
+  const handleSaveNovaEtapaInline = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!novaEtapaNome.trim()) {
+      toast({
+        title: 'Atenção',
+        description: 'Informe o nome da etapa.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const anoEtapa = formAnoLetivo
+      ? Number(formAnoLetivo)
+      : new Date().getFullYear() >= 2020 && new Date().getFullYear() <= 2040
+        ? new Date().getFullYear()
+        : 2026
+
+    try {
+      setSalvandoNovaEtapa(true)
+      const nova = await createEtapa({
+        nome: novaEtapaNome.trim(),
+        ano_letivo: anoEtapa,
+      })
+      toast({
+        title: 'Etapa cadastrada',
+        description: `Etapa "${nova.nome}" criada com sucesso e selecionada para o Ano/Série.`,
+      })
+      // Atualizar lista de etapas e selecionar automaticamente no form
+      const listaAtualizada = await getEtapas()
+      setEtapas(listaAtualizada)
+      setFormEtapaId(nova.id)
+      setFormAnoLetivo(String(nova.ano_letivo))
+      setOpenNovaEtapaModal(false)
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao criar etapa',
+        description: err.message || 'Não foi possível cadastrar a etapa.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSalvandoNovaEtapa(false)
+    }
+  }
+
   const filteredAnosSeries = useMemo(() => {
     return anosSeries.filter((item) => {
       // Filtro de ano letivo
       if (filtroAno !== 'todos' && String(item.ano_letivo) !== filtroAno) {
         return false
       }
-      // Busca por texto (código, nome ou ano)
+      // Filtro de etapa
+      if (filtroEtapa !== 'todas') {
+        if (filtroEtapa === 'sem_etapa') {
+          if (item.etapa_id) return false
+        } else if (item.etapa_id !== filtroEtapa) {
+          return false
+        }
+      }
+      // Busca por texto (código, nome, etapa ou ano)
       if (search.trim()) {
         const q = search.trim().toLowerCase()
         const matchCodigo = item.codigo?.toLowerCase().includes(q)
         const matchNome = item.nome.toLowerCase().includes(q)
         const matchAno = String(item.ano_letivo).includes(q)
-        return matchCodigo || matchNome || matchAno
+        const matchEtapaNome = item.etapa?.nome?.toLowerCase().includes(q)
+        const matchEtapaCodigo = item.etapa?.codigo?.toLowerCase().includes(q)
+        return matchCodigo || matchNome || matchAno || matchEtapaNome || matchEtapaCodigo
       }
       return true
     })
-  }, [anosSeries, search, filtroAno])
+  }, [anosSeries, search, filtroAno, filtroEtapa])
 
   return (
     <div className="space-y-6">
@@ -199,7 +361,8 @@ export default function AnosSeries() {
           Cadastro de Ano/Série
         </h1>
         <p className="text-sm text-slate-600 mt-1">
-          Gerenciamento e manutenção dos anos e séries escolares por ano letivo atendidos pela rede
+          Gerenciamento e manutenção dos anos e séries escolares por etapa educacional e ano letivo
+          atendidos pela rede
         </p>
       </div>
 
@@ -227,15 +390,28 @@ export default function AnosSeries() {
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <Input
-                placeholder="Pesquisar por identificador (ANO-XXXX), nome ou ano letivo..."
+                placeholder="Pesquisar por identificador (ANO-XXXX), nome, etapa..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 text-sm"
               />
             </div>
 
-            <div className="w-full sm:w-48">
-              <Select value={filtroAno} onValueChange={setFiltroAno}>
+            {/* Filtro por Ano Letivo */}
+            <div className="w-full sm:w-44">
+              <Select
+                value={filtroAno}
+                onValueChange={(val) => {
+                  setFiltroAno(val)
+                  // Se mudar ano e a etapa filtrada não pertencer ao novo ano, reseta etapa para todas
+                  if (val !== 'todos' && filtroEtapa !== 'todas' && filtroEtapa !== 'sem_etapa') {
+                    const etapaObj = etapas.find((e) => e.id === filtroEtapa)
+                    if (etapaObj && String(etapaObj.ano_letivo) !== val) {
+                      setFiltroEtapa('todas')
+                    }
+                  }
+                }}
+              >
                 <SelectTrigger className="text-sm">
                   <SelectValue placeholder="Ano Letivo" />
                 </SelectTrigger>
@@ -250,13 +426,32 @@ export default function AnosSeries() {
               </Select>
             </div>
 
-            {(search || filtroAno !== 'todos') && (
+            {/* Filtro por Etapa */}
+            <div className="w-full sm:w-56">
+              <Select value={filtroEtapa} onValueChange={setFiltroEtapa}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="Todas as etapas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as etapas</SelectItem>
+                  <SelectItem value="sem_etapa">Não vinculadas a etapa</SelectItem>
+                  {etapasFiltroListagem.map((et) => (
+                    <SelectItem key={et.id} value={et.id}>
+                      {et.nome} ({et.codigo || 'ETA'}) — {et.ano_letivo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {(search || filtroAno !== 'todos' || filtroEtapa !== 'todas') && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
                   setSearch('')
                   setFiltroAno('todos')
+                  setFiltroEtapa('todas')
                 }}
                 className="text-xs text-slate-600 hover:text-slate-900"
               >
@@ -272,7 +467,7 @@ export default function AnosSeries() {
           ) : filteredAnosSeries.length === 0 ? (
             <div className="py-12 text-center text-sm text-slate-500 bg-slate-50 rounded-lg border border-dashed">
               Nenhum ano/série encontrado.{' '}
-              {search || filtroAno !== 'todos'
+              {search || filtroAno !== 'todos' || filtroEtapa !== 'todas'
                 ? 'Tente outro termo ou limpe os filtros.'
                 : 'Clique em "Novo Ano/Série" para cadastrar.'}
             </div>
@@ -283,6 +478,7 @@ export default function AnosSeries() {
                   <tr>
                     <th className="py-3 px-4 font-medium w-32">Identificador</th>
                     <th className="py-3 px-4 font-medium">Nome do Ano/Série</th>
+                    <th className="py-3 px-4 font-medium">Etapa Vinculada</th>
                     <th className="py-3 px-4 font-medium w-36 text-center">Ano Letivo</th>
                     <th className="py-3 px-4 font-medium text-right w-36">Ações</th>
                   </tr>
@@ -299,6 +495,23 @@ export default function AnosSeries() {
 
                       {/* Nome do Ano/Série */}
                       <td className="py-3 px-4 font-medium text-slate-900">{item.nome}</td>
+
+                      {/* Etapa Vinculada com nome e código */}
+                      <td className="py-3 px-4 text-slate-700">
+                        {item.etapa ? (
+                          <div className="flex items-center gap-1.5">
+                            <GraduationCap className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <span className="font-medium text-slate-900">{item.etapa.nome}</span>
+                            <span className="font-mono text-[11px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
+                              {item.etapa.codigo || 'ETA'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-medium">
+                            Não vinculada
+                          </span>
+                        )}
+                      </td>
 
                       {/* Ano Letivo */}
                       <td className="py-3 px-4 text-center">
@@ -354,14 +567,14 @@ export default function AnosSeries() {
 
       {/* DIÁLOGO: CRIAR / EDITAR ANO/SÉRIE */}
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-blue-600" />
               {editingAnoSerie ? 'Editar Ano/Série' : 'Novo Ano/Série'}
             </DialogTitle>
             <DialogDescription>
-              Preencha os campos abaixo para salvar o Ano/Série no cadastro de apoio.
+              Preencha os campos abaixo vinculando a Etapa e o Ano Letivo compatíveis.
             </DialogDescription>
           </DialogHeader>
 
@@ -389,7 +602,57 @@ export default function AnosSeries() {
               </p>
             </div>
 
-            {/* Campo 2: Nome do Ano/Série (Obrigatório) */}
+            {/* Campo 2: Etapa (Obrigatório) com botão "+ Novo" inline acima do campo */}
+            <div className="space-y-1.5 border-t pt-3">
+              <div className="flex items-center justify-between">
+                <Label
+                  htmlFor="ano-etapa"
+                  className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"
+                >
+                  <GraduationCap className="w-3.5 h-3.5 text-blue-600" />
+                  Etapa <span className="text-rose-500">*</span>
+                </Label>
+                {canEditAnosSeries && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleOpenNovaEtapaInline}
+                    className="h-7 text-xs px-2.5 gap-1.5 bg-[#0B2545] hover:bg-[#133A68] text-white font-medium"
+                    title="Criar nova etapa diretamente e vincular ao formulário"
+                  >
+                    <Plus className="w-3.5 h-3.5" />+ Novo
+                  </Button>
+                )}
+              </div>
+
+              <Select value={formEtapaId} onValueChange={handleEtapaChange}>
+                <SelectTrigger id="ano-etapa" className="text-sm">
+                  <SelectValue placeholder="Selecione uma opção" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {etapasDoAnoForm.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.nome} ({e.codigo || 'ETA'}) — Ano {e.ano_letivo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {etapasDoAnoForm.length === 0 ? (
+                <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
+                  {formAnoLetivo
+                    ? `Nenhuma etapa cadastrada para o ano letivo ${formAnoLetivo}. Clique em "+ Novo" acima para cadastrar.`
+                    : 'Nenhuma etapa encontrada. Clique em "+ Novo" acima para cadastrar.'}
+                </p>
+              ) : (
+                <p className="text-[11px] text-slate-500">
+                  {formAnoLetivo
+                    ? `Exibindo ${etapasDoAnoForm.length} etapa(s) compatível(is) com o ano letivo ${formAnoLetivo}.`
+                    : 'A lista de etapas filtra automaticamente ao selecionar o ano letivo.'}
+                </p>
+              )}
+            </div>
+
+            {/* Campo 3: Nome do Ano/Série (Obrigatório) */}
             <div className="space-y-1.5">
               <Label
                 htmlFor="ano-nome"
@@ -407,35 +670,33 @@ export default function AnosSeries() {
               />
             </div>
 
-            {/* Campo 3: Ano Letivo (Combobox de 2020 a 2040) */}
-            <div className="space-y-1.5">
+            {/* Campo 4: Ano Letivo (Combobox de 2020 a 2040) */}
+            <div className="space-y-1.5 border-t pt-3">
               <Label
                 htmlFor="ano-letivo"
                 className="text-xs font-semibold uppercase tracking-wider text-slate-700"
               >
                 Ano Letivo <span className="text-rose-500">*</span>
               </Label>
-              <Select
-                value={String(formAnoLetivo)}
-                onValueChange={(val) => setFormAnoLetivo(Number(val))}
-              >
+              <Select value={formAnoLetivo} onValueChange={handleAnoLetivoChange}>
                 <SelectTrigger id="ano-letivo" className="text-sm">
-                  <SelectValue placeholder="Selecione o ano letivo" />
+                  <SelectValue placeholder="Selecione uma opção" />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
                   {ANOS_LETIVOS.map((ano) => (
                     <SelectItem key={ano} value={String(ano)}>
-                      {ano}
+                      Ano {ano}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-slate-400">
-                Selecione o ano letivo de vigência deste Ano/Série (faixa 2020 a 2040).
+              <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                O Ano/Série e a Etapa vinculada devem pertencer estritamente ao mesmo ano letivo.
               </p>
             </div>
 
-            <DialogFooter className="pt-4">
+            <DialogFooter className="pt-4 border-t">
               <Button
                 type="button"
                 onClick={() => setOpenDialog(false)}
@@ -490,6 +751,25 @@ export default function AnosSeries() {
 
               <div className="border-b pb-3 space-y-1">
                 <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold block">
+                  Etapa Vinculada
+                </span>
+                {viewingAnoSerie.etapa ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <GraduationCap className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span className="text-sm font-semibold text-slate-900">
+                      {viewingAnoSerie.etapa.nome}
+                    </span>
+                    <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                      {viewingAnoSerie.etapa.codigo || 'ETA'}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-xs text-amber-700 italic">Não vinculada</span>
+                )}
+              </div>
+
+              <div className="border-b pb-3 space-y-1">
+                <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold block">
                   Ano Letivo
                 </span>
                 <span className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold px-2.5 py-1 rounded bg-slate-100 text-slate-800 border border-slate-200">
@@ -515,6 +795,72 @@ export default function AnosSeries() {
               Fechar
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL INLINE: NOVA ETAPA */}
+      <Dialog open={openNovaEtapaModal} onOpenChange={setOpenNovaEtapaModal}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GraduationCap className="w-5 h-5 text-blue-600" />
+              Nova Etapa
+            </DialogTitle>
+            <DialogDescription>
+              Cadastre a etapa no ano letivo{' '}
+              <strong>{formAnoLetivo || new Date().getFullYear()}</strong>. Ao salvar, ela será
+              selecionada no combobox de Etapa.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveNovaEtapaInline} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Ano Letivo
+              </Label>
+              <Input
+                value={`Ano ${formAnoLetivo || new Date().getFullYear()}`}
+                disabled
+                className="bg-slate-100 font-mono text-xs cursor-not-allowed"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="inline-etapa-nome"
+                className="text-xs font-semibold uppercase tracking-wider text-slate-700"
+              >
+                Nome da Etapa <span className="text-rose-500">*</span>
+              </Label>
+              <Input
+                id="inline-etapa-nome"
+                placeholder="Ex: Ensino Fundamental - Anos Iniciais"
+                value={novaEtapaNome}
+                onChange={(e) => setNovaEtapaNome(e.target.value)}
+                autoFocus
+                required
+              />
+            </div>
+
+            <DialogFooter className="pt-3 border-t">
+              <Button
+                type="button"
+                onClick={() => setOpenNovaEtapaModal(false)}
+                disabled={salvandoNovaEtapa}
+                className="bg-[#0B2545] hover:bg-[#133A68] text-white"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={salvandoNovaEtapa}
+                className="bg-[#0B2545] hover:bg-[#133A68] text-white"
+              >
+                {salvandoNovaEtapa && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Cadastrar Etapa
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

@@ -55,6 +55,8 @@ export interface AnoSerie {
   codigo?: string
   nome: string
   ano_letivo: number
+  etapa_id?: string | null
+  etapa?: Etapa | null
   created_at?: string
   updated_at?: string
 }

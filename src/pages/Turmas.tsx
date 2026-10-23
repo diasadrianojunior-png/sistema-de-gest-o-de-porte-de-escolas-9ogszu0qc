@@ -123,28 +123,75 @@ export default function Turmas() {
     return etapas.filter((e) => Number(e.ano_letivo) === Number(formAnoLetivo))
   }, [etapas, formAnoLetivo])
 
+  // Dependência dinâmica de Anos/Séries:
+  // Filtro duplo obrigatório: deve pertencer ao mesmo ano letivo E à etapa selecionada.
+  // Se nenhuma etapa estiver selecionada, não exibe anos/séries (ou apenas os sem etapa vinculada no ano, se aplicável).
   const anosSeriesDoAno = useMemo(() => {
-    return anosSeries.filter((a) => Number(a.ano_letivo) === Number(formAnoLetivo))
-  }, [anosSeries, formAnoLetivo])
+    const anoNum = Number(formAnoLetivo)
+    return anosSeries.filter((a) => {
+      // Filtro de ano letivo
+      if (Number(a.ano_letivo) !== anoNum) return false
+
+      // Filtro de etapa:
+      // Se há etapa selecionada no form, exige que o ano/série seja exatamente daquela etapa
+      if (formEtapaId && formEtapaId !== 'nenhuma') {
+        return a.etapa_id === formEtapaId
+      }
+
+      // Se não há etapa selecionada, só permite anos/séries sem etapa vinculada (legados)
+      return !a.etapa_id
+    })
+  }, [anosSeries, formAnoLetivo, formEtapaId])
 
   // Tratar mudança no combobox Ano Letivo (regra permanente de dependência dinâmica)
   const handleAnoLetivoChange = (novoAnoStr: string) => {
     const novoAno = Number(novoAnoStr)
     setFormAnoLetivo(novoAno)
 
+    let etapaPermanece = formEtapaId
     // Se a etapa atual não pertencer ao novo ano, limpa a seleção
     if (formEtapaId && formEtapaId !== 'nenhuma') {
       const etapaAtual = etapas.find((e) => e.id === formEtapaId)
       if (!etapaAtual || Number(etapaAtual.ano_letivo) !== novoAno) {
         setFormEtapaId('nenhuma')
+        etapaPermanece = 'nenhuma'
       }
     }
 
-    // Se o ano/série atual não pertencer ao novo ano, limpa a seleção
+    // Se o ano/série atual não pertencer ao novo ano ou à etapa restante, limpa a seleção
     if (formAnoSerieId && formAnoSerieId !== 'nenhum') {
       const anoSerieAtual = anosSeries.find((a) => a.id === formAnoSerieId)
-      if (!anoSerieAtual || Number(anoSerieAtual.ano_letivo) !== novoAno) {
+      if (
+        !anoSerieAtual ||
+        Number(anoSerieAtual.ano_letivo) !== novoAno ||
+        (etapaPermanece &&
+          etapaPermanece !== 'nenhuma' &&
+          anoSerieAtual.etapa_id !== etapaPermanece)
+      ) {
         setFormAnoSerieId('nenhum')
+      }
+    }
+  }
+
+  // Tratar mudança na Etapa:
+  // Ao trocar a etapa, limpar um Ano/Série incompatível já selecionado
+  const handleEtapaChange = (novaEtapaId: string) => {
+    setFormEtapaId(novaEtapaId)
+
+    if (formAnoSerieId && formAnoSerieId !== 'nenhum') {
+      const anoSerieAtual = anosSeries.find((a) => a.id === formAnoSerieId)
+      if (!anoSerieAtual) {
+        setFormAnoSerieId('nenhum')
+      } else if (novaEtapaId === 'nenhuma') {
+        // Se limpou a etapa, mas o ano/série tinha etapa vinculada, limpa
+        if (anoSerieAtual.etapa_id) {
+          setFormAnoSerieId('nenhum')
+        }
+      } else {
+        // Se escolheu uma etapa específica, verifica se o ano/série pertence a ela
+        if (anoSerieAtual.etapa_id !== novaEtapaId) {
+          setFormAnoSerieId('nenhum')
+        }
       }
     }
   }
@@ -228,6 +275,19 @@ export default function Turmas() {
         toast({
           title: 'Vínculo incompatível',
           description: `O ano/série selecionado pertence ao ano letivo ${anoSerieSel.ano_letivo}, diferente do ano ${formAnoLetivo} da turma.`,
+          variant: 'destructive',
+        })
+        return
+      }
+      if (
+        anoSerieSel &&
+        etapaIdFinal &&
+        anoSerieSel.etapa_id &&
+        anoSerieSel.etapa_id !== etapaIdFinal
+      ) {
+        toast({
+          title: 'Vínculo incompatível',
+          description: 'O ano/série selecionado pertence a uma etapa diferente da etapa da turma.',
           variant: 'destructive',
         })
         return
@@ -349,9 +409,11 @@ export default function Turmas() {
 
     try {
       setSalvandoNovoAnoSerie(true)
+      const etapaParaVincular = formEtapaId && formEtapaId !== 'nenhuma' ? formEtapaId : null
       const novo = await createAnoSerie({
         nome: novoAnoSerieNome.trim(),
         ano_letivo: formAnoLetivo,
+        etapa_id: etapaParaVincular,
       })
       toast({
         title: 'Ano/Série cadastrado',
@@ -752,7 +814,7 @@ export default function Turmas() {
                 </Button>
               </div>
 
-              <Select value={formEtapaId} onValueChange={setFormEtapaId}>
+              <Select value={formEtapaId} onValueChange={handleEtapaChange}>
                 <SelectTrigger id="t-etapa" className="text-sm">
                   <SelectValue placeholder="Selecione uma etapa..." />
                 </SelectTrigger>
@@ -814,13 +876,14 @@ export default function Turmas() {
               </Select>
               {anosSeriesDoAno.length === 0 ? (
                 <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
-                  Nenhum ano/série cadastrado para o ano letivo {formAnoLetivo}. Clique em{' '}
-                  <strong>+ Novo</strong> acima para cadastrar diretamente.
+                  {formEtapaId && formEtapaId !== 'nenhuma'
+                    ? `Nenhum ano/série cadastrado para a etapa selecionada no ano letivo ${formAnoLetivo}. Clique em "+ Novo" acima para cadastrar diretamente nesta etapa.`
+                    : `Selecione primeiro uma Etapa acima para visualizar os anos/séries vinculados, ou clique em "+ Novo" para cadastrar.`}
                 </p>
               ) : (
                 <p className="text-[11px] text-slate-500">
-                  Exibindo {anosSeriesDoAno.length} ano(s)/série(s) compatível(is) com o ano letivo{' '}
-                  {formAnoLetivo}.
+                  Exibindo {anosSeriesDoAno.length} ano(s)/série(s) compatível(is) com a etapa e o
+                  ano letivo {formAnoLetivo}.
                 </p>
               )}
             </div>

@@ -600,17 +600,22 @@ export const deleteEtapa = async (id: string): Promise<void> => {
 export interface CreateAnoSerieInput {
   nome: string
   ano_letivo: number
+  etapa_id?: string | null
 }
 
 export interface UpdateAnoSerieInput {
   nome: string
   ano_letivo: number
+  etapa_id?: string | null
 }
 
 export const getAnosSeries = async (): Promise<AnoSerie[]> => {
   const { data, error } = await db
     .from('anos_series')
-    .select('*')
+    .select(`
+      *,
+      etapa:etapas(id, codigo, nome, ano_letivo)
+    `)
     .order('ano_letivo', { ascending: false })
     .order('codigo', { ascending: true })
 
@@ -632,9 +637,13 @@ export const createAnoSerie = async (input: CreateAnoSerieInput): Promise<AnoSer
       {
         nome: input.nome.trim(),
         ano_letivo: input.ano_letivo,
+        etapa_id: input.etapa_id || null,
       },
     ])
-    .select()
+    .select(`
+      *,
+      etapa:etapas(id, codigo, nome, ano_letivo)
+    `)
     .single()
 
   if (error) {
@@ -648,7 +657,9 @@ export const createAnoSerie = async (input: CreateAnoSerieInput): Promise<AnoSer
     entidade: 'Ano/Série',
     acao: 'Criação',
     registro_codigo: created.codigo || null,
-    descricao: `Cadastro de Ano/Série "${created.nome}" (Ano Letivo: ${created.ano_letivo}).`,
+    descricao: `Cadastro de Ano/Série "${created.nome}" (Ano Letivo: ${created.ano_letivo}${
+      created.etapa?.nome ? `, Etapa: ${created.etapa.nome}` : ''
+    }).`,
     detalhes: { ano_serie: created },
   })
 
@@ -661,15 +672,24 @@ export const updateAnoSerie = async (id: string, input: UpdateAnoSerieInput): Pr
     throw new Error('Ano letivo inválido. O ano deve estar entre 2020 e 2040.')
   }
 
+  const updatePayload: Record<string, any> = {
+    nome: input.nome.trim(),
+    ano_letivo: ano,
+    updated_at: new Date().toISOString(),
+  }
+
+  if (input.etapa_id !== undefined) {
+    updatePayload.etapa_id = input.etapa_id || null
+  }
+
   const { data, error } = await db
     .from('anos_series')
-    .update({
-      nome: input.nome.trim(),
-      ano_letivo: ano,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq('id', id)
-    .select()
+    .select(`
+      *,
+      etapa:etapas(id, codigo, nome, ano_letivo)
+    `)
     .single()
 
   if (error) {
@@ -683,15 +703,24 @@ export const updateAnoSerie = async (id: string, input: UpdateAnoSerieInput): Pr
     entidade: 'Ano/Série',
     acao: 'Edição',
     registro_codigo: updated.codigo || null,
-    descricao: `Edição de Ano/Série "${updated.nome}" (Ano Letivo: ${updated.ano_letivo}).`,
-    detalhes: { id, alteracoes: input },
+    descricao: `Edição de Ano/Série "${updated.nome}" (Ano Letivo: ${updated.ano_letivo}${
+      updated.etapa?.nome ? `, Etapa: ${updated.etapa.nome}` : ''
+    }).`,
+    detalhes: { id, alteracoes: input, ano_serie: updated },
   })
 
   return updated
 }
 
 export const deleteAnoSerie = async (id: string): Promise<void> => {
-  const { data: anterior } = await db.from('anos_series').select('*').eq('id', id).maybeSingle()
+  const { data: anterior } = await db
+    .from('anos_series')
+    .select(`
+      *,
+      etapa:etapas(id, codigo, nome, ano_letivo)
+    `)
+    .eq('id', id)
+    .maybeSingle()
 
   const { error } = await db.from('anos_series').delete().eq('id', id)
 
