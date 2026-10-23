@@ -557,7 +557,7 @@ export default function Layout() {
                               <SlidersHorizontal
                                 className={`w-4 h-4 shrink-0 ${isConfigRhActive ? 'text-white' : 'text-slate-500'}`}
                               />
-                              <span>Configuração de RH por Nível</span>
+                              <span>Configuração de Vagas por Nível</span>
                             </NavLink>
                           )}
                         </div>
@@ -589,7 +589,6 @@ export default function Layout() {
                           <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
                         )}
                       </button>
-
                       {/* Submenu de Cadastros de Apoio */}
                       {cadastrosApoioExpanded && (
                         <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-200 space-y-1 py-1">
@@ -715,11 +714,11 @@ export default function Layout() {
                               <SlidersHorizontal
                                 className={`w-3.5 h-3.5 shrink-0 ${isConfigRhActive ? 'text-white' : 'text-slate-400'}`}
                               />
-                              <span className="truncate">Configuração de RH por Nível</span>
+                              <span className="truncate">Configuração de Vagas por Nível</span>
                             </NavLink>
                           )}
                         </div>
-                      )}
+                      )}{' '}
                     </div>
                   ))}
 

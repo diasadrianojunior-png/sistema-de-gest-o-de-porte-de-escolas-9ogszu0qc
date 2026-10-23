@@ -473,4 +473,218 @@ describe('calcularVagasPorNivel - Simulação Completa e Regras', () => {
     const supGeral = res.vagas.find((v) => v.funcaoNome === 'Professor Suporte Pedagógico Geral')
     expect(supGeral?.quantidadeFinal).toBe(2)
   })
+
+  it('exemplo completo solicitado pelo usuário para validação 20h: Nível V com 8 linhas completas', () => {
+    const config20hCompleta: ConfiguracaoRhCompleta = {
+      id: 'cfg-20h-full',
+      tipo_atendimento: 'Ensino Fundamental e Educação Infantil (20h)',
+      ano_letivo: 2026,
+      status: 'VIGENTE',
+      niveis: [
+        {
+          id: 'n5',
+          configuracao_rh_id: 'cfg-20h-full',
+          codigo_nivel: 'V',
+          ordem: 5,
+          min_alunos: 321,
+          max_alunos: 420,
+        },
+      ],
+      linhas: [
+        {
+          id: 'l1',
+          configuracao_rh_id: 'cfg-20h-full',
+          funcao_id: 'f1',
+          ordem: 1,
+          base_calculo: 'POR_ESCOLA',
+          funcao: { id: 'f1', nome: 'Diretor Escolar' },
+        },
+        {
+          id: 'l2',
+          configuracao_rh_id: 'cfg-20h-full',
+          funcao_id: 'f2',
+          ordem: 2,
+          base_calculo: 'POR_PERIODO',
+          funcao: { id: 'f2', nome: 'Coordenador Pedagógico' },
+        },
+        {
+          id: 'l3',
+          configuracao_rh_id: 'cfg-20h-full',
+          funcao_id: 'f3',
+          ordem: 3,
+          base_calculo: 'POR_PERIODO',
+          funcao: { id: 'f3', nome: 'Professor Suporte' },
+        },
+        {
+          id: 'l4',
+          configuracao_rh_id: 'cfg-20h-full',
+          funcao_id: 'f4',
+          ordem: 4,
+          base_calculo: 'POR_TURMA',
+          funcao: { id: 'f4', nome: 'Professor Regente' },
+        },
+        {
+          id: 'l5',
+          configuracao_rh_id: 'cfg-20h-full',
+          funcao_id: 'f5',
+          ordem: 5,
+          base_calculo: 'POR_ESCOLA',
+          funcao: { id: 'f5', nome: 'Secretário Escolar' },
+        },
+        {
+          id: 'l6',
+          configuracao_rh_id: 'cfg-20h-full',
+          funcao_id: 'f6',
+          ordem: 6,
+          base_calculo: 'POR_ESCOLA',
+          funcao: { id: 'f6', nome: 'Assessor de Sala de Leitura' },
+        },
+        {
+          id: 'l7',
+          configuracao_rh_id: 'cfg-20h-full',
+          funcao_id: 'f7',
+          ordem: 7,
+          base_calculo: 'POR_ESCOLA',
+          funcao: { id: 'f7', nome: 'Serviços Gerais Feminino' },
+        },
+        {
+          id: 'l8',
+          configuracao_rh_id: 'cfg-20h-full',
+          funcao_id: 'f8',
+          ordem: 8,
+          base_calculo: 'POR_ESCOLA',
+          funcao: { id: 'f8', nome: 'Serviços Gerais Masculino' },
+        },
+      ],
+      vagas: [
+        { id: 'v1', linha_id: 'l1', nivel_id: 'n5', quantidade: 1, modalidade: 'FIXO' },
+        { id: 'v2', linha_id: 'l2', nivel_id: 'n5', quantidade: 1, modalidade: 'FIXO' },
+        { id: 'v3', linha_id: 'l3', nivel_id: 'n5', quantidade: 1, modalidade: 'FIXO' },
+        { id: 'v4', linha_id: 'l4', nivel_id: 'n5', quantidade: 1, modalidade: 'FIXO' },
+        { id: 'v5', linha_id: 'l5', nivel_id: 'n5', quantidade: 1, modalidade: 'FIXO' },
+        { id: 'v6', linha_id: 'l6', nivel_id: 'n5', quantidade: 1, modalidade: 'FIXO' },
+        { id: 'v7', linha_id: 'l7', nivel_id: 'n5', quantidade: 8, modalidade: 'FIXO' },
+        { id: 'v8', linha_id: 'l8', nivel_id: 'n5', quantidade: 1, modalidade: 'FIXO' },
+      ],
+    }
+
+    const res = calcularVagasPorNivel(config20hCompleta, 323, 2, { Fundamental: 14 })
+
+    expect(res.nivelEncontrado?.codigo_nivel).toBe('V')
+    expect(res.vagas.find((v) => v.funcaoNome === 'Diretor Escolar')?.quantidadeFinal).toBe(1)
+    expect(res.vagas.find((v) => v.funcaoNome === 'Coordenador Pedagógico')?.quantidadeFinal).toBe(
+      2,
+    )
+    expect(res.vagas.find((v) => v.funcaoNome === 'Professor Suporte')?.quantidadeFinal).toBe(2)
+    expect(res.vagas.find((v) => v.funcaoNome === 'Professor Regente')?.quantidadeFinal).toBe(14)
+    expect(res.vagas.find((v) => v.funcaoNome === 'Secretário Escolar')?.quantidadeFinal).toBe(1)
+    expect(
+      res.vagas.find((v) => v.funcaoNome === 'Assessor de Sala de Leitura')?.quantidadeFinal,
+    ).toBe(1)
+    expect(
+      res.vagas.find((v) => v.funcaoNome === 'Serviços Gerais Feminino')?.quantidadeFinal,
+    ).toBe(8)
+    expect(
+      res.vagas.find((v) => v.funcaoNome === 'Serviços Gerais Masculino')?.quantidadeFinal,
+    ).toBe(1)
+  })
+
+  it('exemplo completo solicitado pelo usuário para validação 40h: Nível C com 6 linhas completas', () => {
+    const config40hCompleta: ConfiguracaoRhCompleta = {
+      id: 'cfg-40h-full',
+      tipo_atendimento: 'Educação Infantil (40h)',
+      ano_letivo: 2026,
+      status: 'VIGENTE',
+      niveis: [
+        {
+          id: 'nc',
+          configuracao_rh_id: 'cfg-40h-full',
+          codigo_nivel: 'C',
+          ordem: 3,
+          min_alunos: 141,
+          max_alunos: null,
+        },
+      ],
+      linhas: [
+        {
+          id: 'l1',
+          configuracao_rh_id: 'cfg-40h-full',
+          funcao_id: 'f1',
+          ordem: 1,
+          base_calculo: 'POR_ESCOLA',
+          funcao: { id: 'f1', nome: 'Diretor Escolar' },
+        },
+        {
+          id: 'l2',
+          configuracao_rh_id: 'cfg-40h-full',
+          funcao_id: 'f2',
+          ordem: 2,
+          base_calculo: 'POR_ESCOLA',
+          funcao: { id: 'f2', nome: 'Coordenador Pedagógico' },
+        },
+        {
+          id: 'l3',
+          configuracao_rh_id: 'cfg-40h-full',
+          funcao_id: 'f3',
+          ordem: 3,
+          base_calculo: 'POR_TURMA',
+          funcao: { id: 'f3', nome: 'Professor Regente' },
+        },
+        {
+          id: 'l4',
+          configuracao_rh_id: 'cfg-40h-full',
+          funcao_id: 'f4',
+          ordem: 4,
+          base_calculo: 'POR_TURMA_ETAPA',
+          etapas_filtro: ['INFANTIL', 'INFANTIL_I', 'INFANTIL_II'],
+          funcao: { id: 'f4', nome: 'Suporte Pedagógico de Sala' },
+        },
+        {
+          id: 'l5',
+          configuracao_rh_id: 'cfg-40h-full',
+          funcao_id: 'f5',
+          ordem: 5,
+          base_calculo: 'POR_ESCOLA',
+          funcao: { id: 'f5', nome: 'Suporte Pedagógico Geral' },
+        },
+        {
+          id: 'l6',
+          configuracao_rh_id: 'cfg-40h-full',
+          funcao_id: 'f6',
+          ordem: 6,
+          base_calculo: 'POR_ESCOLA',
+          funcao: { id: 'f6', nome: 'Secretário Escolar' },
+        },
+      ],
+      vagas: [
+        { id: 'v1', linha_id: 'l1', nivel_id: 'nc', quantidade: 1, modalidade: 'FIXO' },
+        { id: 'v2', linha_id: 'l2', nivel_id: 'nc', quantidade: 1, modalidade: 'FIXO' },
+        { id: 'v3', linha_id: 'l3', nivel_id: 'nc', quantidade: 1, modalidade: 'FIXO' },
+        { id: 'v4', linha_id: 'l4', nivel_id: 'nc', quantidade: 1, modalidade: 'FIXO' },
+        { id: 'v5', linha_id: 'l5', nivel_id: 'nc', quantidade: 2, modalidade: 'FIXO' },
+        { id: 'v6', linha_id: 'l6', nivel_id: 'nc', quantidade: 1, modalidade: 'FIXO' },
+      ],
+    }
+
+    const res = calcularVagasPorNivel(config40hCompleta, 148, 1, {
+      'Infantil I': 1,
+      'Infantil II': 2,
+      'Turma A': 6,
+    })
+
+    expect(res.nivelEncontrado?.codigo_nivel).toBe('C')
+    expect(res.totalTurmas).toBe(9)
+    expect(res.vagas.find((v) => v.funcaoNome === 'Diretor Escolar')?.quantidadeFinal).toBe(1)
+    expect(res.vagas.find((v) => v.funcaoNome === 'Coordenador Pedagógico')?.quantidadeFinal).toBe(
+      1,
+    )
+    expect(res.vagas.find((v) => v.funcaoNome === 'Professor Regente')?.quantidadeFinal).toBe(9)
+    expect(
+      res.vagas.find((v) => v.funcaoNome === 'Suporte Pedagógico de Sala')?.quantidadeFinal,
+    ).toBe(3)
+    expect(
+      res.vagas.find((v) => v.funcaoNome === 'Suporte Pedagógico Geral')?.quantidadeFinal,
+    ).toBe(2)
+    expect(res.vagas.find((v) => v.funcaoNome === 'Secretário Escolar')?.quantidadeFinal).toBe(1)
+  })
 })
