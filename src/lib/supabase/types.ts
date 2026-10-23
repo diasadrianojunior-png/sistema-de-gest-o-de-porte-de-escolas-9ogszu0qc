@@ -14,6 +14,7 @@ export type Database = {
           ano_letivo: number
           codigo: string | null
           created_at: string
+          etapa_id: string | null
           id: string
           nome: string
           updated_at: string
@@ -22,6 +23,7 @@ export type Database = {
           ano_letivo: number
           codigo?: string | null
           created_at?: string
+          etapa_id?: string | null
           id?: string
           nome: string
           updated_at?: string
@@ -30,11 +32,20 @@ export type Database = {
           ano_letivo?: number
           codigo?: string | null
           created_at?: string
+          etapa_id?: string | null
           id?: string
           nome?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: 'anos_series_etapa_id_fkey'
+            columns: ['etapa_id']
+            isOneToOne: false
+            referencedRelation: 'etapas'
+            referencedColumns: ['id']
+          },
+        ]
       }
       auditoria: {
         Row: {

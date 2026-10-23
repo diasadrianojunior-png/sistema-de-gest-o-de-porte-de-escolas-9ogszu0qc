@@ -25,6 +25,12 @@ import {
   Users,
   Scale,
   UserCheck,
+  GitBranch,
+  TableProperties,
+  SlidersHorizontal,
+  Users2,
+  Calculator,
+  Compass,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -46,7 +52,9 @@ export default function Layout() {
   // Estados dos popovers quando a barra está recolhida
   const [mestresPopoverOpen, setMestresPopoverOpen] = useState(false)
   const [apoioPopoverOpen, setApoioPopoverOpen] = useState(false)
+  const [rhPortePopoverOpen, setRhPortePopoverOpen] = useState(false)
   const [administracaoPopoverOpen, setAdministracaoPopoverOpen] = useState(false)
+  const [rhPorteExpanded, setRhPorteExpanded] = useState(true)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -83,6 +91,17 @@ export default function Layout() {
   const isCrhActive = location.pathname === '/cadastros-apoio/crh'
   const isCareActive = location.pathname === '/cadastros-apoio/care'
   const isApoioActive = location.pathname.startsWith('/cadastros-apoio')
+
+  // Módulo RH e Porte
+  const isRhVersoesActive = location.pathname === '/rh-porte/versoes'
+  const isRhMatrizActive = location.pathname === '/rh-porte/matriz'
+  const isRhNiveisRegrasActive = location.pathname === '/rh-porte/niveis-regras'
+  const isRhRegrasTurmasActive = location.pathname === '/rh-porte/regras-turmas'
+  const isRhCenarioEscolaActive = location.pathname === '/rh-porte/escola-ano'
+  const isRhPainelGeralActive = location.pathname === '/rh-porte/painel-geral'
+  const isRhVagasItinerantesActive = location.pathname === '/rh-porte/vagas-itinerantes'
+  const isRhPorteActive = location.pathname.startsWith('/rh-porte')
+
   const isUsuariosActive =
     location.pathname === '/administracao/usuarios' || location.pathname === '/administracao'
   const isContasEmailActive = location.pathname === '/administracao/contas-email'
@@ -99,6 +118,25 @@ export default function Layout() {
   const canViewAnosSeries = canView('anos_series')
   const canViewCrh = canView('crh')
   const canViewCare = canView('care')
+
+  // Permissões novo módulo RH e Porte
+  const canViewRhVersoes = canView('rh_versoes')
+  const canViewRhMatriz = canView('rh_matriz')
+  const canViewRhNiveisRegras = canView('rh_niveis_regras')
+  const canViewRhRegrasTurmas = canView('rh_regras_turmas')
+  const canViewRhCenarioEscola = canView('rh_cenario_escola')
+  const canViewRhPainelGeral = canView('rh_painel_geral')
+  const canViewRhVagasItinerantes = canView('rh_vagas_itinerantes')
+
+  const showRhPorte =
+    canViewRhVersoes ||
+    canViewRhMatriz ||
+    canViewRhNiveisRegras ||
+    canViewRhRegrasTurmas ||
+    canViewRhCenarioEscola ||
+    canViewRhPainelGeral ||
+    canViewRhVagasItinerantes
+
   const canViewUsuarios = canView('usuarios')
   const canViewContasEmail = canView('contas_email')
   const canViewAuditoria = canView('auditoria')
@@ -675,6 +713,309 @@ export default function Layout() {
                                 className={`w-3.5 h-3.5 shrink-0 ${isCareActive ? 'text-white' : 'text-slate-400'}`}
                               />
                               <span className="truncate">Cargos e Funções (CARE)</span>
+                            </NavLink>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                {/* Item NOVO: Configuração RH e Porte */}
+                {showRhPorte &&
+                  (collapsed ? (
+                    <Popover open={rhPortePopoverOpen} onOpenChange={setRhPortePopoverOpen}>
+                      <Tooltip open={rhPortePopoverOpen ? false : undefined}>
+                        <TooltipTrigger asChild>
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              aria-label="Configuração RH e Porte"
+                              className={`flex items-center justify-center w-11 h-11 mx-auto rounded-lg transition-colors cursor-pointer outline-none ${
+                                isRhPorteActive
+                                  ? 'bg-blue-50 text-blue-700 shadow-xs ring-1 ring-blue-200'
+                                  : rhPortePopoverOpen
+                                    ? 'bg-slate-100 text-slate-900'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Calculator
+                                className={`w-5 h-5 ${isRhPorteActive ? 'text-blue-700' : 'text-slate-600'}`}
+                              />
+                            </button>
+                          </PopoverTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="text-xs font-medium">
+                          Configuração RH e Porte
+                        </TooltipContent>
+                      </Tooltip>
+                      <PopoverContent
+                        side="right"
+                        align="start"
+                        sideOffset={12}
+                        className="w-64 p-2 rounded-xl shadow-lg border border-slate-200 bg-white"
+                      >
+                        <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1 flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-800 tracking-tight flex items-center gap-1.5">
+                            <Calculator className="w-3.5 h-3.5 text-blue-600" />
+                            RH e Porte
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-semibold uppercase">
+                            Menu
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          {canViewRhVersoes && (
+                            <NavLink
+                              to="/rh-porte/versoes"
+                              onClick={() => setRhPortePopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                isRhVersoesActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <GitBranch className="w-3.5 h-3.5 shrink-0" />
+                              <span>Versões de Configuração</span>
+                            </NavLink>
+                          )}
+                          {canViewRhMatriz && (
+                            <NavLink
+                              to="/rh-porte/matriz"
+                              onClick={() => setRhPortePopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                isRhMatrizActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <TableProperties className="w-3.5 h-3.5 shrink-0" />
+                              <span>Cargos, Funções e Matriz</span>
+                            </NavLink>
+                          )}
+                          {canViewRhNiveisRegras && (
+                            <NavLink
+                              to="/rh-porte/niveis-regras"
+                              onClick={() => setRhPortePopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                isRhNiveisRegrasActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+                              <span>Tipos, Níveis e Regras</span>
+                            </NavLink>
+                          )}
+                          {canViewRhRegrasTurmas && (
+                            <NavLink
+                              to="/rh-porte/regras-turmas"
+                              onClick={() => setRhPortePopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                isRhRegrasTurmasActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Users2 className="w-3.5 h-3.5 shrink-0" />
+                              <span>Regras por Turmas</span>
+                            </NavLink>
+                          )}
+                          {canViewRhCenarioEscola && (
+                            <NavLink
+                              to="/rh-porte/escola-ano"
+                              onClick={() => setRhPortePopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                isRhCenarioEscolaActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Calculator className="w-3.5 h-3.5 shrink-0" />
+                              <span>Cálculo por Escola</span>
+                            </NavLink>
+                          )}
+                          {canViewRhPainelGeral && (
+                            <NavLink
+                              to="/rh-porte/painel-geral"
+                              onClick={() => setRhPortePopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                isRhPainelGeralActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <LayoutDashboard className="w-3.5 h-3.5 shrink-0" />
+                              <span>Classificação Geral</span>
+                            </NavLink>
+                          )}
+                          {canViewRhVagasItinerantes && (
+                            <NavLink
+                              to="/rh-porte/vagas-itinerantes"
+                              onClick={() => setRhPortePopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                isRhVagasItinerantesActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Compass className="w-3.5 h-3.5 shrink-0" />
+                              <span>Vagas Itinerantes</span>
+                            </NavLink>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  ) : (
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setRhPorteExpanded((prev) => !prev)}
+                        title="Configuração RH e Porte"
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                          isRhPorteActive
+                            ? 'text-blue-700 font-semibold bg-blue-50/70'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Calculator
+                            className={`w-5 h-5 shrink-0 ${isRhPorteActive ? 'text-blue-700' : 'text-slate-500'}`}
+                          />
+                          <span className="truncate">Configuração RH e Porte</span>
+                        </div>
+                        {rhPorteExpanded ? (
+                          <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                        )}
+                      </button>
+
+                      {/* Submenu de Configuração RH e Porte */}
+                      {rhPorteExpanded && (
+                        <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-200 space-y-1 py-1">
+                          {canViewRhVersoes && (
+                            <NavLink
+                              to="/rh-porte/versoes"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Versões de Configuração RH"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isRhVersoesActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <GitBranch
+                                className={`w-3.5 h-3.5 shrink-0 ${isRhVersoesActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Versões de Configuração</span>
+                            </NavLink>
+                          )}
+
+                          {canViewRhMatriz && (
+                            <NavLink
+                              to="/rh-porte/matriz"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Cargos, Funções e Matriz"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isRhMatrizActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <TableProperties
+                                className={`w-3.5 h-3.5 shrink-0 ${isRhMatrizActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Cargos, Funções e Matriz</span>
+                            </NavLink>
+                          )}
+
+                          {canViewRhNiveisRegras && (
+                            <NavLink
+                              to="/rh-porte/niveis-regras"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Tipos, Níveis e Regras"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isRhNiveisRegrasActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <SlidersHorizontal
+                                className={`w-3.5 h-3.5 shrink-0 ${isRhNiveisRegrasActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Tipos, Níveis e Regras</span>
+                            </NavLink>
+                          )}
+
+                          {canViewRhRegrasTurmas && (
+                            <NavLink
+                              to="/rh-porte/regras-turmas"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Regras por Turmas"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isRhRegrasTurmasActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Users2
+                                className={`w-3.5 h-3.5 shrink-0 ${isRhRegrasTurmasActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Regras por Turmas</span>
+                            </NavLink>
+                          )}
+
+                          {canViewRhCenarioEscola && (
+                            <NavLink
+                              to="/rh-porte/escola-ano"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Cálculo de Porte por Escola"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isRhCenarioEscolaActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Calculator
+                                className={`w-3.5 h-3.5 shrink-0 ${isRhCenarioEscolaActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Cálculo por Escola</span>
+                            </NavLink>
+                          )}
+
+                          {canViewRhPainelGeral && (
+                            <NavLink
+                              to="/rh-porte/painel-geral"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Classificação Geral do Porte"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isRhPainelGeralActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <LayoutDashboard
+                                className={`w-3.5 h-3.5 shrink-0 ${isRhPainelGeralActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Classificação Geral</span>
+                            </NavLink>
+                          )}
+
+                          {canViewRhVagasItinerantes && (
+                            <NavLink
+                              to="/rh-porte/vagas-itinerantes"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Vagas Itinerantes"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isRhVagasItinerantesActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Compass
+                                className={`w-3.5 h-3.5 shrink-0 ${isRhVagasItinerantesActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Vagas Itinerantes</span>
                             </NavLink>
                           )}
                         </div>

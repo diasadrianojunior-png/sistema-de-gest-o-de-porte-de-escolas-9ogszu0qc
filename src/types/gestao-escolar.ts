@@ -21,6 +21,10 @@ export interface Cargo {
   id: string
   codigo?: string
   nome: string
+  carga_horaria?: string | null
+  natureza?: string | null // 'EFETIVO' | 'TERCEIRIZADO'
+  docente?: boolean | null
+  ativo?: boolean | null
   created_at?: string
   updated_at?: string
 }
@@ -29,6 +33,9 @@ export interface Funcao {
   id: string
   codigo?: string
   nome: string
+  descricao?: string | null
+  exige_autorizacao_semed?: boolean | null
+  ativo?: boolean | null
   created_at?: string
   updated_at?: string
   cargos_vinculados?: Cargo[]
@@ -180,6 +187,7 @@ export interface UnidadeEscolar {
   tipo_atendimento: TipoAtendimentoUnidade
   nivel_porte: string
   localizacao: string
+  quantidade_alunos?: number | null
   cep?: string | null
   logradouro?: string | null
   numero?: string | null
@@ -271,6 +279,15 @@ export type EntidadeAuditoria =
   | 'Configurações de RH (CRH)'
   | 'Cargos e Funções (CARE)'
   | 'Níveis de Porte'
+  | 'Versão de Configuração RH'
+  | 'Tipos de Atendimento RH'
+  | 'Níveis de Porte RH'
+  | 'Regras de Nível RH'
+  | 'Regras por Turmas RH'
+  | 'Matriz Cargo x Função RH'
+  | 'Cenário Escola RH'
+  | 'Exceção de Vaga SEMED'
+  | 'Vagas Geradas RH'
   | 'Usuários'
   | 'Contas de E-mail'
   | 'Permissões'
@@ -286,6 +303,13 @@ export type SistemaMenuKey =
   | 'anos_series'
   | 'crh'
   | 'care'
+  | 'rh_versoes'
+  | 'rh_matriz'
+  | 'rh_niveis_regras'
+  | 'rh_regras_turmas'
+  | 'rh_cenario_escola'
+  | 'rh_painel_geral'
+  | 'rh_vagas_itinerantes'
   | 'usuarios'
   | 'contas_email'
   | 'auditoria'
@@ -390,4 +414,192 @@ export interface RegistroAuditoria {
   usuario_email: string
   detalhes?: Record<string, any> | null
   created_at: string
+}
+
+// ==========================================
+// MÓDULO: CONFIGURAÇÃO DE RECURSOS HUMANOS POR TIPO E NÍVEL
+// ==========================================
+
+export type StatusVersaoRH = 'RASCUNHO' | 'VIGENTE' | 'ARQUIVADA'
+
+export interface RhVersaoConfiguracao {
+  id: string
+  codigo?: string
+  ano_letivo: number
+  descricao: string
+  status: StatusVersaoRH
+  criado_por: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type ModalidadeExcluidaTipo = 'JORNADA_AMPLIADA' | 'EJA' | 'SALA_RECURSOS_MULTIFUNCIONAIS'
+
+export interface RhTipoAtendimento {
+  id: string
+  codigo?: string
+  versao_id: string
+  nome: string
+  criterio_porte: string // 'ALUNOS'
+  created_at?: string
+  updated_at?: string
+  modalidades_excluidas?: ModalidadeExcluidaTipo[]
+}
+
+export interface RhNivel {
+  id: string
+  codigo?: string
+  versao_id: string
+  tipo_atendimento_id: string
+  codigo_nivel: string // 'I', 'II', 'A', 'B'
+  ordem: number
+  min_alunos: number
+  max_alunos: number | null // null = sem teto
+  created_at?: string
+  updated_at?: string
+}
+
+export type CondicaoCargoFuncao = 'NENHUMA' | 'READAPTADO_COMPATIVEL_LAUDO' | 'AUTORIZACAO_SEMED'
+
+export interface RhCargoFuncao {
+  id: string
+  versao_id: string
+  cargo_id: string
+  funcao_id: string
+  condicao: CondicaoCargoFuncao
+  created_at?: string
+  cargo?: Cargo
+  funcao?: Funcao
+}
+
+export type BaseCalculoRegraNivel = 'FIXO_ESCOLA' | 'POR_TURNO' | 'POR_TURMA' | 'POR_TURMA_ETAPA'
+
+export type ModalidadeVaga = 'FIXO' | 'ITINERANTE'
+
+export interface RhRegraNivel {
+  id: string
+  codigo?: string
+  nivel_id: string
+  funcao_id: string
+  quantidade: number
+  base_calculo: BaseCalculoRegraNivel
+  modalidade: ModalidadeVaga
+  dias_semana?: number | null // nullable (ex: 2 para 2x/semana)
+  etapas_filtro?: string[] | null // ["INFANTIL", "INFANTIL_I", "INFANTIL_II"]
+  observacao?: string | null
+  created_at?: string
+  updated_at?: string
+  funcao?: Funcao
+}
+
+export interface RhRegraPorTurmas {
+  id: string
+  codigo?: string
+  versao_id: string
+  funcao_id: string
+  tipo_atendimento_id?: string | null // null = todos
+  min_turmas: number
+  max_turmas?: number | null
+  qtd_fixo: number
+  qtd_itinerante: number
+  created_at?: string
+  updated_at?: string
+  funcao?: Funcao
+  tipo_atendimento?: RhTipoAtendimento | null
+}
+
+export interface RhAlunosPorModalidade {
+  jornada_ampliada: number
+  eja: number
+  srm: number
+}
+
+export interface RhEscolaAnoLetivo {
+  id: string
+  codigo?: string
+  escola_id: string
+  ano_letivo: number
+  tipo_atendimento_id?: string | null
+  alunos_total: number
+  alunos_por_modalidade: RhAlunosPorModalidade
+  turnos: string[] // ex: ["MATUTINO", "VESPERTINO"]
+  metragem_m2?: number | null
+  nivel_calculado_id?: string | null
+  nivel_override_id?: string | null
+  justificativa_override?: string | null
+  versao_id?: string | null
+  created_at?: string
+  updated_at?: string
+  escola?: UnidadeEscolar
+  nivel_calculado?: RhNivel
+  nivel_override?: RhNivel
+  tipo_atendimento?: RhTipoAtendimento
+}
+
+export interface RhExcecaoVaga {
+  id: string
+  codigo?: string
+  escola_ano_id: string
+  funcao_id: string
+  delta: number // +1, -1, etc
+  justificativa: string
+  autorizado_por: string
+  data: string
+  created_at?: string
+  updated_at?: string
+  funcao?: Funcao
+}
+
+export type OrigemVaga = 'REGRA_NIVEL' | 'REGRA_TURMAS' | 'EXCECAO_MANUAL'
+export type StatusVaga = 'ABERTA' | 'OCUPADA' | 'BLOQUEADA' | 'EXCEDENTE'
+
+export interface RhVaga {
+  id: string
+  codigo?: string
+  escola_ano_id: string
+  versao_id?: string | null
+  funcao_id: string
+  turno?: string | null
+  modalidade: ModalidadeVaga
+  dias_semana?: number | null
+  origem: OrigemVaga
+  regra_origem_id?: string | null
+  status: StatusVaga
+  servidor_id?: string | null
+  sequencial: number
+  observacao?: string | null
+  created_at?: string
+  updated_at?: string
+  funcao?: Funcao
+  servidor?: RhServidor | null
+}
+
+export interface RhServidor {
+  id: string
+  codigo?: string
+  nome: string
+  cpf?: string | null
+  matricula?: string | null
+  cargo_id?: string | null
+  readaptado?: boolean
+  laudo_compatibilidade?: string | null
+  ativo?: boolean
+  cargo?: Cargo
+}
+
+export interface RhLotacao {
+  id: string
+  codigo?: string
+  servidor_id: string
+  cargo_id: string
+  escola_id: string
+  funcao_id: string
+  turno?: string | null
+  readaptado?: boolean
+  vigencia?: string
+  created_at?: string
+  updated_at?: string
+  servidor?: RhServidor
+  cargo?: Cargo
+  funcao?: Funcao
 }
