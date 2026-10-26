@@ -12,6 +12,7 @@ import Funcoes from './pages/Funcoes'
 import Etapas from './pages/Etapas'
 import AnosSeries from './pages/AnosSeries'
 import ConfigRhNivelPage from './pages/ConfigRhNivel'
+import VagasPage from './pages/Vagas'
 import CadastrosMestres from './pages/CadastrosMestres'
 import Turmas from './pages/Turmas'
 import Administracao from './pages/Administracao'
@@ -106,6 +107,15 @@ const App = () => (
               element={
                 <RouteGuard menuKey="configuracao_rh">
                   <ConfigRhNivelPage />
+                </RouteGuard>
+              }
+            />
+            {/* ETAPA 2: Cadastro de Vagas (geração por Unidade Escolar e Ano Letivo) */}
+            <Route
+              path="/cadastros-apoio/vagas"
+              element={
+                <RouteGuard menuKey="vagas">
+                  <VagasPage />
                 </RouteGuard>
               }
             />

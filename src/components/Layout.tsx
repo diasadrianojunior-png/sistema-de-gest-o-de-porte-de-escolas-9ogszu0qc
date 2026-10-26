@@ -80,6 +80,7 @@ export default function Layout() {
   const isEtapasActive = location.pathname === '/cadastros-apoio/etapas'
   const isAnosSeriesActive = location.pathname === '/cadastros-apoio/anos-series'
   const isConfigRhActive = location.pathname === '/cadastros-apoio/configuracao-rh'
+  const isVagasActive = location.pathname === '/cadastros-apoio/vagas'
   const isApoioActive = location.pathname.startsWith('/cadastros-apoio')
 
   const isUsuariosActive =
@@ -97,6 +98,7 @@ export default function Layout() {
   const canViewEtapas = canView('etapas')
   const canViewAnosSeries = canView('anos_series')
   const canViewConfigRh = canView('configuracao_rh')
+  const canViewVagas = canView('vagas')
 
   const canViewUsuarios = canView('usuarios')
   const canViewContasEmail = canView('contas_email')
@@ -105,7 +107,12 @@ export default function Layout() {
   // Seções agrupadas têm visibilidade se pelo menos um submenu puder ser visto
   const showCadastrosMestres = canViewUnidades || canViewTurmas
   const showCadastrosApoio =
-    canViewCargos || canViewFuncoes || canViewEtapas || canViewAnosSeries || canViewConfigRh
+    canViewCargos ||
+    canViewFuncoes ||
+    canViewEtapas ||
+    canViewAnosSeries ||
+    canViewConfigRh ||
+    canViewVagas
   const showAdministracao = canViewUsuarios || canViewContasEmail
 
   // Conteúdo unificado da barra lateral (Sidebar)
@@ -514,6 +521,23 @@ export default function Layout() {
                               <span>Configuração de Vagas por Nível</span>
                             </NavLink>
                           )}
+
+                          {canViewVagas && (
+                            <NavLink
+                              to="/cadastros-apoio/vagas"
+                              onClick={() => setApoioPopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                isVagasActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Briefcase
+                                className={`w-4 h-4 shrink-0 ${isVagasActive ? 'text-white' : 'text-slate-500'}`}
+                              />
+                              <span>Cadastro de Vagas</span>
+                            </NavLink>
+                          )}
                         </div>
                       </PopoverContent>
                     </Popover>
@@ -633,6 +657,24 @@ export default function Layout() {
                                 className={`w-3.5 h-3.5 shrink-0 ${isConfigRhActive ? 'text-white' : 'text-slate-400'}`}
                               />
                               <span className="truncate">Configuração de Vagas por Nível</span>
+                            </NavLink>
+                          )}
+
+                          {canViewVagas && (
+                            <NavLink
+                              to="/cadastros-apoio/vagas"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Cadastro de Vagas"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isVagasActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Briefcase
+                                className={`w-3.5 h-3.5 shrink-0 ${isVagasActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Cadastro de Vagas</span>
                             </NavLink>
                           )}
                         </div>

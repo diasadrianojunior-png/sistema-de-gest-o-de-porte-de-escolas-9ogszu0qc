@@ -294,6 +294,7 @@ export type SistemaMenuKey =
   | 'etapas'
   | 'anos_series'
   | 'configuracao_rh'
+  | 'vagas'
   | 'usuarios'
   | 'contas_email'
   | 'auditoria'
@@ -476,4 +477,66 @@ export interface ConfiguracaoRhCompleta extends ConfiguracaoRh {
   niveis: ConfiguracaoRhNivel[]
   linhas: ConfiguracaoRhLinha[]
   vagas: ConfiguracaoRhVaga[]
+}
+
+// ==========================================
+// ETAPA 2: CADASTRO DE VAGAS E ESCOLA/ANO
+// ==========================================
+
+export type PeriodoEscola = 'MANHA' | 'TARDE' | 'INTEGRAL' | 'NOITE'
+
+export type StatusVagaReal = 'ABERTA' | 'OCUPADA' | 'EXCEDENTE'
+
+export interface TurmaPorEtapaItem {
+  etapa: string
+  quantidade: number
+}
+
+export interface UnidadeEscolarAno {
+  id: string
+  codigo?: string // UEA-0001
+  unidade_escolar_id: string
+  ano_letivo: number
+  qtd_alunos: number
+  qtd_turmas: number
+  periodos: PeriodoEscola[]
+  turmas_por_etapa?: Record<string, number> | TurmaPorEtapaItem[] | null
+  nivel_calculado?: string | null
+  configuracao_rh_id?: string | null
+  data_ultima_geracao?: string | null
+  observacao?: string | null
+  created_at?: string
+  updated_at?: string
+  // Vínculos expandidos
+  unidade_escolar?: UnidadeEscolar | null
+  configuracao_rh?: ConfiguracaoRh | null
+}
+
+export interface VagaReal {
+  id: string
+  codigo?: string // VAGP-0001
+  unidade_escolar_id: string
+  ano_letivo: number
+  configuracao_rh_id: string
+  configuracao_rh_linha_id: string
+  funcao: string
+  numero_sequencial: number
+  periodo?: PeriodoEscola | null
+  turma_id?: string | null
+  modalidade: ModalidadeRhVaga
+  dias_semana?: number | null
+  cargo_id?: string | null
+  servidor_id?: string | null
+  nome_ocupante?: string | null
+  condicao_especial?: CondicaoLinhaCargo | null
+  status: StatusVagaReal
+  observacao?: string | null
+  created_at?: string
+  updated_at?: string
+  // Vínculos expandidos
+  unidade_escolar?: UnidadeEscolar | null
+  cargo?: Cargo | null
+  turma?: Turma | null
+  configuracao_rh?: ConfiguracaoRh | null
+  configuracao_rh_linha?: ConfiguracaoRhLinha | null
 }
