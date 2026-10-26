@@ -41,6 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SelectPaginado } from '@/components/SelectPaginado'
 import {
   Dialog,
   DialogContent,
@@ -980,23 +981,24 @@ export default function ConfigRhNivel() {
               <Label className="text-xs font-semibold text-slate-700">
                 Selecione a Configuração de RH
               </Label>
-              <Select
+              <SelectPaginado
                 value={configuracaoAtivaId}
                 onValueChange={(val) => carregarConfiguracaoCompleta(val)}
                 disabled={loading}
-              >
-                <SelectTrigger className="w-full bg-white text-xs sm:text-sm">
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {configuracoes.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
+                placeholder="Selecione..."
+                triggerClassName="w-full bg-white text-xs sm:text-sm"
+                searchPlaceholder="Buscar configuração por ano ou tipo..."
+                options={configuracoes.map((c) => ({
+                  value: c.id,
+                  label: (
+                    <span>
                       <span className="font-semibold text-slate-900">{c.ano_letivo}</span> —{' '}
                       {c.tipo_atendimento} ({c.status})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    </span>
+                  ),
+                  searchText: `${c.ano_letivo} ${c.tipo_atendimento} ${c.status}`,
+                }))}
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -1273,23 +1275,20 @@ export default function ConfigRhNivel() {
                         <TableCell className="py-2.5">
                           {podeEditar ? (
                             <div className="space-y-1">
-                              <Select
+                              <SelectPaginado
                                 value={linha.funcao_id}
                                 onValueChange={(val) =>
                                   handleAtualizarLinha(lIdx, 'funcao_id', val)
                                 }
-                              >
-                                <SelectTrigger className="h-8 text-xs font-semibold bg-white">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {funcoesList.map((f) => (
-                                    <SelectItem key={f.id} value={f.id} className="text-xs">
-                                      {f.nome}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                placeholder="Selecione uma função..."
+                                triggerClassName="h-8 text-xs font-semibold bg-white"
+                                searchPlaceholder="Buscar função..."
+                                options={funcoesList.map((f) => ({
+                                  value: f.id,
+                                  label: f.nome,
+                                  searchText: f.nome,
+                                }))}
+                              />
 
                               {linha.observacao && (
                                 <p className="text-[11px] text-amber-700 font-medium flex items-center gap-1">
@@ -1935,25 +1934,22 @@ export default function ConfigRhNivel() {
                       className="p-3 rounded-lg border border-slate-200 bg-slate-50/50 space-y-2"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <Select
+                        <SelectPaginado
                           value={cargoVinc.cargo_id}
                           onValueChange={(val) => {
                             const copia = [...linhaEmEdicaoCargos.cargos]
                             copia[idx].cargo_id = val
                             setLinhaEmEdicaoCargos({ ...linhaEmEdicaoCargos, cargos: copia })
                           }}
-                        >
-                          <SelectTrigger className="h-8 text-xs font-semibold bg-white flex-1">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {cargosList.map((c) => (
-                              <SelectItem key={c.id} value={c.id} className="text-xs">
-                                {c.nome} {c.carga_horaria ? `(${c.carga_horaria})` : ''}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          placeholder="Selecione o cargo..."
+                          triggerClassName="h-8 text-xs font-semibold bg-white flex-1"
+                          searchPlaceholder="Buscar cargo..."
+                          options={cargosList.map((c) => ({
+                            value: c.id,
+                            label: `${c.nome} ${c.carga_horaria ? `(${c.carga_horaria})` : ''}`,
+                            searchText: `${c.nome} ${c.carga_horaria || ''}`,
+                          }))}
+                        />
 
                         <Button
                           size="icon"

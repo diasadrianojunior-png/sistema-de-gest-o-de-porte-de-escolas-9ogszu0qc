@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SelectPaginado } from '@/components/SelectPaginado'
 import {
   Dialog,
   DialogContent,
@@ -507,35 +508,39 @@ export default function Turmas() {
             </div>
 
             <div className="w-full sm:w-56">
-              <Select value={filtroUnidade} onValueChange={setFiltroUnidade}>
-                <SelectTrigger className="text-sm">
-                  <SelectValue placeholder="Todas as unidades" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todas">Todas as unidades</SelectItem>
-                  {unidades.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.nome} ({u.codigo || 'UN'})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SelectPaginado
+                value={filtroUnidade}
+                onValueChange={setFiltroUnidade}
+                placeholder="Todas as unidades"
+                triggerClassName="text-sm"
+                searchPlaceholder="Buscar unidade por nome ou código..."
+                options={[
+                  { value: 'todas', label: 'Todas as unidades', isSpecialTop: true },
+                  ...unidades.map((u) => ({
+                    value: u.id,
+                    label: `${u.nome} (${u.codigo || 'UN'})`,
+                    searchText: `${u.nome} ${u.codigo || ''}`,
+                  })),
+                ]}
+              />
             </div>
 
             <div className="w-full sm:w-44">
-              <Select value={filtroAno} onValueChange={setFiltroAno}>
-                <SelectTrigger className="text-sm">
-                  <SelectValue placeholder="Ano Letivo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos os anos</SelectItem>
-                  {ANOS_LETIVOS.map((ano) => (
-                    <SelectItem key={ano} value={String(ano)}>
-                      Ano {ano}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SelectPaginado
+                value={filtroAno}
+                onValueChange={setFiltroAno}
+                placeholder="Ano Letivo"
+                triggerClassName="text-sm"
+                searchPlaceholder="Buscar ano..."
+                options={[
+                  { value: 'todos', label: 'Todos os anos', isSpecialTop: true },
+                  ...ANOS_LETIVOS.map((ano) => ({
+                    value: String(ano),
+                    label: `Ano ${ano}`,
+                    searchText: `Ano ${ano}`,
+                  })),
+                ]}
+              />
             </div>
 
             {(search || filtroAno !== 'todos' || filtroUnidade !== 'todas') && (
@@ -749,18 +754,19 @@ export default function Turmas() {
               >
                 Unidade Escolar <span className="text-rose-500">*</span>
               </Label>
-              <Select value={formUnidadeId} onValueChange={setFormUnidadeId}>
-                <SelectTrigger id="t-unidade" className="text-sm">
-                  <SelectValue placeholder="Selecione uma opção" />
-                </SelectTrigger>
-                <SelectContent>
-                  {unidades.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.nome} ({u.codigo || 'UN'}) — {u.tipo_atendimento}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SelectPaginado
+                id="t-unidade"
+                value={formUnidadeId}
+                onValueChange={setFormUnidadeId}
+                placeholder="Selecione uma opção"
+                triggerClassName="text-sm"
+                searchPlaceholder="Buscar unidade escolar..."
+                options={unidades.map((u) => ({
+                  value: u.id,
+                  label: `${u.nome} (${u.codigo || 'UN'}) — ${u.tipo_atendimento}`,
+                  searchText: `${u.nome} ${u.codigo || ''} ${u.tipo_atendimento}`,
+                }))}
+              />
               <p className="text-[11px] text-slate-500">
                 A vinculação com a unidade escolar é utilizada pelo CRH e pelo CARE para o
                 dimensionamento por turma.
@@ -775,18 +781,19 @@ export default function Turmas() {
               >
                 Ano Letivo <span className="text-rose-500">*</span>
               </Label>
-              <Select value={String(formAnoLetivo)} onValueChange={handleAnoLetivoChange}>
-                <SelectTrigger id="t-ano" className="text-sm">
-                  <SelectValue placeholder="Selecione o ano letivo" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ANOS_LETIVOS.map((ano) => (
-                    <SelectItem key={ano} value={String(ano)}>
-                      Ano {ano}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SelectPaginado
+                id="t-ano"
+                value={String(formAnoLetivo)}
+                onValueChange={handleAnoLetivoChange}
+                placeholder="Selecione o ano letivo"
+                triggerClassName="text-sm"
+                searchPlaceholder="Buscar ano letivo..."
+                options={ANOS_LETIVOS.map((ano) => ({
+                  value: String(ano),
+                  label: `Ano ${ano}`,
+                  searchText: `Ano ${ano}`,
+                }))}
+              />
               <p className="text-[11px] text-slate-500 flex items-center gap-1">
                 <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                 Apenas etapas e anos/séries deste mesmo ano letivo estarão disponíveis para seleção.
@@ -814,19 +821,22 @@ export default function Turmas() {
                 </Button>
               </div>
 
-              <Select value={formEtapaId} onValueChange={handleEtapaChange}>
-                <SelectTrigger id="t-etapa" className="text-sm">
-                  <SelectValue placeholder="Selecione uma etapa..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="nenhuma">Nenhuma etapa vinculada</SelectItem>
-                  {etapasDoAno.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.nome} ({e.codigo || 'ETA'})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SelectPaginado
+                id="t-etapa"
+                value={formEtapaId}
+                onValueChange={handleEtapaChange}
+                placeholder="Selecione uma etapa..."
+                triggerClassName="text-sm"
+                searchPlaceholder="Buscar etapa..."
+                options={[
+                  { value: 'nenhuma', label: 'Nenhuma etapa vinculada', isSpecialTop: true },
+                  ...etapasDoAno.map((e) => ({
+                    value: e.id,
+                    label: `${e.nome} (${e.codigo || 'ETA'})`,
+                    searchText: `${e.nome} ${e.codigo || ''}`,
+                  })),
+                ]}
+              />
               {etapasDoAno.length === 0 ? (
                 <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
                   Nenhuma etapa cadastrada para o ano letivo {formAnoLetivo}. Clique em{' '}
@@ -861,19 +871,22 @@ export default function Turmas() {
                 </Button>
               </div>
 
-              <Select value={formAnoSerieId} onValueChange={setFormAnoSerieId}>
-                <SelectTrigger id="t-ano-serie" className="text-sm">
-                  <SelectValue placeholder="Selecione um ano/série..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="nenhum">Nenhum ano/série vinculado</SelectItem>
-                  {anosSeriesDoAno.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.nome} ({a.codigo || 'ANO'})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SelectPaginado
+                id="t-ano-serie"
+                value={formAnoSerieId}
+                onValueChange={setFormAnoSerieId}
+                placeholder="Selecione um ano/série..."
+                triggerClassName="text-sm"
+                searchPlaceholder="Buscar ano/série..."
+                options={[
+                  { value: 'nenhum', label: 'Nenhum ano/série vinculado', isSpecialTop: true },
+                  ...anosSeriesDoAno.map((a) => ({
+                    value: a.id,
+                    label: `${a.nome} (${a.codigo || 'ANO'})`,
+                    searchText: `${a.nome} ${a.codigo || ''}`,
+                  })),
+                ]}
+              />
               {anosSeriesDoAno.length === 0 ? (
                 <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
                   {formEtapaId && formEtapaId !== 'nenhuma'

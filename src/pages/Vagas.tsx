@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SelectPaginado } from '@/components/SelectPaginado'
 import {
   Dialog,
   DialogContent,
@@ -574,38 +575,42 @@ export const VagasPage: React.FC = () => {
             {/* Ano Letivo */}
             <div>
               <Label className="text-xs text-slate-600 font-medium">Ano Letivo</Label>
-              <Select value={String(anoLetivo)} onValueChange={(val) => setAnoLetivo(Number(val))}>
-                <SelectTrigger className="mt-1 h-9 text-xs">
-                  <SelectValue placeholder="Ano Letivo" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ANOS_DISPONIVEIS.map((ano) => (
-                    <SelectItem key={ano} value={String(ano)} className="text-xs">
-                      {ano}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SelectPaginado
+                value={String(anoLetivo)}
+                onValueChange={(val) => setAnoLetivo(Number(val))}
+                placeholder="Ano Letivo"
+                triggerClassName="mt-1 h-9 text-xs"
+                searchPlaceholder="Buscar ano..."
+                options={ANOS_DISPONIVEIS.map((ano) => ({
+                  value: String(ano),
+                  label: String(ano),
+                  searchText: String(ano),
+                }))}
+              />
             </div>
 
             {/* Unidade Escolar */}
             <div>
               <Label className="text-xs text-slate-600 font-medium">Unidade Escolar</Label>
-              <Select value={escolaSelecionada} onValueChange={setEscolaSelecionada}>
-                <SelectTrigger className="mt-1 h-9 text-xs">
-                  <SelectValue placeholder="Todas as unidades" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  <SelectItem value="TODAS" className="text-xs font-semibold">
-                    Todas as Unidades ({escolas.length})
-                  </SelectItem>
-                  {escolas.map((e) => (
-                    <SelectItem key={e.id} value={e.id} className="text-xs">
-                      {e.nome} ({e.codigo || ''})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SelectPaginado
+                value={escolaSelecionada}
+                onValueChange={setEscolaSelecionada}
+                placeholder="Todas as unidades"
+                triggerClassName="mt-1 h-9 text-xs"
+                searchPlaceholder="Buscar unidade por nome ou código..."
+                options={[
+                  {
+                    value: 'TODAS',
+                    label: `Todas as Unidades (${escolas.length})`,
+                    isSpecialTop: true,
+                  },
+                  ...escolas.map((e) => ({
+                    value: e.id,
+                    label: `${e.nome} (${e.codigo || ''})`,
+                    searchText: `${e.nome} ${e.codigo || ''}`,
+                  })),
+                ]}
+              />
             </div>
 
             {/* Tipo de Atendimento */}
@@ -635,21 +640,21 @@ export const VagasPage: React.FC = () => {
             {/* Função */}
             <div>
               <Label className="text-xs text-slate-600 font-medium">Função</Label>
-              <Select value={funcaoFiltro} onValueChange={setFuncaoFiltro}>
-                <SelectTrigger className="mt-1 h-9 text-xs">
-                  <SelectValue placeholder="Todas as funções" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  <SelectItem value="TODAS" className="text-xs font-semibold">
-                    Todas as Funções
-                  </SelectItem>
-                  {funcoesDisponiveis.map((f) => (
-                    <SelectItem key={f} value={f} className="text-xs">
-                      {f}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SelectPaginado
+                value={funcaoFiltro}
+                onValueChange={setFuncaoFiltro}
+                placeholder="Todas as funções"
+                triggerClassName="mt-1 h-9 text-xs"
+                searchPlaceholder="Buscar função..."
+                options={[
+                  { value: 'TODAS', label: 'Todas as Funções', isSpecialTop: true },
+                  ...funcoesDisponiveis.map((f) => ({
+                    value: f,
+                    label: f,
+                    searchText: f,
+                  })),
+                ]}
+              />
             </div>
 
             {/* Status da Vaga */}
@@ -974,25 +979,22 @@ export const VagasPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
               <div>
                 <Label className="text-xs font-semibold text-slate-700">Unidade Escolar Alvo</Label>
-                <Select
+                <SelectPaginado
                   value={escolaParaGerarId}
                   onValueChange={(id) => {
                     setEscolaParaGerarId(id)
                     carregarPrevia(id)
                   }}
                   disabled={gerarParaTodas}
-                >
-                  <SelectTrigger className="mt-1 h-9 text-xs bg-white">
-                    <SelectValue placeholder="Selecione a unidade" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {escolas.map((e) => (
-                      <SelectItem key={e.id} value={e.id} className="text-xs">
-                        {e.nome} ({e.tipo_atendimento.includes('40h') ? '40h' : '20h'})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Selecione a unidade"
+                  triggerClassName="mt-1 h-9 text-xs bg-white"
+                  searchPlaceholder="Buscar escola por nome..."
+                  options={escolas.map((e) => ({
+                    value: e.id,
+                    label: `${e.nome} (${e.tipo_atendimento.includes('40h') ? '40h' : '20h'})`,
+                    searchText: `${e.nome} ${e.tipo_atendimento}`,
+                  }))}
+                />
               </div>
 
               <div className="flex flex-col justify-center">
@@ -1233,24 +1235,29 @@ export const VagasPage: React.FC = () => {
                   Cargo (Permitidos para {vagaEmEdicao?.funcao})
                 </Label>
               </div>
-              <Select value={editCargoId} onValueChange={setEditCargoId}>
-                <SelectTrigger className="mt-1 h-9 text-xs">
-                  <SelectValue placeholder="Selecione o cargo do ocupante" />
-                </SelectTrigger>
-                <SelectContent className="max-h-56">
-                  {cargosPermitidosParaEdicao.length === 0 ? (
-                    <SelectItem value="nenhum" disabled className="text-xs">
-                      Nenhum cargo permitido cadastrado
-                    </SelectItem>
-                  ) : (
-                    cargosPermitidosParaEdicao.map((c: any) => (
-                      <SelectItem key={c.id} value={c.id} className="text-xs">
-                        {c.nome} {c.condicao && c.condicao !== 'NENHUMA' ? `(${c.condicao})` : ''}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <SelectPaginado
+                value={editCargoId}
+                onValueChange={setEditCargoId}
+                placeholder="Selecione o cargo do ocupante"
+                triggerClassName="mt-1 h-9 text-xs"
+                searchPlaceholder="Buscar cargo..."
+                emptyMessage="Nenhum cargo permitido cadastrado"
+                options={
+                  cargosPermitidosParaEdicao.length === 0
+                    ? [
+                        {
+                          value: 'nenhum',
+                          label: 'Nenhum cargo permitido cadastrado',
+                          disabled: true,
+                        },
+                      ]
+                    : cargosPermitidosParaEdicao.map((c: any) => ({
+                        value: c.id,
+                        label: `${c.nome} ${c.condicao && c.condicao !== 'NENHUMA' ? `(${c.condicao})` : ''}`,
+                        searchText: `${c.nome} ${c.condicao || ''}`,
+                      }))
+                }
+              />
             </div>
 
             {/* Observação */}

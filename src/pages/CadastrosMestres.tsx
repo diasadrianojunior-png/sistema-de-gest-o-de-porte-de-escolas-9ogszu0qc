@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SelectPaginado } from '@/components/SelectPaginado'
 import {
   Dialog,
   DialogContent,
@@ -706,23 +707,21 @@ export default function CadastrosMestres() {
                     Tabela Oficial (20h)
                   </span>
                 </div>
-                <Select
+                <SelectPaginado
+                  id="nivel_porte_20h"
                   value={formData.nivel_porte}
                   onValueChange={(val) => setFormData({ ...formData, nivel_porte: val })}
-                >
-                  <SelectTrigger id="nivel_porte_20h" className="bg-white">
-                    <SelectValue placeholder="Selecione nível e faixa de alunos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(mapaFaixas['Ensino Fundamental e Educação Infantil (20h)'] || []).map(
-                      (faixa) => (
-                        <SelectItem key={faixa.id || faixa.rotulo} value={faixa.rotulo}>
-                          <span className="font-semibold">{faixa.rotulo}</span>
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
+                  placeholder="Selecione nível e faixa de alunos"
+                  triggerClassName="bg-white"
+                  searchPlaceholder="Buscar nível..."
+                  options={(mapaFaixas['Ensino Fundamental e Educação Infantil (20h)'] || []).map(
+                    (faixa) => ({
+                      value: faixa.rotulo,
+                      label: <span className="font-semibold">{faixa.rotulo}</span>,
+                      searchText: faixa.rotulo,
+                    }),
+                  )}
+                />
                 <div className="flex items-center justify-between text-[11px] text-blue-800">
                   <span>
                     {(mapaFaixas['Ensino Fundamental e Educação Infantil (20h)'] || []).length}{' '}
@@ -750,21 +749,19 @@ export default function CadastrosMestres() {
                     Tabela Oficial (40h)
                   </span>
                 </div>
-                <Select
+                <SelectPaginado
+                  id="nivel_porte_40h"
                   value={formData.nivel_porte}
                   onValueChange={(val) => setFormData({ ...formData, nivel_porte: val })}
-                >
-                  <SelectTrigger id="nivel_porte_40h" className="bg-white">
-                    <SelectValue placeholder="Selecione nível e faixa de alunos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(mapaFaixas['Educação Infantil (40h)'] || []).map((faixa) => (
-                      <SelectItem key={faixa.id || faixa.rotulo} value={faixa.rotulo}>
-                        <span className="font-semibold">{faixa.rotulo}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Selecione nível e faixa de alunos"
+                  triggerClassName="bg-white"
+                  searchPlaceholder="Buscar nível..."
+                  options={(mapaFaixas['Educação Infantil (40h)'] || []).map((faixa) => ({
+                    value: faixa.rotulo,
+                    label: <span className="font-semibold">{faixa.rotulo}</span>,
+                    searchText: faixa.rotulo,
+                  }))}
+                />
                 <div className="flex items-center justify-between text-[11px] text-emerald-800">
                   <span>
                     {(mapaFaixas['Educação Infantil (40h)'] || []).length} faixas ativas cadastradas

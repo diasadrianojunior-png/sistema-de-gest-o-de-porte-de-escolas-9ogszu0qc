@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SelectPaginado } from '@/components/SelectPaginado'
 import {
   Dialog,
   DialogContent,
@@ -236,19 +237,21 @@ export default function Etapas() {
             </div>
 
             <div className="w-full sm:w-48">
-              <Select value={filtroAno} onValueChange={setFiltroAno}>
-                <SelectTrigger className="text-sm">
-                  <SelectValue placeholder="Ano Letivo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos os anos</SelectItem>
-                  {ANOS_LETIVOS.map((ano) => (
-                    <SelectItem key={ano} value={String(ano)}>
-                      Ano {ano}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SelectPaginado
+                value={filtroAno}
+                onValueChange={setFiltroAno}
+                placeholder="Ano Letivo"
+                triggerClassName="text-sm"
+                searchPlaceholder="Buscar ano..."
+                options={[
+                  { value: 'todos', label: 'Todos os anos', isSpecialTop: true },
+                  ...ANOS_LETIVOS.map((ano) => ({
+                    value: String(ano),
+                    label: `Ano ${ano}`,
+                    searchText: `Ano ${ano}`,
+                  })),
+                ]}
+              />
             </div>
 
             {(search || filtroAno !== 'todos') && (
@@ -416,21 +419,19 @@ export default function Etapas() {
               >
                 Ano Letivo <span className="text-rose-500">*</span>
               </Label>
-              <Select
+              <SelectPaginado
+                id="e-ano"
                 value={String(formAnoLetivo)}
                 onValueChange={(val) => setFormAnoLetivo(Number(val))}
-              >
-                <SelectTrigger id="e-ano" className="text-sm">
-                  <SelectValue placeholder="Selecione o ano letivo" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {ANOS_LETIVOS.map((ano) => (
-                    <SelectItem key={ano} value={String(ano)}>
-                      {ano}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Selecione o ano letivo"
+                triggerClassName="text-sm"
+                searchPlaceholder="Buscar ano letivo..."
+                options={ANOS_LETIVOS.map((ano) => ({
+                  value: String(ano),
+                  label: `Ano ${ano}`,
+                  searchText: `Ano ${ano}`,
+                }))}
+              />
               <p className="text-[11px] text-slate-400">
                 Selecione o ano letivo de vigência desta etapa escolar (faixa 2020 a 2040).
               </p>
