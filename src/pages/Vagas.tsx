@@ -6,7 +6,6 @@ import {
   VagaReal,
   StatusVagaReal,
   Cargo,
-  CondicaoLinhaCargo,
   PeriodoEscola,
 } from '@/types/gestao-escolar'
 import {
@@ -16,8 +15,6 @@ import {
   calcularPreviaGeracao,
   confirmarGeracaoVagas,
   PreviaGeracaoResultado,
-  salvarUnidadeEscolarAno,
-  getUnidadeEscolarAno,
   getUnidadesEscolaresAnoPorAno,
 } from '@/services/vagas'
 import { getUnidadesEscolares } from '@/services/unidades-escolares'
@@ -118,11 +115,6 @@ export const VagasPage: React.FC = () => {
   const [editCargoId, setEditCargoId] = useState<string>('')
   const [editObservacao, setEditObservacao] = useState<string>('')
   const [salvandoEdicao, setSalvandoEdicao] = useState<boolean>(false)
-
-  // Modal inline de criação de novo cargo (+ Novo inline)
-  const [modalNovoCargoAberto, setModalNovoCargoAberto] = useState<boolean>(false)
-  const [novoCargoNome, setNovoCargoNome] = useState<string>('')
-  const [salvandoNovoCargo, setSalvandoNovoCargo] = useState<boolean>(false)
 
   // Carregar dados iniciais
   const recarregarDados = async () => {
@@ -910,16 +902,6 @@ export const VagasPage: React.FC = () => {
                           >
                             {v.nome_ocupante}
                           </span>
-                          {v.condicao_especial && v.condicao_especial !== 'NENHUMA' && (
-                            <Badge
-                              variant="outline"
-                              className="text-[9px] text-purple-700 bg-purple-50 border-purple-200 mt-0.5"
-                            >
-                              {v.condicao_especial === 'READAPTADO_COMPATIVEL_LAUDO'
-                                ? 'Readaptado'
-                                : 'Aut. SEMED'}
-                            </Badge>
-                          )}
                         </div>
                       ) : (
                         <span className="text-slate-400 italic">Sem ocupante</span>
@@ -1034,115 +1016,19 @@ export const VagasPage: React.FC = () => {
               </div>
             </div>
 
-            {/* SE FALTAM DADOS: FORMULÁRIO INLINE PARA PREENCHIMENTO OBRIGATÓRIO (Passo 1 do usuário) */}
-            {formFaltantesAberto && previaAtual?.bloqueadoPorFaltaDados && (
-              <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-lg space-y-4">
+            {/* SE FALTAM DADOS: AVISO EXPLICATIVO (Etapa 2 - sem formulário embutido) */}
+            {previaAtual?.bloqueadoPorFaltaDados && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
                 <div className="flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div>
                     <h4 className="text-sm font-bold text-amber-900">
-                      Preenchimento Obrigatório dos Dados da Unidade
+                      Dados Essenciais Incompletos
                     </h4>
-                    <p className="text-xs text-amber-800 mt-0.5">
+                    <p className="text-xs text-amber-800 mt-1">
                       {previaAtual.bloqueadoPorFaltaDados.mensagem}
                     </p>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-amber-200/60">
-                  <div>
-                    <Label className="text-xs font-semibold text-slate-700">Qtd. de Alunos *</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={formAlunos || ''}
-                      onChange={(e) => setFormAlunos(Number(e.target.value))}
-                      placeholder="Ex: 323"
-                      className="mt-1 h-8 text-xs bg-white"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs font-semibold text-slate-700">Qtd. de Turmas *</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={formTurmas || ''}
-                      onChange={(e) => setFormTurmas(Number(e.target.value))}
-                      placeholder="Ex: 14"
-                      className="mt-1 h-8 text-xs bg-white"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs font-semibold text-slate-700">
-                      Períodos de Funcionamento *
-                    </Label>
-                    <div className="flex gap-2 mt-1.5 flex-wrap">
-                      {(['MANHA', 'TARDE', 'INTEGRAL', 'NOITE'] as PeriodoEscola[]).map((p) => {
-                        const checked = formPeriodos.includes(p)
-                        return (
-                          <label
-                            key={p}
-                            className="flex items-center gap-1 text-[11px] cursor-pointer"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setFormPeriodos([...formPeriodos, p])
-                                } else {
-                                  setFormPeriodos(formPeriodos.filter((x) => x !== p))
-                                }
-                              }}
-                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            {p}
-                          </label>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Turmas por Etapa (exigido quando há cálculo por turma da etapa) */}
-                {previaAtual.bloqueadoPorFaltaDados.campo === 'turmas_por_etapa' && (
-                  <div className="pt-2 border-t border-amber-200/60">
-                    <Label className="text-xs font-bold text-slate-800 block mb-1">
-                      Distribuição de Turmas por Etapa (ex: Infantil / Infantil I / II)
-                    </Label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {['INFANTIL', 'INFANTIL_I', 'INFANTIL_II', 'OUTRAS'].map((etapa) => (
-                        <div key={etapa}>
-                          <span className="text-[11px] text-slate-600 font-medium block">
-                            {etapa}
-                          </span>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={formTurmasPorEtapa[etapa] ?? ''}
-                            onChange={(e) =>
-                              setFormTurmasPorEtapa({
-                                ...formTurmasPorEtapa,
-                                [etapa]: Number(e.target.value),
-                              })
-                            }
-                            placeholder="0"
-                            className="mt-0.5 h-8 text-xs bg-white"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex justify-end pt-1">
-                  <Button
-                    size="sm"
-                    onClick={handleSalvarDadosEscola}
-                    className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold"
-                  >
-                    Salvar Dados e Recalcular Prévia
-                  </Button>
                 </div>
               </div>
             )}
@@ -1367,45 +1253,13 @@ export const VagasPage: React.FC = () => {
               </Select>
             </div>
 
-            {/* Condição Especial */}
+            {/* Observação */}
             <div>
-              <Label className="text-xs font-semibold text-slate-700">Condição Especial</Label>
-              <Select
-                value={editCondicaoEspecial}
-                onValueChange={(val: any) => setEditCondicaoEspecial(val)}
-              >
-                <SelectTrigger className="mt-1 h-9 text-xs">
-                  <SelectValue placeholder="Condição Especial" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="NENHUMA" className="text-xs">
-                    Nenhuma (Padrão)
-                  </SelectItem>
-                  <SelectItem value="READAPTADO_COMPATIVEL_LAUDO" className="text-xs">
-                    Professor Readaptado (compatível com laudo médico)
-                  </SelectItem>
-                  <SelectItem value="AUTORIZACAO_SEMED" className="text-xs">
-                    Autorização expressa SEMED
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Observação (obrigatória se readaptado ou autorização SEMED) */}
-            <div>
-              <Label className="text-xs font-semibold text-slate-700">
-                Observação
-                {(editCondicaoEspecial === 'READAPTADO_COMPATIVEL_LAUDO' ||
-                  editCondicaoEspecial === 'AUTORIZACAO_SEMED') && (
-                  <span className="text-rose-600 font-bold ml-1">
-                    * (Obrigatória para esta condição)
-                  </span>
-                )}
-              </Label>
+              <Label className="text-xs font-semibold text-slate-700">Observação</Label>
               <Input
                 value={editObservacao}
                 onChange={(e) => setEditObservacao(e.target.value)}
-                placeholder="Ex: Laudo pericial nº 1234/2026 emitido em 15/01/2026."
+                placeholder="Ex: Observações adicionais sobre o preenchimento da vaga."
                 className="mt-1 h-9 text-xs"
               />
             </div>
