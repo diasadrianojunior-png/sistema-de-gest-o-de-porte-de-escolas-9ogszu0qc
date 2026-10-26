@@ -9,7 +9,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { SelectPaginado } from '@/components/SelectPaginado'
 import { PaginacaoTabela, ITENS_POR_PAGINA_PADRAO } from '@/components/PaginacaoTabela'
 import {
   Dialog,
@@ -288,38 +287,40 @@ export default function Auditoria() {
               <label className="text-[11px] font-semibold uppercase text-slate-500 tracking-wider flex items-center gap-1">
                 <Layers className="w-3 h-3" /> Cadastro / Entidade
               </label>
-              <SelectPaginado
+              <Select
                 value={filtroEntidade}
                 onValueChange={(val) => {
                   setFiltroEntidade(val)
                   setPaginaAtual(1)
                 }}
-                placeholder="Todas as entidades"
-                triggerClassName="text-xs bg-white h-9"
-                searchPlaceholder="Buscar entidade..."
-                options={[
-                  { value: 'todas', label: 'Todas as entidades', isSpecialTop: true },
-                  { value: 'Unidades escolares', label: 'Unidades escolares' },
-                  { value: 'Turmas', label: 'Turmas' },
-                  { value: 'Municípios/Redes', label: 'Municípios/Redes' },
-                  { value: 'Tipos de escola', label: 'Tipos de escola' },
-                  { value: 'Cargos', label: 'Cargos' },
-                  { value: 'Funções', label: 'Funções' },
-                  { value: 'Etapas', label: 'Etapas' },
-                  { value: 'Ano/Série', label: 'Ano/Série' },
-                  { value: 'Configuração RH', label: 'Configuração de Vagas por Nível' },
-                  {
-                    value: 'Configurações de RH (CRH)',
-                    label: 'Configurações de RH (CRH) [Legado]',
-                  },
-                  { value: 'Cargos e Funções (CARE)', label: 'Cargos e Funções (CARE) [Legado]' },
-                  { value: 'Níveis de Porte', label: 'Níveis de Porte [Legado]' },
-                  { value: 'Usuários', label: 'Usuários' },
-                  { value: 'Contas de E-mail', label: 'Contas de E-mail' },
-                  { value: 'Permissões', label: 'Permissões de Acesso' },
-                  { value: 'Autenticação', label: 'Autenticação (Login)' },
-                ]}
-              />
+              >
+                <SelectTrigger className="text-xs bg-white h-9">
+                  <SelectValue placeholder="Todas as entidades" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as entidades</SelectItem>
+                  <SelectItem value="Unidades escolares">Unidades escolares</SelectItem>
+                  <SelectItem value="Turmas">Turmas</SelectItem>
+                  <SelectItem value="Municípios/Redes">Municípios/Redes</SelectItem>
+                  <SelectItem value="Tipos de escola">Tipos de escola</SelectItem>
+                  <SelectItem value="Cargos">Cargos</SelectItem>
+                  <SelectItem value="Funções">Funções</SelectItem>
+                  <SelectItem value="Etapas">Etapas</SelectItem>
+                  <SelectItem value="Ano/Série">Ano/Série</SelectItem>
+                  <SelectItem value="Configuração RH">Configuração de Vagas por Nível</SelectItem>
+                  <SelectItem value="Configurações de RH (CRH)">
+                    Configurações de RH (CRH) [Legado]
+                  </SelectItem>
+                  <SelectItem value="Cargos e Funções (CARE)">
+                    Cargos e Funções (CARE) [Legado]
+                  </SelectItem>
+                  <SelectItem value="Níveis de Porte">Níveis de Porte [Legado]</SelectItem>
+                  <SelectItem value="Usuários">Usuários</SelectItem>
+                  <SelectItem value="Contas de E-mail">Contas de E-mail</SelectItem>
+                  <SelectItem value="Permissões">Permissões de Acesso</SelectItem>
+                  <SelectItem value="Autenticação">Autenticação (Login)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Filtro por Ação */}
@@ -352,24 +353,25 @@ export default function Auditoria() {
               <label className="text-[11px] font-semibold uppercase text-slate-500 tracking-wider flex items-center gap-1">
                 <User className="w-3 h-3" /> Usuário Responsável
               </label>
-              <SelectPaginado
+              <Select
                 value={filtroUsuario}
                 onValueChange={(val) => {
                   setFiltroUsuario(val)
                   setPaginaAtual(1)
                 }}
-                placeholder="Todos os usuários"
-                triggerClassName="text-xs bg-white h-9"
-                searchPlaceholder="Buscar usuário..."
-                options={[
-                  { value: 'todos', label: 'Todos os usuários', isSpecialTop: true },
-                  ...listaUsuarios.map((usr) => ({
-                    value: usr.email,
-                    label: usr.label,
-                    searchText: usr.label,
-                  })),
-                ]}
-              />
+              >
+                <SelectTrigger className="text-xs bg-white h-9">
+                  <SelectValue placeholder="Todos os usuários" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os usuários</SelectItem>
+                  {listaUsuarios.map((usr) => (
+                    <SelectItem key={usr.email} value={usr.email}>
+                      {usr.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

@@ -10,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { SelectPaginado } from '@/components/SelectPaginado'
 import { PaginacaoTabela, ITENS_POR_PAGINA_PADRAO } from '@/components/PaginacaoTabela'
 import {
   Dialog,
@@ -412,7 +411,7 @@ export default function AnosSeries() {
 
             {/* Filtro por Ano Letivo */}
             <div className="w-full sm:w-44">
-              <SelectPaginado
+              <Select
                 value={filtroAno}
                 onValueChange={(val) => {
                   setFiltroAno(val)
@@ -425,41 +424,43 @@ export default function AnosSeries() {
                     }
                   }
                 }}
-                placeholder="Ano Letivo"
-                triggerClassName="text-sm"
-                searchPlaceholder="Buscar ano..."
-                options={[
-                  { value: 'todos', label: 'Todos os anos', isSpecialTop: true },
-                  ...ANOS_LETIVOS.map((ano) => ({
-                    value: String(ano),
-                    label: `Ano ${ano}`,
-                    searchText: `Ano ${ano}`,
-                  })),
-                ]}
-              />
+              >
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="Ano Letivo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os anos</SelectItem>
+                  {ANOS_LETIVOS.map((ano) => (
+                    <SelectItem key={ano} value={String(ano)}>
+                      Ano {ano}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Filtro por Etapa */}
             <div className="w-full sm:w-56">
-              <SelectPaginado
+              <Select
                 value={filtroEtapa}
                 onValueChange={(val) => {
                   setFiltroEtapa(val)
                   setPaginaAtual(1)
                 }}
-                placeholder="Todas as etapas"
-                triggerClassName="text-sm"
-                searchPlaceholder="Buscar etapa..."
-                options={[
-                  { value: 'todas', label: 'Todas as etapas', isSpecialTop: true },
-                  { value: 'sem_etapa', label: 'Não vinculadas a etapa', isSpecialTop: true },
-                  ...etapasFiltroListagem.map((et) => ({
-                    value: et.id,
-                    label: `${et.nome} (${et.codigo || 'ETA'}) — ${et.ano_letivo}`,
-                    searchText: `${et.nome} ${et.codigo || ''} ${et.ano_letivo}`,
-                  })),
-                ]}
-              />
+              >
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="Todas as etapas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as etapas</SelectItem>
+                  <SelectItem value="sem_etapa">Não vinculadas a etapa</SelectItem>
+                  {etapasFiltroListagem.map((et) => (
+                    <SelectItem key={et.id} value={et.id}>
+                      {et.nome} ({et.codigo || 'ETA'}) — {et.ano_letivo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {(search || filtroAno !== 'todos' || filtroEtapa !== 'todas') && (
@@ -651,19 +652,18 @@ export default function AnosSeries() {
                 )}
               </div>
 
-              <SelectPaginado
-                id="ano-etapa"
-                value={formEtapaId}
-                onValueChange={handleEtapaChange}
-                placeholder="Selecione uma opção"
-                triggerClassName="text-sm"
-                searchPlaceholder="Buscar etapa por nome ou código..."
-                options={etapasDoAnoForm.map((e) => ({
-                  value: e.id,
-                  label: `${e.nome} (${e.codigo || 'ETA'}) — Ano ${e.ano_letivo}`,
-                  searchText: `${e.nome} ${e.codigo || ''} ${e.ano_letivo}`,
-                }))}
-              />
+              <Select value={formEtapaId} onValueChange={handleEtapaChange}>
+                <SelectTrigger id="ano-etapa" className="text-sm">
+                  <SelectValue placeholder="Selecione uma opção" />
+                </SelectTrigger>
+                <SelectContent>
+                  {etapasDoAnoForm.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.nome} ({e.codigo || 'ETA'}) — Ano {e.ano_letivo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {etapasDoAnoForm.length === 0 ? (
                 <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
                   {formAnoLetivo
@@ -705,19 +705,18 @@ export default function AnosSeries() {
               >
                 Ano Letivo <span className="text-rose-500">*</span>
               </Label>
-              <SelectPaginado
-                id="ano-letivo"
-                value={formAnoLetivo}
-                onValueChange={handleAnoLetivoChange}
-                placeholder="Selecione uma opção"
-                triggerClassName="text-sm"
-                searchPlaceholder="Buscar ano letivo..."
-                options={ANOS_LETIVOS.map((ano) => ({
-                  value: String(ano),
-                  label: `Ano ${ano}`,
-                  searchText: `Ano ${ano}`,
-                }))}
-              />
+              <Select value={formAnoLetivo} onValueChange={handleAnoLetivoChange}>
+                <SelectTrigger id="ano-letivo" className="text-sm">
+                  <SelectValue placeholder="Selecione uma opção" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ANOS_LETIVOS.map((ano) => (
+                    <SelectItem key={ano} value={String(ano)}>
+                      Ano {ano}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <p className="text-[11px] text-slate-500 flex items-center gap-1">
                 <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                 O Ano/Série e a Etapa vinculada devem pertencer estritamente ao mesmo ano letivo.

@@ -34,7 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { SelectPaginado } from '@/components/SelectPaginado'
 import { PaginacaoTabela, ITENS_POR_PAGINA_PADRAO } from '@/components/PaginacaoTabela'
 import {
   Dialog,
@@ -585,42 +584,36 @@ export const VagasPage: React.FC = () => {
             {/* Ano Letivo */}
             <div>
               <Label className="text-xs text-slate-600 font-medium">Ano Letivo</Label>
-              <SelectPaginado
-                value={String(anoLetivo)}
-                onValueChange={(val) => setAnoLetivo(Number(val))}
-                placeholder="Ano Letivo"
-                triggerClassName="mt-1 h-9 text-xs"
-                searchPlaceholder="Buscar ano..."
-                options={ANOS_DISPONIVEIS.map((ano) => ({
-                  value: String(ano),
-                  label: String(ano),
-                  searchText: String(ano),
-                }))}
-              />
+              <Select value={String(anoLetivo)} onValueChange={(val) => setAnoLetivo(Number(val))}>
+                <SelectTrigger className="mt-1 h-9 text-xs">
+                  <SelectValue placeholder="Ano Letivo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ANOS_DISPONIVEIS.map((ano) => (
+                    <SelectItem key={ano} value={String(ano)}>
+                      {ano}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Unidade Escolar */}
             <div>
               <Label className="text-xs text-slate-600 font-medium">Unidade Escolar</Label>
-              <SelectPaginado
-                value={escolaSelecionada}
-                onValueChange={setEscolaSelecionada}
-                placeholder="Todas as unidades"
-                triggerClassName="mt-1 h-9 text-xs"
-                searchPlaceholder="Buscar unidade por nome ou código..."
-                options={[
-                  {
-                    value: 'TODAS',
-                    label: `Todas as Unidades (${escolas.length})`,
-                    isSpecialTop: true,
-                  },
-                  ...escolas.map((e) => ({
-                    value: e.id,
-                    label: `${e.nome} (${e.codigo || ''})`,
-                    searchText: `${e.nome} ${e.codigo || ''}`,
-                  })),
-                ]}
-              />
+              <Select value={escolaSelecionada} onValueChange={setEscolaSelecionada}>
+                <SelectTrigger className="mt-1 h-9 text-xs">
+                  <SelectValue placeholder="Todas as unidades" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TODAS">Todas as Unidades ({escolas.length})</SelectItem>
+                  {escolas.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.nome} ({e.codigo || ''})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Tipo de Atendimento */}
@@ -650,21 +643,19 @@ export const VagasPage: React.FC = () => {
             {/* Função */}
             <div>
               <Label className="text-xs text-slate-600 font-medium">Função</Label>
-              <SelectPaginado
-                value={funcaoFiltro}
-                onValueChange={setFuncaoFiltro}
-                placeholder="Todas as funções"
-                triggerClassName="mt-1 h-9 text-xs"
-                searchPlaceholder="Buscar função..."
-                options={[
-                  { value: 'TODAS', label: 'Todas as Funções', isSpecialTop: true },
-                  ...funcoesDisponiveis.map((f) => ({
-                    value: f,
-                    label: f,
-                    searchText: f,
-                  })),
-                ]}
-              />
+              <Select value={funcaoFiltro} onValueChange={setFuncaoFiltro}>
+                <SelectTrigger className="mt-1 h-9 text-xs">
+                  <SelectValue placeholder="Todas as funções" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TODAS">Todas as Funções</SelectItem>
+                  {funcoesDisponiveis.map((f) => (
+                    <SelectItem key={f} value={f}>
+                      {f}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Status da Vaga */}
@@ -996,22 +987,25 @@ export const VagasPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
               <div>
                 <Label className="text-xs font-semibold text-slate-700">Unidade Escolar Alvo</Label>
-                <SelectPaginado
+                <Select
                   value={escolaParaGerarId}
                   onValueChange={(id) => {
                     setEscolaParaGerarId(id)
                     carregarPrevia(id)
                   }}
                   disabled={gerarParaTodas}
-                  placeholder="Selecione a unidade"
-                  triggerClassName="mt-1 h-9 text-xs bg-white"
-                  searchPlaceholder="Buscar escola por nome..."
-                  options={escolas.map((e) => ({
-                    value: e.id,
-                    label: `${e.nome} (${e.tipo_atendimento.includes('40h') ? '40h' : '20h'})`,
-                    searchText: `${e.nome} ${e.tipo_atendimento}`,
-                  }))}
-                />
+                >
+                  <SelectTrigger className="mt-1 h-9 text-xs bg-white">
+                    <SelectValue placeholder="Selecione a unidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {escolas.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.nome} ({e.tipo_atendimento.includes('40h') ? '40h' : '20h'})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="flex flex-col justify-center">
@@ -1252,29 +1246,24 @@ export const VagasPage: React.FC = () => {
                   Cargo (Permitidos para {vagaEmEdicao?.funcao})
                 </Label>
               </div>
-              <SelectPaginado
-                value={editCargoId}
-                onValueChange={setEditCargoId}
-                placeholder="Selecione o cargo do ocupante"
-                triggerClassName="mt-1 h-9 text-xs"
-                searchPlaceholder="Buscar cargo..."
-                emptyMessage="Nenhum cargo permitido cadastrado"
-                options={
-                  cargosPermitidosParaEdicao.length === 0
-                    ? [
-                        {
-                          value: 'nenhum',
-                          label: 'Nenhum cargo permitido cadastrado',
-                          disabled: true,
-                        },
-                      ]
-                    : cargosPermitidosParaEdicao.map((c: any) => ({
-                        value: c.id,
-                        label: `${c.nome} ${c.condicao && c.condicao !== 'NENHUMA' ? `(${c.condicao})` : ''}`,
-                        searchText: `${c.nome} ${c.condicao || ''}`,
-                      }))
-                }
-              />
+              <Select value={editCargoId} onValueChange={setEditCargoId}>
+                <SelectTrigger className="mt-1 h-9 text-xs">
+                  <SelectValue placeholder="Selecione o cargo do ocupante" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cargosPermitidosParaEdicao.length === 0 ? (
+                    <SelectItem value="nenhum" disabled>
+                      Nenhum cargo permitido cadastrado
+                    </SelectItem>
+                  ) : (
+                    cargosPermitidosParaEdicao.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nome} {c.condicao && c.condicao !== 'NENHUMA' ? `(${c.condicao})` : ''}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Observação */}
