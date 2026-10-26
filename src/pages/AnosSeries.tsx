@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { SelectPaginado } from '@/components/SelectPaginado'
+import { PaginacaoTabela, ITENS_POR_PAGINA_PADRAO } from '@/components/PaginacaoTabela'
 import {
   Dialog,
   DialogContent,
@@ -65,6 +66,7 @@ export default function AnosSeries() {
   const [search, setSearch] = useState('')
   const [filtroAno, setFiltroAno] = useState<string>('todos')
   const [filtroEtapa, setFiltroEtapa] = useState<string>('todas')
+  const [paginaAtual, setPaginaAtual] = useState<number>(1)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -348,6 +350,13 @@ export default function AnosSeries() {
     })
   }, [anosSeries, search, filtroAno, filtroEtapa])
 
+  const anosSeriesPaginados = useMemo(() => {
+    return filteredAnosSeries.slice(
+      (paginaAtual - 1) * ITENS_POR_PAGINA_PADRAO,
+      paginaAtual * ITENS_POR_PAGINA_PADRAO,
+    )
+  }, [filteredAnosSeries, paginaAtual])
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
@@ -393,7 +402,10 @@ export default function AnosSeries() {
               <Input
                 placeholder="Pesquisar por identificador (ANO-XXXX), nome, etapa..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value)
+                  setPaginaAtual(1)
+                }}
                 className="pl-9 text-sm"
               />
             </div>
@@ -404,6 +416,7 @@ export default function AnosSeries() {
                 value={filtroAno}
                 onValueChange={(val) => {
                   setFiltroAno(val)
+                  setPaginaAtual(1)
                   // Se mudar ano e a etapa filtrada não pertencer ao novo ano, reseta etapa para todas
                   if (val !== 'todos' && filtroEtapa !== 'todas' && filtroEtapa !== 'sem_etapa') {
                     const etapaObj = etapas.find((e) => e.id === filtroEtapa)
@@ -430,7 +443,10 @@ export default function AnosSeries() {
             <div className="w-full sm:w-56">
               <SelectPaginado
                 value={filtroEtapa}
-                onValueChange={setFiltroEtapa}
+                onValueChange={(val) => {
+                  setFiltroEtapa(val)
+                  setPaginaAtual(1)
+                }}
                 placeholder="Todas as etapas"
                 triggerClassName="text-sm"
                 searchPlaceholder="Buscar etapa..."
@@ -454,6 +470,7 @@ export default function AnosSeries() {
                   setSearch('')
                   setFiltroAno('todos')
                   setFiltroEtapa('todas')
+                  setPaginaAtual(1)
                 }}
                 className="text-xs text-slate-600 hover:text-slate-900"
               >
@@ -486,7 +503,7 @@ export default function AnosSeries() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredAnosSeries.map((item) => (
+                  {anosSeriesPaginados.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
                       {/* Identificador sequencial automático ANO-XXXX */}
                       <td className="py-3 px-4">
@@ -562,6 +579,13 @@ export default function AnosSeries() {
                   ))}
                 </tbody>
               </table>
+              <PaginacaoTabela
+                paginaAtual={paginaAtual}
+                totalRegistros={filteredAnosSeries.length}
+                itensPorPagina={ITENS_POR_PAGINA_PADRAO}
+                onMudarPagina={setPaginaAtual}
+                rotuloItens="anos/séries"
+              />
             </div>
           )}
         </CardContent>

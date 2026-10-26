@@ -46,6 +46,7 @@ import {
   deleteFuncao,
 } from '@/services/apoio'
 import { Cargo, Funcao } from '@/types/gestao-escolar'
+import { PaginacaoTabela, ITENS_POR_PAGINA_PADRAO } from '@/components/PaginacaoTabela'
 
 export default function Funcoes() {
   const { isAdmin, canEdit } = useAuth()
@@ -53,6 +54,7 @@ export default function Funcoes() {
   const [funcoes, setFuncoes] = useState<Funcao[]>([])
   const [cargos, setCargos] = useState<Cargo[]>([])
   const [searchFuncao, setSearchFuncao] = useState('')
+  const [paginaAtual, setPaginaAtual] = useState(1)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -266,6 +268,13 @@ export default function Funcoes() {
     })
   }, [funcoes, searchFuncao])
 
+  const funcoesPaginadas = useMemo(() => {
+    return filteredFuncoes.slice(
+      (paginaAtual - 1) * ITENS_POR_PAGINA_PADRAO,
+      paginaAtual * ITENS_POR_PAGINA_PADRAO,
+    )
+  }, [filteredFuncoes, paginaAtual])
+
   // Cargos filtrados dentro do checklist do modal
   const cargosFiltradosChecklist = useMemo(() => {
     const q = searchChecklist.trim().toLowerCase()
@@ -318,7 +327,10 @@ export default function Funcoes() {
             <Input
               placeholder="Pesquisar por código (FUN-XXXX), nome, cargo..."
               value={searchFuncao}
-              onChange={(e) => setSearchFuncao(e.target.value)}
+              onChange={(e) => {
+                setSearchFuncao(e.target.value)
+                setPaginaAtual(1)
+              }}
               className="pl-9 text-sm"
             />
           </div>
@@ -346,7 +358,7 @@ export default function Funcoes() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredFuncoes.map((f) => {
+                  {funcoesPaginadas.map((f) => {
                     const cargosVinculados = f.cargos_vinculados || []
                     return (
                       <tr key={f.id} className="hover:bg-slate-50/70 transition-colors">
@@ -440,6 +452,13 @@ export default function Funcoes() {
                   })}
                 </tbody>
               </table>
+              <PaginacaoTabela
+                paginaAtual={paginaAtual}
+                totalRegistros={filteredFuncoes.length}
+                itensPorPagina={ITENS_POR_PAGINA_PADRAO}
+                onMudarPagina={setPaginaAtual}
+                rotuloItens="funções"
+              />
             </div>
           )}
         </CardContent>

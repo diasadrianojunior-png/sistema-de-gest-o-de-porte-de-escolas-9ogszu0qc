@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { SelectPaginado } from '@/components/SelectPaginado'
+import { PaginacaoTabela, ITENS_POR_PAGINA_PADRAO } from '@/components/PaginacaoTabela'
 import {
   Dialog,
   DialogContent,
@@ -49,6 +50,7 @@ export default function Auditoria() {
   const [filtroEntidade, setFiltroEntidade] = useState<string>('todas')
   const [filtroAcao, setFiltroAcao] = useState<string>('todas')
   const [filtroUsuario, setFiltroUsuario] = useState<string>('todos')
+  const [paginaAtual, setPaginaAtual] = useState<number>(1)
 
   // Modal de Detalhes (somente leitura)
   const [openDetailsDialog, setOpenDetailsDialog] = useState(false)
@@ -128,6 +130,13 @@ export default function Auditoria() {
     })
   }, [registros, filtroEntidade, filtroAcao, filtroUsuario, search])
 
+  const registrosPaginados = useMemo(() => {
+    return registrosFiltrados.slice(
+      (paginaAtual - 1) * ITENS_POR_PAGINA_PADRAO,
+      paginaAtual * ITENS_POR_PAGINA_PADRAO,
+    )
+  }, [registrosFiltrados, paginaAtual])
+
   const handleVisualizar = (reg: RegistroAuditoria) => {
     setDetalhesItem(reg)
     setOpenDetailsDialog(true)
@@ -138,6 +147,7 @@ export default function Auditoria() {
     setFiltroEntidade('todas')
     setFiltroAcao('todas')
     setFiltroUsuario('todos')
+    setPaginaAtual(1)
   }
 
   const getAcaoBadge = (acao: string) => {
@@ -264,7 +274,10 @@ export default function Auditoria() {
                 <Input
                   placeholder="Código, descrição, email..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => {
+                    setSearch(e.target.value)
+                    setPaginaAtual(1)
+                  }}
                   className="pl-8 text-xs bg-white h-9"
                 />
               </div>
@@ -277,7 +290,10 @@ export default function Auditoria() {
               </label>
               <SelectPaginado
                 value={filtroEntidade}
-                onValueChange={setFiltroEntidade}
+                onValueChange={(val) => {
+                  setFiltroEntidade(val)
+                  setPaginaAtual(1)
+                }}
                 placeholder="Todas as entidades"
                 triggerClassName="text-xs bg-white h-9"
                 searchPlaceholder="Buscar entidade..."
@@ -311,7 +327,13 @@ export default function Auditoria() {
               <label className="text-[11px] font-semibold uppercase text-slate-500 tracking-wider flex items-center gap-1">
                 <Activity className="w-3 h-3" /> Ação Executada
               </label>
-              <Select value={filtroAcao} onValueChange={setFiltroAcao}>
+              <Select
+                value={filtroAcao}
+                onValueChange={(val) => {
+                  setFiltroAcao(val)
+                  setPaginaAtual(1)
+                }}
+              >
                 <SelectTrigger className="text-xs bg-white h-9">
                   <SelectValue placeholder="Todas as ações" />
                 </SelectTrigger>
@@ -332,7 +354,10 @@ export default function Auditoria() {
               </label>
               <SelectPaginado
                 value={filtroUsuario}
-                onValueChange={setFiltroUsuario}
+                onValueChange={(val) => {
+                  setFiltroUsuario(val)
+                  setPaginaAtual(1)
+                }}
                 placeholder="Todos os usuários"
                 triggerClassName="text-xs bg-white h-9"
                 searchPlaceholder="Buscar usuário..."
@@ -396,7 +421,7 @@ export default function Auditoria() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {registrosFiltrados.map((item) => (
+                  {registrosPaginados.map((item) => (
                     <tr
                       key={item.id}
                       className="hover:bg-blue-50/40 transition-colors group cursor-pointer"
@@ -512,6 +537,13 @@ export default function Auditoria() {
                   ))}
                 </tbody>
               </table>
+              <PaginacaoTabela
+                paginaAtual={paginaAtual}
+                totalRegistros={registrosFiltrados.length}
+                itensPorPagina={ITENS_POR_PAGINA_PADRAO}
+                onMudarPagina={setPaginaAtual}
+                rotuloItens="eventos de auditoria"
+              />
             </div>
           )}
         </CardContent>

@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { SelectPaginado } from '@/components/SelectPaginado'
+import { PaginacaoTabela, ITENS_POR_PAGINA_PADRAO } from '@/components/PaginacaoTabela'
 import {
   Dialog,
   DialogContent,
@@ -45,6 +46,7 @@ export default function Etapas() {
   const [etapas, setEtapas] = useState<Etapa[]>([])
   const [search, setSearch] = useState('')
   const [filtroAno, setFiltroAno] = useState<string>('todos')
+  const [paginaAtual, setPaginaAtual] = useState<number>(1)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -187,6 +189,13 @@ export default function Etapas() {
     })
   }, [etapas, search, filtroAno])
 
+  const etapasPaginadas = useMemo(() => {
+    return filteredEtapas.slice(
+      (paginaAtual - 1) * ITENS_POR_PAGINA_PADRAO,
+      paginaAtual * ITENS_POR_PAGINA_PADRAO,
+    )
+  }, [filteredEtapas, paginaAtual])
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
@@ -231,7 +240,10 @@ export default function Etapas() {
               <Input
                 placeholder="Pesquisar por identificador (ETA-XXXX), nome ou ano letivo..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value)
+                  setPaginaAtual(1)
+                }}
                 className="pl-9 text-sm"
               />
             </div>
@@ -239,7 +251,10 @@ export default function Etapas() {
             <div className="w-full sm:w-48">
               <SelectPaginado
                 value={filtroAno}
-                onValueChange={setFiltroAno}
+                onValueChange={(val) => {
+                  setFiltroAno(val)
+                  setPaginaAtual(1)
+                }}
                 placeholder="Ano Letivo"
                 triggerClassName="text-sm"
                 searchPlaceholder="Buscar ano..."
@@ -261,6 +276,7 @@ export default function Etapas() {
                 onClick={() => {
                   setSearch('')
                   setFiltroAno('todos')
+                  setPaginaAtual(1)
                 }}
                 className="text-xs text-slate-600 hover:text-slate-900"
               >
@@ -292,7 +308,7 @@ export default function Etapas() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredEtapas.map((item) => (
+                  {etapasPaginadas.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
                       {/* Identificador sequencial automático ETA-XXXX */}
                       <td className="py-3 px-4">
@@ -351,6 +367,13 @@ export default function Etapas() {
                   ))}
                 </tbody>
               </table>
+              <PaginacaoTabela
+                paginaAtual={paginaAtual}
+                totalRegistros={filteredEtapas.length}
+                itensPorPagina={ITENS_POR_PAGINA_PADRAO}
+                onMudarPagina={setPaginaAtual}
+                rotuloItens="etapas"
+              />
             </div>
           )}
         </CardContent>

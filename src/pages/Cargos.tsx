@@ -25,6 +25,7 @@ import { Plus, Edit2, Trash2, Loader2, Search, Briefcase } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
 import { getCargos, createCargo, updateCargo, deleteCargo } from '@/services/apoio'
+import { PaginacaoTabela, ITENS_POR_PAGINA_PADRAO } from '@/components/PaginacaoTabela'
 import { Cargo } from '@/types/gestao-escolar'
 
 export default function Cargos() {
@@ -32,6 +33,7 @@ export default function Cargos() {
   const canEditCargos = isAdmin || canEdit('cargos')
   const [cargos, setCargos] = useState<Cargo[]>([])
   const [searchCargo, setSearchCargo] = useState('')
+  const [paginaAtual, setPaginaAtual] = useState(1)
   const [loadingCargos, setLoadingCargos] = useState(true)
   const [openCargoDialog, setOpenCargoDialog] = useState(false)
   const [editingCargo, setEditingCargo] = useState<Cargo | null>(null)
@@ -129,6 +131,11 @@ export default function Cargos() {
       (c.codigo && c.codigo.toLowerCase().includes(searchCargo.toLowerCase())),
   )
 
+  const cargosPaginados = filteredCargos.slice(
+    (paginaAtual - 1) * ITENS_POR_PAGINA_PADRAO,
+    paginaAtual * ITENS_POR_PAGINA_PADRAO,
+  )
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
@@ -170,7 +177,10 @@ export default function Cargos() {
             <Input
               placeholder="Pesquisar por código (CAR-XXXX), nome do cargo..."
               value={searchCargo}
-              onChange={(e) => setSearchCargo(e.target.value)}
+              onChange={(e) => {
+                setSearchCargo(e.target.value)
+                setPaginaAtual(1)
+              }}
               className="pl-9 text-sm"
             />
           </div>
@@ -197,7 +207,7 @@ export default function Cargos() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredCargos.map((c) => (
+                  {cargosPaginados.map((c) => (
                     <tr key={c.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="py-3 px-4">
                         <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
@@ -233,6 +243,13 @@ export default function Cargos() {
                   ))}
                 </tbody>
               </table>
+              <PaginacaoTabela
+                paginaAtual={paginaAtual}
+                totalRegistros={filteredCargos.length}
+                itensPorPagina={ITENS_POR_PAGINA_PADRAO}
+                onMudarPagina={setPaginaAtual}
+                rotuloItens="cargos"
+              />
             </div>
           )}
         </CardContent>

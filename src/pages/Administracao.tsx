@@ -37,6 +37,7 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { getUsuarios, createUsuario, updateUsuario, deleteUsuario } from '@/services/usuarios'
 import { UsuarioSistema, PerfilUsuario, EstadoUsuario } from '@/types/gestao-escolar'
+import { PaginacaoTabela, ITENS_POR_PAGINA_PADRAO } from '@/components/PaginacaoTabela'
 import {
   PermissaoItemForm,
   getPermissoesPadraoOperador,
@@ -52,6 +53,7 @@ export default function Administracao() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
+  const [paginaAtual, setPaginaAtual] = useState(1)
 
   // Modais
   const [openCreateDialog, setOpenCreateDialog] = useState(false)
@@ -292,6 +294,11 @@ export default function Administracao() {
     )
   })
 
+  const usuariosPaginados = filteredUsuarios.slice(
+    (paginaAtual - 1) * ITENS_POR_PAGINA_PADRAO,
+    paginaAtual * ITENS_POR_PAGINA_PADRAO,
+  )
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
@@ -329,7 +336,10 @@ export default function Administracao() {
             <Input
               placeholder="Pesquisar por identificador, nome, e-mail..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value)
+                setPaginaAtual(1)
+              }}
               className="pl-9 text-sm"
             />
           </div>
@@ -357,7 +367,7 @@ export default function Administracao() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredUsuarios.map((u) => {
+                  {usuariosPaginados.map((u) => {
                     const isCurrentUser =
                       Boolean(user?.email) && u.email.toLowerCase() === user?.email?.toLowerCase()
 
@@ -449,6 +459,13 @@ export default function Administracao() {
                   })}
                 </tbody>
               </table>
+              <PaginacaoTabela
+                paginaAtual={paginaAtual}
+                totalRegistros={filteredUsuarios.length}
+                itensPorPagina={ITENS_POR_PAGINA_PADRAO}
+                onMudarPagina={setPaginaAtual}
+                rotuloItens="usuários"
+              />
             </div>
           )}
         </CardContent>

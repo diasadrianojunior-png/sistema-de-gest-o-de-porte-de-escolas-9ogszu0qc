@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { SelectPaginado } from '@/components/SelectPaginado'
+import { PaginacaoTabela, ITENS_POR_PAGINA_PADRAO } from '@/components/PaginacaoTabela'
 import {
   Dialog,
   DialogContent,
@@ -73,6 +74,7 @@ export default function CadastrosMestres() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
+  const [paginaAtual, setPaginaAtual] = useState(1)
   // Mapa dinâmico de níveis do banco por tipo de atendimento (configuracao_rh_nivel)
   const [mapaFaixas, setMapaFaixas] = useState<Record<string, NivelFaixaFormatada[]>>({})
 
@@ -441,6 +443,11 @@ export default function CadastrosMestres() {
       (u.cep && u.cep.toLowerCase().includes(search.toLowerCase())),
   )
 
+  const unidadesPaginadas = filteredUnidades.slice(
+    (paginaAtual - 1) * ITENS_POR_PAGINA_PADRAO,
+    paginaAtual * ITENS_POR_PAGINA_PADRAO,
+  )
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
@@ -483,7 +490,10 @@ export default function CadastrosMestres() {
             <Input
               placeholder="Pesquisar código (UN-XXXX), nome, nível, local..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value)
+                setPaginaAtual(1)
+              }}
               className="pl-9 text-sm"
             />
           </div>
@@ -514,7 +524,7 @@ export default function CadastrosMestres() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredUnidades.map((unidade) => (
+                  {unidadesPaginadas.map((unidade) => (
                     <tr key={unidade.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="py-3 px-4">
                         <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
@@ -602,6 +612,13 @@ export default function CadastrosMestres() {
                   ))}
                 </tbody>
               </table>
+              <PaginacaoTabela
+                paginaAtual={paginaAtual}
+                totalRegistros={filteredUnidades.length}
+                itensPorPagina={ITENS_POR_PAGINA_PADRAO}
+                onMudarPagina={setPaginaAtual}
+                rotuloItens="unidades escolares"
+              />
             </div>
           )}
         </CardContent>

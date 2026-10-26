@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { SelectPaginado } from '@/components/SelectPaginado'
+import { PaginacaoTabela, ITENS_POR_PAGINA_PADRAO } from '@/components/PaginacaoTabela'
 import {
   Dialog,
   DialogContent,
@@ -63,6 +64,7 @@ export default function Turmas() {
   const [search, setSearch] = useState('')
   const [filtroAno, setFiltroAno] = useState<string>('todos')
   const [filtroUnidade, setFiltroUnidade] = useState<string>('todas')
+  const [paginaAtual, setPaginaAtual] = useState<number>(1)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -457,6 +459,13 @@ export default function Turmas() {
     })
   }, [turmas, search, filtroAno, filtroUnidade])
 
+  const turmasPaginadas = useMemo(() => {
+    return filteredTurmas.slice(
+      (paginaAtual - 1) * ITENS_POR_PAGINA_PADRAO,
+      paginaAtual * ITENS_POR_PAGINA_PADRAO,
+    )
+  }, [filteredTurmas, paginaAtual])
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
@@ -502,7 +511,10 @@ export default function Turmas() {
               <Input
                 placeholder="Pesquisar por identificador (TUR-XXXX), nome, escola..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value)
+                  setPaginaAtual(1)
+                }}
                 className="pl-9 text-sm"
               />
             </div>
@@ -510,7 +522,10 @@ export default function Turmas() {
             <div className="w-full sm:w-56">
               <SelectPaginado
                 value={filtroUnidade}
-                onValueChange={setFiltroUnidade}
+                onValueChange={(val) => {
+                  setFiltroUnidade(val)
+                  setPaginaAtual(1)
+                }}
                 placeholder="Todas as unidades"
                 triggerClassName="text-sm"
                 searchPlaceholder="Buscar unidade por nome ou código..."
@@ -528,7 +543,10 @@ export default function Turmas() {
             <div className="w-full sm:w-44">
               <SelectPaginado
                 value={filtroAno}
-                onValueChange={setFiltroAno}
+                onValueChange={(val) => {
+                  setFiltroAno(val)
+                  setPaginaAtual(1)
+                }}
                 placeholder="Ano Letivo"
                 triggerClassName="text-sm"
                 searchPlaceholder="Buscar ano..."
@@ -551,6 +569,7 @@ export default function Turmas() {
                   setSearch('')
                   setFiltroAno('todos')
                   setFiltroUnidade('todas')
+                  setPaginaAtual(1)
                 }}
                 className="text-xs text-slate-600 hover:text-slate-900"
               >
@@ -585,7 +604,7 @@ export default function Turmas() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredTurmas.map((item) => (
+                  {turmasPaginadas.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
                       {/* Identificador sequencial automático TUR-XXXX */}
                       <td className="py-3 px-4">
@@ -684,6 +703,13 @@ export default function Turmas() {
                   ))}
                 </tbody>
               </table>
+              <PaginacaoTabela
+                paginaAtual={paginaAtual}
+                totalRegistros={filteredTurmas.length}
+                itensPorPagina={ITENS_POR_PAGINA_PADRAO}
+                onMudarPagina={setPaginaAtual}
+                rotuloItens="turmas"
+              />
             </div>
           )}
         </CardContent>

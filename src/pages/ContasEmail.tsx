@@ -49,6 +49,7 @@ import {
   testarContaEmail,
 } from '@/services/contas-email'
 import { ContaEmail, CriptografiaSmtp } from '@/types/gestao-escolar'
+import { PaginacaoTabela, ITENS_POR_PAGINA_PADRAO } from '@/components/PaginacaoTabela'
 
 export default function ContasEmail() {
   const { isAdmin, canEdit } = useAuth()
@@ -58,6 +59,7 @@ export default function ContasEmail() {
   const [saving, setSaving] = useState(false)
   const [testingId, setTestingId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [paginaAtual, setPaginaAtual] = useState(1)
 
   // Modais
   const [openModal, setOpenModal] = useState(false)
@@ -332,6 +334,13 @@ export default function ContasEmail() {
     return list
   }, [contas, search, sortField, sortAsc])
 
+  const contasPaginadas = useMemo(() => {
+    return filteredContas.slice(
+      (paginaAtual - 1) * ITENS_POR_PAGINA_PADRAO,
+      paginaAtual * ITENS_POR_PAGINA_PADRAO,
+    )
+  }, [filteredContas, paginaAtual])
+
   return (
     <div className="space-y-6">
       {/* ========================================================================= */}
@@ -369,7 +378,10 @@ export default function ContasEmail() {
         <Input
           placeholder="Buscar por descrição, host, e-mail remetente ou código..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            setPaginaAtual(1)
+          }}
           className="pl-10 h-11 bg-white border-slate-200 rounded-lg text-sm placeholder:text-slate-400 focus-visible:ring-blue-600 shadow-2xs"
         />
       </div>
@@ -500,7 +512,7 @@ export default function ContasEmail() {
               </thead>
 
               <tbody className="divide-y divide-slate-100">
-                {filteredContas.map((item) => (
+                {contasPaginadas.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
                     {/* ID */}
                     <td className="py-4 px-4 align-top">
@@ -615,10 +627,14 @@ export default function ContasEmail() {
           </div>
         )}
 
-        {/* Rodapé da tabela com contagem conforme IMAGEM 1 */}
-        <div className="px-4 py-3 border-t border-slate-200 bg-slate-50/50 text-xs text-slate-500 font-medium">
-          Exibindo {filteredContas.length} de {contas.length} conta(s)
-        </div>
+        {/* Rodapé da tabela com paginação padrão do sistema */}
+        <PaginacaoTabela
+          paginaAtual={paginaAtual}
+          totalRegistros={filteredContas.length}
+          itensPorPagina={ITENS_POR_PAGINA_PADRAO}
+          onMudarPagina={setPaginaAtual}
+          rotuloItens="contas de e-mail"
+        />
       </div>
 
       {/* ========================================================================= */}

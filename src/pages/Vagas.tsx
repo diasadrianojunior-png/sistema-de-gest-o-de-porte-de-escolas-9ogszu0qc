@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { SelectPaginado } from '@/components/SelectPaginado'
+import { PaginacaoTabela, ITENS_POR_PAGINA_PADRAO } from '@/components/PaginacaoTabela'
 import {
   Dialog,
   DialogContent,
@@ -94,6 +95,7 @@ export const VagasPage: React.FC = () => {
   const [statusFiltro, setStatusFiltro] = useState<StatusVagaReal | 'TODAS'>('TODAS')
   const [comOcupanteFiltro, setComOcupanteFiltro] = useState<'TODAS' | 'COM' | 'SEM'>('TODAS')
   const [buscaTexto, setBuscaTexto] = useState<string>('')
+  const [paginaAtual, setPaginaAtual] = useState<number>(1)
 
   // Dados carregados
   const [carregando, setCarregando] = useState<boolean>(true)
@@ -154,6 +156,7 @@ export const VagasPage: React.FC = () => {
   }
 
   useEffect(() => {
+    setPaginaAtual(1)
     recarregarDados()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -168,6 +171,13 @@ export const VagasPage: React.FC = () => {
     comOcupanteFiltro,
     buscaTexto,
   ])
+
+  const vagasPaginadas = useMemo(() => {
+    return vagas.slice(
+      (paginaAtual - 1) * ITENS_POR_PAGINA_PADRAO,
+      paginaAtual * ITENS_POR_PAGINA_PADRAO,
+    )
+  }, [vagas, paginaAtual])
 
   // Lista única de funções existentes nas vagas para o combo de filtro
   const funcoesDisponiveis = useMemo(() => {
@@ -848,7 +858,7 @@ export const VagasPage: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                vagas.map((v) => (
+                vagasPaginadas.map((v) => (
                   <TableRow
                     key={v.id}
                     className="hover:bg-slate-50/80 transition-colors text-xs border-b border-slate-100"
@@ -956,6 +966,13 @@ export const VagasPage: React.FC = () => {
             </TableBody>
           </Table>
         </div>
+        <PaginacaoTabela
+          paginaAtual={paginaAtual}
+          totalRegistros={vagas.length}
+          itensPorPagina={ITENS_POR_PAGINA_PADRAO}
+          onMudarPagina={setPaginaAtual}
+          rotuloItens="vagas dimensionadas"
+        />
       </Card>
 
       {/* ==================================================================== */}
