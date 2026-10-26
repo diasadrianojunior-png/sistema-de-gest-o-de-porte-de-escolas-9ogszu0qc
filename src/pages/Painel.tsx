@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { School, Database, ArrowRight, Clock, Layers, Briefcase, CheckCircle2 } from 'lucide-react'
 import { getUnidadesEscolares } from '@/services/unidades-escolares'
 import { getCargos } from '@/services/apoio'
-import { UnidadeEscolar, Cargo } from '@/types/gestao-escolar'
+import { UnidadeEscolar, Cargo, normalizarNivelPorte } from '@/types/gestao-escolar'
 
 export default function Painel() {
   const { user } = useAuth()
@@ -197,7 +197,8 @@ export default function Painel() {
                     <td className="py-3 px-3 font-medium text-slate-900">{unidade.nome}</td>
                     <td className="py-3 px-3 text-slate-700 text-xs">{unidade.tipo_atendimento}</td>
                     <td className="py-3 px-3 text-slate-700 text-xs font-medium">
-                      {unidade.nivel_porte}
+                      {normalizarNivelPorte(unidade.tipo_atendimento, unidade.nivel_porte) ||
+                        unidade.nivel_porte}
                     </td>
                     <td className="py-3 px-3 text-slate-600 text-xs">{unidade.localizacao}</td>
                   </tr>

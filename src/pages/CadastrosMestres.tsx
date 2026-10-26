@@ -51,10 +51,15 @@ import {
 import {
   UnidadeEscolar,
   TipoAtendimentoUnidade,
-  OPCOES_NIVEL_20H,
   OPCOES_NIVEL_40H,
   normalizarNivelPorte,
 } from '@/types/gestao-escolar'
+import {
+  carregarMapaFaixasPorTipoAtendimento,
+  calcularNivelPorQtdAlunos,
+  resolverRotuloNivelComFaixas,
+  NivelFaixaFormatada,
+} from '@/services/faixas-nivel-unidade'
 import {
   LocalizacaoUnidadeSection,
   EnderecoUnidadeData,
@@ -67,6 +72,8 @@ export default function CadastrosMestres() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
+  // Mapa dinâmico de níveis do banco por tipo de atendimento (configuracao_rh_nivel)
+  const [mapaFaixas, setMapaFaixas] = useState<Record<string, NivelFaixaFormatada[]>>({})
 
   // Modais
   const [openFormDialog, setOpenFormDialog] = useState(false)
@@ -80,12 +87,14 @@ export default function CadastrosMestres() {
     nome: string
     tipo_atendimento: TipoAtendimentoUnidade | ''
     nivel_porte: string
+    quantidade_alunos: string
     localizacao: string
     endereco: EnderecoUnidadeData
   }>({
     nome: '',
     tipo_atendimento: '',
     nivel_porte: '',
+    quantidade_alunos: '',
     localizacao: '',
     endereco: {
       cep: '',
@@ -102,8 +111,12 @@ export default function CadastrosMestres() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const data = await getUnidadesEscolares()
+      const [data, faixasBanco] = await Promise.all([
+        getUnidadesEscolares(),
+        carregarMapaFaixasPorTipoAtendimento(),
+      ])
       setUnidades(data)
+      setMapaFaixas(faixasBanco)
     } catch (err: any) {
       toast({
         title: 'Erro ao carregar dados',
@@ -125,6 +138,7 @@ export default function CadastrosMestres() {
       nome: '',
       tipo_atendimento: '',
       nivel_porte: '',
+      quantidade_alunos: '',
       localizacao: '',
       endereco: {
         cep: '',
@@ -142,12 +156,20 @@ export default function CadastrosMestres() {
 
   const handleOpenEdit = (unidade: UnidadeEscolar) => {
     setEditingUnidade(unidade)
-    // Se o valor salvo no banco for de um formato antigo, normaliza para a opção correspondente nova
-    const nivelNormalizado = normalizarNivelPorte(unidade.tipo_atendimento, unidade.nivel_porte)
+    const niveisTipo = mapaFaixas[unidade.tipo_atendimento] || []
+    const nivelResolvido = resolverRotuloNivelComFaixas(
+      unidade.tipo_atendimento,
+      unidade.nivel_porte,
+      niveisTipo,
+    )
     setFormData({
       nome: unidade.nome,
       tipo_atendimento: unidade.tipo_atendimento,
-      nivel_porte: nivelNormalizado || unidade.nivel_porte,
+      nivel_porte: nivelResolvido || unidade.nivel_porte,
+      quantidade_alunos:
+        unidade.quantidade_alunos !== null && unidade.quantidade_alunos !== undefined
+          ? String(unidade.quantidade_alunos)
+          : '',
       localizacao: unidade.localizacao,
       endereco: {
         cep: unidade.cep || '',
@@ -168,14 +190,46 @@ export default function CadastrosMestres() {
     setOpenViewDialog(true)
   }
 
-  // Manipulador da troca de Tipo de Atendimento: limpa/reseta a seleção anterior do segundo combo
+  // Manipulador da troca de Tipo de Atendimento:
+  // Reseta seleção incompatível e recalcula se houver quantidade de alunos preenchida
   const handleTipoAtendimentoChange = (val: string) => {
     const novoTipo = val as TipoAtendimentoUnidade
-    setFormData((prev) => ({
-      ...prev,
-      tipo_atendimento: novoTipo,
-      nivel_porte: '', // Reset obrigatório ao alternar o combo primário: remove vínculo incompatível
-    }))
+    setFormData((prev) => {
+      let novoNivel = ''
+      if (prev.quantidade_alunos && Number(prev.quantidade_alunos) >= 0) {
+        const faixasNovoTipo = mapaFaixas[novoTipo] || []
+        const calculado = calcularNivelPorQtdAlunos(faixasNovoTipo, Number(prev.quantidade_alunos))
+        if (calculado) {
+          novoNivel = calculado.rotulo
+        }
+      }
+      return {
+        ...prev,
+        tipo_atendimento: novoTipo,
+        nivel_porte: novoNivel, // Recalcula se tiver alunos ou limpa para evitar vínculo incompatível
+      }
+    })
+  }
+
+  // Manipulador de alteração da quantidade de alunos:
+  // Se o usuário informar a quantidade de alunos, calcula o nível automaticamente pelas faixas do banco
+  const handleQuantidadeAlunosChange = (val: string) => {
+    const num = Number(val)
+    setFormData((prev) => {
+      let nivelAuto = prev.nivel_porte
+      if (val !== '' && !isNaN(num) && num >= 0 && prev.tipo_atendimento) {
+        const faixas = mapaFaixas[prev.tipo_atendimento] || []
+        const encontrado = calcularNivelPorQtdAlunos(faixas, num)
+        if (encontrado) {
+          nivelAuto = encontrado.rotulo
+        }
+      }
+      return {
+        ...prev,
+        quantidade_alunos: val,
+        nivel_porte: nivelAuto,
+      }
+    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -209,12 +263,18 @@ export default function CadastrosMestres() {
     }
 
     // Validação e normalização de compatibilidade entre tipo de atendimento e nível/porte selecionado
-    const nivelNormalizado = normalizarNivelPorte(formData.tipo_atendimento, formData.nivel_porte)
+    const faixasDisponiveis = mapaFaixas[formData.tipo_atendimento] || []
+    const rotulosValidos = faixasDisponiveis.map((f) => f.rotulo)
+    const nivelResolvido = resolverRotuloNivelComFaixas(
+      formData.tipo_atendimento,
+      formData.nivel_porte,
+      faixasDisponiveis,
+    )
+
     const ehCompativel =
-      (formData.tipo_atendimento === 'Ensino Fundamental e Educação Infantil (20h)' &&
-        (OPCOES_NIVEL_20H as readonly string[]).includes(nivelNormalizado)) ||
-      (formData.tipo_atendimento === 'Educação Infantil (40h)' &&
-        (OPCOES_NIVEL_40H as readonly string[]).includes(nivelNormalizado))
+      rotulosValidos.length > 0
+        ? rotulosValidos.includes(nivelResolvido)
+        : Boolean(normalizarNivelPorte(formData.tipo_atendimento, formData.nivel_porte))
 
     if (!ehCompativel) {
       toast({
@@ -225,6 +285,11 @@ export default function CadastrosMestres() {
       })
       return
     }
+
+    const qtdAlunosNum =
+      formData.quantidade_alunos !== '' && !isNaN(Number(formData.quantidade_alunos))
+        ? Math.max(0, Math.floor(Number(formData.quantidade_alunos)))
+        : null
 
     // Se o usuário preencheu campos na seção de endereço do Google Maps, valida os obrigatórios da seção
     const temEnderecoIniciado =
@@ -302,7 +367,7 @@ export default function CadastrosMestres() {
       const payload = {
         nome: formData.nome.trim(),
         tipo_atendimento: formData.tipo_atendimento as TipoAtendimentoUnidade,
-        nivel_porte: nivelNormalizado,
+        nivel_porte: nivelResolvido,
         localizacao: localizacaoFinal,
         cep: formData.endereco.cep ? formData.endereco.cep.trim() : null,
         logradouro: formData.endereco.logradouro ? formData.endereco.logradouro.trim() : null,
@@ -312,6 +377,7 @@ export default function CadastrosMestres() {
         cidade: formData.endereco.cidade ? formData.endereco.cidade.trim() : 'Cambé',
         latitude: formData.endereco.latitude,
         longitude: formData.endereco.longitude,
+        ...(qtdAlunosNum !== null ? { quantidade_alunos: qtdAlunosNum } : {}),
       }
 
       if (editingUnidade) {
@@ -466,7 +532,12 @@ export default function CadastrosMestres() {
                       <td className="py-3 px-4 text-slate-700">
                         <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md font-semibold bg-blue-50 text-blue-800 border border-blue-200">
                           <Layers className="w-3 h-3 text-blue-600" />
-                          {normalizarNivelPorte(unidade.tipo_atendimento, unidade.nivel_porte) ||
+                          {resolverRotuloNivelComFaixas(
+                            unidade.tipo_atendimento,
+                            unidade.nivel_porte,
+                            mapaFaixas[unidade.tipo_atendimento],
+                          ) ||
+                            normalizarNivelPorte(unidade.tipo_atendimento, unidade.nivel_porte) ||
                             unidade.nivel_porte}
                         </span>
                       </td>
@@ -596,12 +667,45 @@ export default function CadastrosMestres() {
               </Select>
             </div>
 
-            {/* 4. REGRA CONDICIONAL: Segundo combo box baseado na escolha do primeiro */}
+            {/* 4. Quantidade de alunos (opcional para cálculo automático ou referência) */}
+            {formData.tipo_atendimento && (
+              <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <div className="flex items-center justify-between">
+                  <Label
+                    htmlFor="quantidade_alunos"
+                    className="text-xs font-semibold text-slate-700"
+                  >
+                    Quantidade de Alunos (Cálculo Automático do Nível)
+                  </Label>
+                  <span className="text-[11px] text-slate-500">Opcional</span>
+                </div>
+                <Input
+                  id="quantidade_alunos"
+                  type="number"
+                  min="0"
+                  placeholder="Ex: 323"
+                  value={formData.quantidade_alunos}
+                  onChange={(e) => handleQuantidadeAlunosChange(e.target.value)}
+                  className="bg-white text-sm"
+                />
+                <p className="text-[11px] text-slate-500">
+                  Ao digitar o total de alunos, o nível oficial da unidade é enquadrado
+                  automaticamente conforme a tabela de faixas vigentes do banco.
+                </p>
+              </div>
+            )}
+
+            {/* 5. REGRA CONDICIONAL: Segundo combo box baseado na escolha do primeiro (lido do banco de configuracao_rh_nivel) */}
             {formData.tipo_atendimento === 'Ensino Fundamental e Educação Infantil (20h)' && (
               <div className="space-y-2 bg-blue-50/60 p-3.5 rounded-lg border border-blue-200">
-                <Label htmlFor="nivel_porte_20h" className="text-blue-950 font-semibold text-sm">
-                  Nível / Faixa de Alunos *
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="nivel_porte_20h" className="text-blue-950 font-semibold text-sm">
+                    Nível / Faixa de Alunos *
+                  </Label>
+                  <span className="text-[11px] font-medium text-blue-700">
+                    Tabela Oficial (20h)
+                  </span>
+                </div>
                 <Select
                   value={formData.nivel_porte}
                   onValueChange={(val) => setFormData({ ...formData, nivel_porte: val })}
@@ -610,24 +714,42 @@ export default function CadastrosMestres() {
                     <SelectValue placeholder="Selecione nível e faixa de alunos" />
                   </SelectTrigger>
                   <SelectContent>
-                    {OPCOES_NIVEL_20H.map((opcao) => (
-                      <SelectItem key={opcao} value={opcao}>
-                        {opcao}
-                      </SelectItem>
-                    ))}
+                    {(mapaFaixas['Ensino Fundamental e Educação Infantil (20h)'] || []).map(
+                      (faixa) => (
+                        <SelectItem key={faixa.id || faixa.rotulo} value={faixa.rotulo}>
+                          <span className="font-semibold">{faixa.rotulo}</span>
+                        </SelectItem>
+                      ),
+                    )}
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-blue-700">
-                  8 opções para Ensino Fundamental e Educação Infantil (20h)
-                </p>
+                <div className="flex items-center justify-between text-[11px] text-blue-800">
+                  <span>
+                    {(mapaFaixas['Ensino Fundamental e Educação Infantil (20h)'] || []).length}{' '}
+                    faixas ativas cadastradas no módulo de RH
+                  </span>
+                  {formData.nivel_porte && (
+                    <span className="font-semibold text-blue-900 bg-blue-100 px-2 py-0.5 rounded">
+                      Selecionado: {formData.nivel_porte.split(':')[0]}
+                    </span>
+                  )}
+                </div>
               </div>
             )}
 
             {formData.tipo_atendimento === 'Educação Infantil (40h)' && (
               <div className="space-y-2 bg-emerald-50/60 p-3.5 rounded-lg border border-emerald-200">
-                <Label htmlFor="nivel_porte_40h" className="text-emerald-950 font-semibold text-sm">
-                  Nível / Faixa de Alunos *
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label
+                    htmlFor="nivel_porte_40h"
+                    className="text-emerald-950 font-semibold text-sm"
+                  >
+                    Nível / Faixa de Alunos *
+                  </Label>
+                  <span className="text-[11px] font-medium text-emerald-700">
+                    Tabela Oficial (40h)
+                  </span>
+                </div>
                 <Select
                   value={formData.nivel_porte}
                   onValueChange={(val) => setFormData({ ...formData, nivel_porte: val })}
@@ -636,16 +758,24 @@ export default function CadastrosMestres() {
                     <SelectValue placeholder="Selecione nível e faixa de alunos" />
                   </SelectTrigger>
                   <SelectContent>
-                    {OPCOES_NIVEL_40H.map((opcao) => (
-                      <SelectItem key={opcao} value={opcao}>
-                        {opcao}
+                    {(mapaFaixas['Educação Infantil (40h)'] || []).map((faixa) => (
+                      <SelectItem key={faixa.id || faixa.rotulo} value={faixa.rotulo}>
+                        <span className="font-semibold">{faixa.rotulo}</span>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-emerald-700">
-                  3 opções para Educação Infantil (40h)
-                </p>
+                <div className="flex items-center justify-between text-[11px] text-emerald-800">
+                  <span>
+                    {(mapaFaixas['Educação Infantil (40h)'] || []).length} faixas ativas cadastradas
+                    no módulo de RH
+                  </span>
+                  {formData.nivel_porte && (
+                    <span className="font-semibold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded">
+                      Selecionado: {formData.nivel_porte.split(':')[0]}
+                    </span>
+                  )}
+                </div>
               </div>
             )}
 
@@ -760,8 +890,26 @@ export default function CadastrosMestres() {
                 <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
                   Nível / Porte
                 </span>
-                <p className="text-slate-800 font-medium mt-0.5">{viewingUnidade.nivel_porte}</p>
+                <p className="text-slate-800 font-medium mt-0.5">
+                  {resolverRotuloNivelComFaixas(
+                    viewingUnidade.tipo_atendimento,
+                    viewingUnidade.nivel_porte,
+                    mapaFaixas[viewingUnidade.tipo_atendimento],
+                  ) || viewingUnidade.nivel_porte}
+                </p>
               </div>
+
+              {viewingUnidade.quantidade_alunos !== null &&
+                viewingUnidade.quantidade_alunos !== undefined && (
+                  <div className="border-b pb-3">
+                    <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
+                      Quantidade de Alunos Registrada
+                    </span>
+                    <p className="text-slate-800 font-medium mt-0.5">
+                      {viewingUnidade.quantidade_alunos} aluno(s)
+                    </p>
+                  </div>
+                )}
 
               <div className="border-b pb-3 space-y-2">
                 <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">

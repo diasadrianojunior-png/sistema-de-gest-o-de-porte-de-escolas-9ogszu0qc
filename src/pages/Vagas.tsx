@@ -111,19 +111,11 @@ export const VagasPage: React.FC = () => {
   const [previaAtual, setPreviaAtual] = useState<PreviaGeracaoResultado | null>(null)
   const [confirmandoGeracao, setConfirmandoGeracao] = useState<boolean>(false)
 
-  // Formulário para dados faltantes da escola (Passo 1 do usuário)
-  const [formFaltantesAberto, setFormFaltantesAberto] = useState<boolean>(false)
-  const [formAlunos, setFormAlunos] = useState<number>(0)
-  const [formTurmas, setFormTurmas] = useState<number>(0)
-  const [formPeriodos, setFormPeriodos] = useState<PeriodoEscola[]>([])
-  const [formTurmasPorEtapa, setFormTurmasPorEtapa] = useState<Record<string, number>>({})
-
   // Modal Editar Vaga (definir ocupante e cargo)
   const [modalEditarAberto, setModalEditarAberto] = useState<boolean>(false)
   const [vagaEmEdicao, setVagaEmEdicao] = useState<VagaReal | null>(null)
   const [editOcupante, setEditOcupante] = useState<string>('')
   const [editCargoId, setEditCargoId] = useState<string>('')
-  const [editCondicaoEspecial, setEditCondicaoEspecial] = useState<CondicaoLinhaCargo>('NENHUMA')
   const [editObservacao, setEditObservacao] = useState<string>('')
   const [salvandoEdicao, setSalvandoEdicao] = useState<boolean>(false)
 
@@ -251,7 +243,6 @@ export const VagasPage: React.FC = () => {
     setEscolaParaGerarId(targetId)
     setGerarParaTodas(false)
     setPreviaAtual(null)
-    setFormFaltantesAberto(false)
     setModalGerarAberto(true)
 
     if (targetId) {
@@ -259,34 +250,12 @@ export const VagasPage: React.FC = () => {
     }
   }
 
-  // Carregar prévia de geração
+  // Carregar prévia de geração (deriva alunos e turmas automaticamente)
   const carregarPrevia = async (escolaId: string) => {
     setCarregandoPrevia(true)
     try {
       const res = await calcularPreviaGeracao(escolaId, anoLetivo)
       setPreviaAtual(res)
-
-      // Se faltam dados, inicializa os campos do formulário para o usuário preencher
-      if (res.bloqueadoPorFaltaDados) {
-        setFormAlunos(res.unidadeAno.qtd_alunos || 0)
-        setFormTurmas(res.unidadeAno.qtd_turmas || 0)
-        setFormPeriodos(
-          res.unidadeAno.periodos && res.unidadeAno.periodos.length > 0
-            ? (res.unidadeAno.periodos as PeriodoEscola[])
-            : res.escola.tipo_atendimento.includes('40h')
-              ? ['INTEGRAL']
-              : ['MANHA', 'TARDE'],
-        )
-        const turmasRaw = res.unidadeAno.turmas_por_etapa || {}
-        setFormTurmasPorEtapa(
-          typeof turmasRaw === 'object' && !Array.isArray(turmasRaw)
-            ? (turmasRaw as Record<string, number>)
-            : {},
-        )
-        setFormFaltantesAberto(true)
-      } else {
-        setFormFaltantesAberto(false)
-      }
     } catch (err: any) {
       console.error(err)
       toast({
@@ -296,60 +265,6 @@ export const VagasPage: React.FC = () => {
       })
     } finally {
       setCarregandoPrevia(false)
-    }
-  }
-
-  // Salvar formulário de dados da escola e recalcular
-  const handleSalvarDadosEscola = async () => {
-    if (!escolaParaGerarId) return
-    if (formAlunos <= 0) {
-      toast({
-        title: 'Quantidade de alunos obrigatória',
-        description: 'Informe o total de alunos da escola.',
-        variant: 'destructive',
-      })
-      return
-    }
-    if (formTurmas <= 0) {
-      toast({
-        title: 'Quantidade de turmas obrigatória',
-        description: 'Informe o total de turmas da escola.',
-        variant: 'destructive',
-      })
-      return
-    }
-    if (formPeriodos.length === 0) {
-      toast({
-        title: 'Períodos obrigatórios',
-        description: 'Selecione ao menos um período de funcionamento.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    try {
-      await salvarUnidadeEscolarAno({
-        unidade_escolar_id: escolaParaGerarId,
-        ano_letivo: anoLetivo,
-        qtd_alunos: formAlunos,
-        qtd_turmas: formTurmas,
-        periodos: formPeriodos,
-        turmas_por_etapa: Object.keys(formTurmasPorEtapa).length > 0 ? formTurmasPorEtapa : null,
-      })
-
-      toast({
-        title: 'Dados da escola atualizados',
-        description: 'Dados salvos com sucesso. Recalculando prévia...',
-      })
-
-      await carregarPrevia(escolaParaGerarId)
-    } catch (err: any) {
-      console.error(err)
-      toast({
-        title: 'Erro ao salvar dados da escola',
-        description: err.message || 'Falha ao gravar no banco.',
-        variant: 'destructive',
-      })
     }
   }
 
@@ -425,7 +340,6 @@ export const VagasPage: React.FC = () => {
     setVagaEmEdicao(v)
     setEditOcupante(v.nome_ocupante || '')
     setEditCargoId(v.cargo_id || '')
-    setEditCondicaoEspecial(v.condicao_especial || 'NENHUMA')
     setEditObservacao(v.observacao || '')
     setModalEditarAberto(true)
   }
@@ -450,28 +364,12 @@ export const VagasPage: React.FC = () => {
   const handleSalvarEdicaoVaga = async () => {
     if (!vagaEmEdicao) return
 
-    // Se a condição for READAPTADO_COMPATIVEL_LAUDO ou AUTORIZACAO_SEMED, exigir observação
-    if (
-      (editCondicaoEspecial === 'READAPTADO_COMPATIVEL_LAUDO' ||
-        editCondicaoEspecial === 'AUTORIZACAO_SEMED') &&
-      (!editObservacao || !editObservacao.trim())
-    ) {
-      toast({
-        title: 'Observação obrigatória',
-        description:
-          'Para a condição especial informada (Readaptado ou Autorização SEMED), é obrigatório registrar a observação/número do laudo.',
-        variant: 'destructive',
-      })
-      return
-    }
-
     setSalvandoEdicao(true)
     try {
       await editarVaga({
         vagaId: vagaEmEdicao.id,
         nomeOcupante: editOcupante,
         cargoId: editCargoId || null,
-        condicaoEspecial: editCondicaoEspecial,
         observacao: editObservacao,
       })
 

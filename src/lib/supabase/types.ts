@@ -760,8 +760,75 @@ export type Database = {
           },
         ]
       }
+      unidade_escolar_ano: {
+        Row: {
+          ano_letivo: number
+          codigo: string | null
+          configuracao_rh_id: string | null
+          created_at: string
+          data_ultima_geracao: string | null
+          id: string
+          nivel_calculado: string | null
+          observacao: string | null
+          periodos: Json
+          qtd_alunos: number
+          qtd_turmas: number
+          turmas_por_etapa: Json | null
+          unidade_escolar_id: string
+          updated_at: string
+        }
+        Insert: {
+          ano_letivo: number
+          codigo?: string | null
+          configuracao_rh_id?: string | null
+          created_at?: string
+          data_ultima_geracao?: string | null
+          id?: string
+          nivel_calculado?: string | null
+          observacao?: string | null
+          periodos?: Json
+          qtd_alunos?: number
+          qtd_turmas?: number
+          turmas_por_etapa?: Json | null
+          unidade_escolar_id: string
+          updated_at?: string
+        }
+        Update: {
+          ano_letivo?: number
+          codigo?: string | null
+          configuracao_rh_id?: string | null
+          created_at?: string
+          data_ultima_geracao?: string | null
+          id?: string
+          nivel_calculado?: string | null
+          observacao?: string | null
+          periodos?: Json
+          qtd_alunos?: number
+          qtd_turmas?: number
+          turmas_por_etapa?: Json | null
+          unidade_escolar_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'unidade_escolar_ano_configuracao_rh_id_fkey'
+            columns: ['configuracao_rh_id']
+            isOneToOne: false
+            referencedRelation: 'configuracao_rh'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'unidade_escolar_ano_unidade_escolar_id_fkey'
+            columns: ['unidade_escolar_id']
+            isOneToOne: false
+            referencedRelation: 'unidades_escolares'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       unidades_escolares: {
         Row: {
+          ativo: boolean
           bairro: string | null
           cep: string | null
           cidade: string | null
@@ -780,6 +847,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ativo?: boolean
           bairro?: string | null
           cep?: string | null
           cidade?: string | null
@@ -798,6 +866,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ativo?: boolean
           bairro?: string | null
           cep?: string | null
           cidade?: string | null
@@ -852,6 +921,108 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      vaga: {
+        Row: {
+          ano_letivo: number
+          cargo_id: string | null
+          codigo: string | null
+          configuracao_rh_id: string
+          configuracao_rh_linha_id: string
+          created_at: string
+          dias_semana: number | null
+          funcao: string
+          id: string
+          modalidade: string
+          nome_ocupante: string | null
+          numero_sequencial: number
+          observacao: string | null
+          periodo: string | null
+          servidor_id: string | null
+          status: string
+          turma_id: string | null
+          unidade_escolar_id: string
+          updated_at: string
+        }
+        Insert: {
+          ano_letivo: number
+          cargo_id?: string | null
+          codigo?: string | null
+          configuracao_rh_id: string
+          configuracao_rh_linha_id: string
+          created_at?: string
+          dias_semana?: number | null
+          funcao: string
+          id?: string
+          modalidade?: string
+          nome_ocupante?: string | null
+          numero_sequencial: number
+          observacao?: string | null
+          periodo?: string | null
+          servidor_id?: string | null
+          status?: string
+          turma_id?: string | null
+          unidade_escolar_id: string
+          updated_at?: string
+        }
+        Update: {
+          ano_letivo?: number
+          cargo_id?: string | null
+          codigo?: string | null
+          configuracao_rh_id?: string
+          configuracao_rh_linha_id?: string
+          created_at?: string
+          dias_semana?: number | null
+          funcao?: string
+          id?: string
+          modalidade?: string
+          nome_ocupante?: string | null
+          numero_sequencial?: number
+          observacao?: string | null
+          periodo?: string | null
+          servidor_id?: string | null
+          status?: string
+          turma_id?: string | null
+          unidade_escolar_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'vaga_cargo_id_fkey'
+            columns: ['cargo_id']
+            isOneToOne: false
+            referencedRelation: 'cargos'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'vaga_configuracao_rh_id_fkey'
+            columns: ['configuracao_rh_id']
+            isOneToOne: false
+            referencedRelation: 'configuracao_rh'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'vaga_configuracao_rh_linha_id_fkey'
+            columns: ['configuracao_rh_linha_id']
+            isOneToOne: false
+            referencedRelation: 'configuracao_rh_linha'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'vaga_turma_id_fkey'
+            columns: ['turma_id']
+            isOneToOne: false
+            referencedRelation: 'turmas'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'vaga_unidade_escolar_id_fkey'
+            columns: ['unidade_escolar_id']
+            isOneToOne: false
+            referencedRelation: 'unidades_escolares'
+            referencedColumns: ['id']
+          },
+        ]
       }
     }
     Views: {

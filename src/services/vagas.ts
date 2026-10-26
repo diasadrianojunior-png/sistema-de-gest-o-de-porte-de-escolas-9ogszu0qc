@@ -8,7 +8,11 @@ import {
   UnidadeEscolarAno,
   VagaReal,
 } from '@/types/gestao-escolar'
-import { calcularVagasPorNivel, ResultadoCalculoVagas } from './configuracao-rh-calculo'
+import {
+  calcularVagasPorNivel,
+  ResultadoCalculoVagas,
+  normalizarChaveEtapa,
+} from './configuracao-rh-calculo'
 import { getConfiguracaoRhCompleta } from './configuracao-rh'
 import { registrarAuditoria } from './auditoria'
 
@@ -364,21 +368,90 @@ export async function calcularPreviaGeracao(
   }
   const escola = escolaData as UnidadeEscolar
 
-  // 2. Carregar unidade_escolar_ano
+  // 2. Carregar turmas cadastradas para a unidade e ano letivo (com etapa)
+  const { data: turmasCadastradas, error: errTurmas } = await db
+    .from('turmas')
+    .select('id, nome, etapa_id, etapa:etapas(id, codigo, nome)')
+    .eq('unidade_escolar_id', unidadeEscolarId)
+    .eq('ano_letivo', anoLetivo)
+
+  if (errTurmas) {
+    console.error('Erro ao consultar turmas da unidade:', errTurmas)
+  }
+
+  const turmasList = (turmasCadastradas as any[]) || []
+  const contagemTurmasCadastradas = turmasList.length
+
+  // Montar turmas_por_etapa a partir das turmas vinculadas e suas etapas
+  const contagemPorEtapaCalculada: Record<string, number> = {}
+  for (const t of turmasList) {
+    const nomeEtapa = t.etapa?.nome || 'OUTRAS'
+    const chaveEtapa = normalizarChaveEtapa(nomeEtapa) || 'OUTRAS'
+    contagemPorEtapaCalculada[chaveEtapa] = (contagemPorEtapaCalculada[chaveEtapa] || 0) + 1
+  }
+
+  // 3. Carregar unidade_escolar_ano existente
   let unidadeAno = await getUnidadeEscolarAno(unidadeEscolarId, anoLetivo)
-  if (!unidadeAno) {
-    // Criar com valores padrão se ainda não existir
-    const defaultPeriodos: PeriodoEscola[] = escola.tipo_atendimento.includes('40h')
-      ? ['INTEGRAL']
-      : ['MANHA', 'TARDE']
-    unidadeAno = {
-      id: '',
-      unidade_escolar_id: unidadeEscolarId,
-      ano_letivo: anoLetivo,
-      qtd_alunos: 0,
-      qtd_turmas: 0,
-      periodos: defaultPeriodos,
-      turmas_por_etapa: null,
+
+  // Períodos padrão definidos pelo tipo de atendimento
+  const defaultPeriodos: PeriodoEscola[] = escola.tipo_atendimento.includes('40h')
+    ? ['INTEGRAL']
+    : ['MANHA', 'TARDE']
+
+  // Quantidade de alunos derivada:
+  // Usa o valor já registrado em unidade_escolar_ano (se > 0) ou deriva da escola/nível
+  const alunosDerivados =
+    unidadeAno && unidadeAno.qtd_alunos > 0
+      ? unidadeAno.qtd_alunos
+      : escola.quantidade_alunos && escola.quantidade_alunos > 0
+        ? escola.quantidade_alunos
+        : 0
+
+  // Quantidade de turmas derivada:
+  // Usa a contagem real de turmas cadastradas para a unidade/ano letivo
+  // Se não houver turmas na tabela 'turmas' mas houver no seed de unidade_escolar_ano, mantém fallback para compatibilidade
+  const turmasDerivadas =
+    contagemTurmasCadastradas > 0 ? contagemTurmasCadastradas : unidadeAno?.qtd_turmas || 0
+
+  // Se a contagem real de turmas por etapa gerou valores, use-a; senão use a existente no banco
+  const turmasPorEtapaDerivada =
+    Object.keys(contagemPorEtapaCalculada).length > 0
+      ? contagemPorEtapaCalculada
+      : unidadeAno?.turmas_por_etapa || null
+
+  const periodosDerivados =
+    unidadeAno?.periodos && unidadeAno.periodos.length > 0
+      ? (unidadeAno.periodos as PeriodoEscola[])
+      : defaultPeriodos
+
+  // Se o registro não existia ou se houve sincronização automática, salvar/atualizar
+  if (
+    !unidadeAno ||
+    unidadeAno.qtd_turmas !== turmasDerivadas ||
+    (!unidadeAno.qtd_alunos && alunosDerivados > 0)
+  ) {
+    try {
+      unidadeAno = await salvarUnidadeEscolarAno({
+        unidade_escolar_id: unidadeEscolarId,
+        ano_letivo: anoLetivo,
+        qtd_alunos: alunosDerivados,
+        qtd_turmas: turmasDerivadas,
+        periodos: periodosDerivados,
+        turmas_por_etapa: turmasPorEtapaDerivada,
+      })
+    } catch (e) {
+      console.warn('Não foi possível sincronizar unidade_escolar_ano automaticamente:', e)
+      if (!unidadeAno) {
+        unidadeAno = {
+          id: '',
+          unidade_escolar_id: unidadeEscolarId,
+          ano_letivo: anoLetivo,
+          qtd_alunos: alunosDerivados,
+          qtd_turmas: turmasDerivadas,
+          periodos: periodosDerivados,
+          turmas_por_etapa: turmasPorEtapaDerivada,
+        }
+      }
     }
   }
 
@@ -394,10 +467,13 @@ export async function calcularPreviaGeracao(
   const resolucao = await resolverConfiguracaoParaEscola(escola.tipo_atendimento, anoLetivo)
   const config = resolucao.configuracao
 
-  // 4. Validar dados obrigatórios (Passo 1 do usuário)
-  // "Se faltar qtd_alunos, qtd_turmas ou períodos, abrir o formulário para preencher antes.
-  // Se a configuração tiver linha POR_TURMA_ETAPA e turmas_por_etapa estiver vazio, pedir o preenchimento. Não chutar valor."
-  const periodos = (unidadeAno.periodos || []) as PeriodoEscola[]
+  // 4. Validação de dados essenciais (Etapa 2 ajustada conforme solicitação do usuário)
+  // "Se ainda assim faltar dado essencial (ex.: unidade sem nenhum aluno cadastrado ou sem turmas vinculadas),
+  // mostre mensagem clara explicando o que falta e onde cadastrar (link/dica para o cadastro correspondente) — não abra o formulário embutido de alunos/turmas."
+  const periodos = (
+    unidadeAno.periodos && unidadeAno.periodos.length > 0 ? unidadeAno.periodos : defaultPeriodos
+  ) as PeriodoEscola[]
+
   if (unidadeAno.qtd_alunos <= 0) {
     return {
       escola,
@@ -424,11 +500,11 @@ export async function calcularPreviaGeracao(
       abertasRemover: [],
       ocupadasExcedentes: [],
       ocupadasMantidas: [],
-      resumoTexto: 'Preenchimento necessário',
+      resumoTexto: 'Alunos não cadastrados',
       bloqueadoPorFaltaDados: {
         campo: 'qtd_alunos',
         mensagem:
-          'A quantidade de alunos da unidade não foi informada ou está zerada. Preencha antes de gerar as vagas.',
+          'A unidade escolar não possui quantidade de alunos cadastrada para o ano letivo. Acesse o menu "Cadastros Mestres > Unidades Escolares" para atualizar o nível/porte de alunos da unidade.',
       },
     }
   }
@@ -459,51 +535,16 @@ export async function calcularPreviaGeracao(
       abertasRemover: [],
       ocupadasExcedentes: [],
       ocupadasMantidas: [],
-      resumoTexto: 'Preenchimento necessário',
+      resumoTexto: 'Turmas não vinculadas',
       bloqueadoPorFaltaDados: {
         campo: 'qtd_turmas',
         mensagem:
-          'A quantidade de turmas da unidade não foi informada ou está zerada. Preencha antes de gerar as vagas.',
+          'A unidade escolar não possui turmas vinculadas para o ano letivo. Acesse o menu "Cadastros de Apoio > Turmas" e cadastre as turmas desta unidade escolar.',
       },
     }
   }
 
-  if (!periodos || periodos.length === 0) {
-    return {
-      escola,
-      anoLetivo,
-      unidadeAno,
-      configuracaoUsada: config,
-      criterioConfiguracao: resolucao.criterio,
-      motivoConfiguracao: resolucao.motivoTexto,
-      resultadoCalculo: {
-        nivelEncontrado: null,
-        totalAlunos: unidadeAno.qtd_alunos,
-        totalPeriodos: 0,
-        totalTurmas: unidadeAno.qtd_turmas,
-        vagas: [],
-        passosMemoria: [],
-        avisos: [],
-      },
-      nivelEncontradoCodigo: '',
-      nivelFaixaDescricao: '',
-      vagasLinhas: [],
-      totalVagasCalculadas: 0,
-      vagasExistentes: [],
-      novasVagasCriar: [],
-      abertasRemover: [],
-      ocupadasExcedentes: [],
-      ocupadasMantidas: [],
-      resumoTexto: 'Preenchimento necessário',
-      bloqueadoPorFaltaDados: {
-        campo: 'periodos',
-        mensagem:
-          'Nenhum período de funcionamento selecionado para a unidade. Selecione ao menos um período (ex: Manhã, Tarde ou Integral).',
-      },
-    }
-  }
-
-  // Verificar se há linha POR_TURMA_ETAPA e se turmas_por_etapa está preenchido
+  // Verificar turmas por etapa (se houver linha POR_TURMA_ETAPA)
   const turmasPorEtapaMap = normalizarTurmasPorEtapaDicionario(unidadeAno.turmas_por_etapa)
   const temLinhaPorTurmaEtapa = (config.linhas || []).some(
     (l) => l.base_calculo === 'POR_TURMA_ETAPA',
@@ -513,6 +554,7 @@ export async function calcularPreviaGeracao(
     0,
   )
 
+  // Se tem linha por turma etapa e não há turmas com etapa correspondente
   if (temLinhaPorTurmaEtapa && totalTurmasEtapaInformadas <= 0) {
     return {
       escola,
@@ -539,11 +581,11 @@ export async function calcularPreviaGeracao(
       abertasRemover: [],
       ocupadasExcedentes: [],
       ocupadasMantidas: [],
-      resumoTexto: 'Preenchimento de turmas por etapa obrigatório',
+      resumoTexto: 'Turmas sem etapa vinculada',
       bloqueadoPorFaltaDados: {
         campo: 'turmas_por_etapa',
         mensagem:
-          'A configuração aplicada possui cálculo por turma de etapa (ex: Suporte Pedagógico de Sala), mas a distribuição de turmas por etapa da unidade está vazia. Preencha a quantidade de turmas de cada etapa antes de continuar.',
+          'A configuração de RH requer cálculo por etapa, mas as turmas vinculadas à unidade não possuem a etapa correspondente informada. Acesse "Cadastros de Apoio > Turmas" e vincule as etapas adequadas.',
       },
     }
   }
@@ -1026,13 +1068,12 @@ export interface EditarVagaInput {
   vagaId: string
   nomeOcupante?: string | null
   cargoId?: string | null
-  condicaoEspecial?: 'NENHUMA' | 'READAPTADO_COMPATIVEL_LAUDO' | 'AUTORIZACAO_SEMED' | null
   observacao?: string | null
   turmaId?: string | null
 }
 
 export async function editarVaga(input: EditarVagaInput): Promise<VagaReal> {
-  const { vagaId, nomeOcupante, cargoId, condicaoEspecial, observacao, turmaId } = input
+  const { vagaId, nomeOcupante, cargoId, observacao, turmaId } = input
 
   // Buscar vaga atual para auditoria
   const { data: anteriorData } = await db
@@ -1053,7 +1094,6 @@ export async function editarVaga(input: EditarVagaInput): Promise<VagaReal> {
   const payload: any = {
     nome_ocupante: temOcupante ? nomeOcupante!.trim() : null,
     cargo_id: cargoId || null,
-    condicao_especial: condicaoEspecial || 'NENHUMA',
     observacao: observacao || null,
     turma_id: turmaId || null,
     status: novoStatus,
@@ -1091,7 +1131,6 @@ export async function editarVaga(input: EditarVagaInput): Promise<VagaReal> {
         ocupante: atualizada.nome_ocupante,
         cargo_id: atualizada.cargo_id,
         status: atualizada.status,
-        condicao_especial: atualizada.condicao_especial,
       },
     },
   })
@@ -1114,7 +1153,6 @@ export async function liberarVaga(vagaId: string): Promise<VagaReal> {
   const payload = {
     nome_ocupante: null,
     cargo_id: null,
-    condicao_especial: 'NENHUMA',
     status: 'ABERTA' as StatusVagaReal,
     updated_at: new Date().toISOString(),
   }

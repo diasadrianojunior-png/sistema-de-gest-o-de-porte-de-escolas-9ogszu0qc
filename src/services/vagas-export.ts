@@ -18,7 +18,6 @@ export function exportarVagasExcel(vagas: VagaReal[], nomeArquivo = 'cadastro-va
     'Cargo',
     'Ocupante',
     'Status',
-    'Condição Especial',
     'Observação',
   ]
 
@@ -40,7 +39,6 @@ export function exportarVagasExcel(vagas: VagaReal[], nomeArquivo = 'cadastro-va
       `"${(v.cargo?.nome || '').replace(/"/g, '""')}"`,
       `"${(v.nome_ocupante || '').replace(/"/g, '""')}"`,
       v.status,
-      v.condicao_especial || 'NENHUMA',
       `"${(v.observacao || '').replace(/"/g, '""')}"`,
     ].join(';')
   })
