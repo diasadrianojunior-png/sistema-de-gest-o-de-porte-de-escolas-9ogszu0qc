@@ -379,17 +379,19 @@ export default function CadastrosMestres() {
         cidade: formData.endereco.cidade ? formData.endereco.cidade.trim() : 'Cambé',
         latitude: formData.endereco.latitude,
         longitude: formData.endereco.longitude,
-        ...(qtdAlunosNum !== null ? { quantidade_alunos: qtdAlunosNum } : {}),
+        ...(qtdAlunosNum !== null
+          ? { quantidade_alunos: qtdAlunosNum }
+          : { quantidade_alunos: null }),
       }
 
       if (editingUnidade) {
-        await updateUnidadeEscolar(editingUnidade.id, payload)
+        await updateUnidadeEscolar(editingUnidade.id, payload, 2026)
         toast({
           title: 'Unidade escolar atualizada',
           description: 'Os dados foram salvos com sucesso!',
         })
       } else {
-        await createUnidadeEscolar(payload)
+        await createUnidadeEscolar(payload, 2026)
         toast({
           title: 'Unidade escolar cadastrada',
           description: 'Nova unidade escolar inserida com identificador automático.',

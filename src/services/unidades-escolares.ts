@@ -4,23 +4,50 @@ import { registrarAuditoria } from './auditoria'
 
 const db = supabase as any
 
-export const getUnidadesEscolares = async (): Promise<UnidadeEscolar[]> => {
+export const getUnidadesEscolares = async (
+  anoLetivoReferencia?: number,
+): Promise<UnidadeEscolar[]> => {
+  const ano = anoLetivoReferencia || 2026
+
   const { data, error } = await db
     .from('unidades_escolares')
-    .select('*')
+    .select('*, unidade_escolar_ano(ano_letivo, qtd_alunos)')
     .order('codigo', { ascending: true })
 
   if (error) {
     console.error('Erro ao buscar unidades escolares:', error)
     throw error
   }
-  return (data as UnidadeEscolar[]) || []
+
+  // Mapeia quantidade_alunos a partir do registro do ano letivo de referência (ou mais recente)
+  const formatados: UnidadeEscolar[] = ((data as any[]) || []).map((item) => {
+    const anos: any[] = Array.isArray(item.unidade_escolar_ano) ? item.unidade_escolar_ano : []
+    const registroAno = anos.find((a) => a.ano_letivo === ano) || anos[0]
+    const { unidade_escolar_ano: _, ...resto } = item
+    return {
+      ...resto,
+      quantidade_alunos:
+        registroAno && registroAno.qtd_alunos !== null && registroAno.qtd_alunos !== undefined
+          ? registroAno.qtd_alunos
+          : null,
+    } as UnidadeEscolar
+  })
+
+  return formatados
 }
 
 export const createUnidadeEscolar = async (
   unidade: Omit<UnidadeEscolar, 'id' | 'created_at' | 'updated_at'>,
+  anoLetivoReferencia: number = 2026,
 ): Promise<UnidadeEscolar> => {
-  const { data, error } = await db.from('unidades_escolares').insert([unidade]).select('*').single()
+  // Separar quantidade_alunos do payload de unidades_escolares (pois pertence a unidade_escolar_ano)
+  const { quantidade_alunos, ...payloadUnidade } = unidade as any
+
+  const { data, error } = await db
+    .from('unidades_escolares')
+    .insert([payloadUnidade])
+    .select('*')
+    .single()
 
   if (error) {
     console.error('Erro ao cadastrar unidade escolar:', error)
@@ -29,25 +56,55 @@ export const createUnidadeEscolar = async (
 
   const created = data as UnidadeEscolar
 
+  // Se foi informada quantidade de alunos ou se deve inicializar o registro anual
+  if (quantidade_alunos !== undefined && quantidade_alunos !== null) {
+    try {
+      const defaultPeriodos = created.tipo_atendimento.includes('40h')
+        ? ['INTEGRAL']
+        : ['MANHA', 'TARDE']
+
+      await db.from('unidade_escolar_ano').upsert(
+        {
+          unidade_escolar_id: created.id,
+          ano_letivo: anoLetivoReferencia,
+          qtd_alunos: Number(quantidade_alunos) || 0,
+          qtd_turmas: 0,
+          periodos: defaultPeriodos,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'unidade_escolar_id,ano_letivo' },
+      )
+    } catch (e) {
+      console.warn('Aviso: Falha ao sincronizar quantidade_alunos na unidade_escolar_ano:', e)
+    }
+  }
+
   // Registrar auditoria
   await registrarAuditoria({
     entidade: 'Unidades escolares',
     acao: 'Criação',
     registro_codigo: created.codigo || null,
     descricao: `Cadastro da unidade escolar "${created.nome}" (${created.tipo_atendimento}, ${created.nivel_porte}).`,
-    detalhes: { unidade: created },
+    detalhes: { unidade: created, quantidade_alunos },
   })
 
-  return created
+  return {
+    ...created,
+    quantidade_alunos: quantidade_alunos ?? null,
+  }
 }
 
 export const updateUnidadeEscolar = async (
   id: string,
   unidade: Partial<Omit<UnidadeEscolar, 'id' | 'created_at' | 'updated_at'>>,
+  anoLetivoReferencia: number = 2026,
 ): Promise<UnidadeEscolar> => {
+  // Separar quantidade_alunos do payload de unidades_escolares (pois pertence a unidade_escolar_ano)
+  const { quantidade_alunos, ...payloadUnidade } = unidade as any
+
   const { data, error } = await db
     .from('unidades_escolares')
-    .update({ ...unidade, updated_at: new Date().toISOString() })
+    .update({ ...payloadUnidade, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select('*')
     .single()
@@ -59,6 +116,38 @@ export const updateUnidadeEscolar = async (
 
   const updated = data as UnidadeEscolar
 
+  // Se quantidade_alunos foi fornecida, grava via upsert na tabela unidade_escolar_ano
+  if (quantidade_alunos !== undefined && quantidade_alunos !== null) {
+    try {
+      // Busca registro existente de unidade_escolar_ano para preservar qtd_turmas e períodos se já existirem
+      const { data: ueaExistente } = await db
+        .from('unidade_escolar_ano')
+        .select('*')
+        .eq('unidade_escolar_id', id)
+        .eq('ano_letivo', anoLetivoReferencia)
+        .maybeSingle()
+
+      const defaultPeriodos = updated.tipo_atendimento.includes('40h')
+        ? ['INTEGRAL']
+        : ['MANHA', 'TARDE']
+
+      await db.from('unidade_escolar_ano').upsert(
+        {
+          unidade_escolar_id: id,
+          ano_letivo: anoLetivoReferencia,
+          qtd_alunos: Number(quantidade_alunos) || 0,
+          qtd_turmas: ueaExistente?.qtd_turmas ?? 0,
+          periodos: ueaExistente?.periodos ?? defaultPeriodos,
+          turmas_por_etapa: ueaExistente?.turmas_por_etapa ?? null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'unidade_escolar_id,ano_letivo' },
+      )
+    } catch (e) {
+      console.warn('Aviso: Falha ao atualizar quantidade_alunos na unidade_escolar_ano:', e)
+    }
+  }
+
   // Registrar auditoria
   await registrarAuditoria({
     entidade: 'Unidades escolares',
@@ -68,7 +157,11 @@ export const updateUnidadeEscolar = async (
     detalhes: { id, alteracoes: unidade },
   })
 
-  return updated
+  return {
+    ...updated,
+    quantidade_alunos:
+      quantidade_alunos !== undefined ? quantidade_alunos : updated.quantidade_alunos,
+  }
 }
 
 export const deleteUnidadeEscolar = async (id: string): Promise<void> => {
