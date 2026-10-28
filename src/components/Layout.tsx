@@ -24,6 +24,7 @@ import {
   Mail,
   Users,
   SlidersHorizontal,
+  UserCheck,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -74,6 +75,7 @@ export default function Layout() {
   const isPainelActive = location.pathname === '/painel'
   const isUnidadesActive = location.pathname === '/cadastros-mestres'
   const isTurmasActive = location.pathname === '/cadastros-mestres/turmas'
+  const isProfissionaisActive = location.pathname === '/cadastros-mestres/profissionais'
   const isMestresActive = location.pathname.startsWith('/cadastros-mestres')
   const isCargosActive = location.pathname === '/cadastros-apoio/cargos'
   const isFuncoesActive = location.pathname === '/cadastros-apoio/funcoes'
@@ -93,6 +95,7 @@ export default function Layout() {
   const canViewPainel = canView('painel')
   const canViewUnidades = canView('unidades_escolares')
   const canViewTurmas = canView('turmas')
+  const canViewProfissionais = canView('profissionais')
   const canViewCargos = canView('cargos')
   const canViewFuncoes = canView('funcoes')
   const canViewEtapas = canView('etapas')
@@ -105,7 +108,7 @@ export default function Layout() {
   const canViewAuditoria = canView('auditoria')
 
   // Seções agrupadas têm visibilidade se pelo menos um submenu puder ser visto
-  const showCadastrosMestres = canViewUnidades || canViewTurmas
+  const showCadastrosMestres = canViewUnidades || canViewTurmas || canViewProfissionais
   const showCadastrosApoio =
     canViewCargos ||
     canViewFuncoes ||
@@ -321,6 +324,22 @@ export default function Layout() {
                               <span>Turmas</span>
                             </NavLink>
                           )}
+                          {canViewProfissionais && (
+                            <NavLink
+                              to="/cadastros-mestres/profissionais"
+                              onClick={() => setMestresPopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                isProfissionaisActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <UserCheck
+                                className={`w-4 h-4 shrink-0 ${isProfissionaisActive ? 'text-white' : 'text-slate-500'}`}
+                              />
+                              <span>Profissionais</span>
+                            </NavLink>
+                          )}
                         </div>
                       </PopoverContent>
                     </Popover>
@@ -386,6 +405,23 @@ export default function Layout() {
                                 className={`w-3.5 h-3.5 shrink-0 ${isTurmasActive ? 'text-white' : 'text-slate-400'}`}
                               />
                               <span className="truncate">Turmas</span>
+                            </NavLink>
+                          )}
+                          {canViewProfissionais && (
+                            <NavLink
+                              to="/cadastros-mestres/profissionais"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Profissionais"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isProfissionaisActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <UserCheck
+                                className={`w-3.5 h-3.5 shrink-0 ${isProfissionaisActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Profissionais</span>
                             </NavLink>
                           )}
                         </div>
@@ -1056,7 +1092,11 @@ export default function Layout() {
                   <span className="text-slate-600">Cadastros Mestres</span>
                   <span className="mx-2 text-slate-300">/</span>
                   <span className="text-blue-700 font-semibold">
-                    {isTurmasActive ? 'Turmas' : 'Unidades escolares'}
+                    {isProfissionaisActive
+                      ? 'Profissionais'
+                      : isTurmasActive
+                        ? 'Turmas'
+                        : 'Unidades escolares'}
                   </span>
                 </>
               )}

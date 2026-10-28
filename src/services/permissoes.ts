@@ -48,6 +48,14 @@ export const MENUS_SISTEMA_PADRAO: Array<{
     categoria: 'Cadastros Mestres',
   },
   {
+    key: 'profissionais',
+    label: 'Profissionais',
+    path: '/cadastros-mestres/profissionais',
+    suporta_edicao: true,
+    ordem: 4,
+    categoria: 'Cadastros Mestres',
+  },
+  {
     key: 'cargos',
     label: 'Cargos',
     path: '/cadastros-apoio/cargos',
@@ -149,6 +157,14 @@ export const getPermissoesPadraoOperador = (): PermissaoItemForm[] => {
       pode_editar: true,
       suporta_edicao: true,
       ordem: 3,
+    },
+    {
+      menu_key: 'profissionais',
+      menu_label: 'Profissionais',
+      pode_ver: true,
+      pode_editar: true,
+      suporta_edicao: true,
+      ordem: 4,
     },
     {
       menu_key: 'cargos',

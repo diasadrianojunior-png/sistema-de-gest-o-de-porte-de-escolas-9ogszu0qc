@@ -15,6 +15,7 @@ import ConfigRhNivelPage from './pages/ConfigRhNivel'
 import VagasPage from './pages/Vagas'
 import CadastrosMestres from './pages/CadastrosMestres'
 import Turmas from './pages/Turmas'
+import Profissionais from './pages/Profissionais'
 import Administracao from './pages/Administracao'
 import ContasEmail from './pages/ContasEmail'
 import Auditoria from './pages/Auditoria'
@@ -56,6 +57,14 @@ const App = () => (
               element={
                 <RouteGuard menuKey="turmas">
                   <Turmas />
+                </RouteGuard>
+              }
+            />
+            <Route
+              path="/cadastros-mestres/profissionais"
+              element={
+                <RouteGuard menuKey="profissionais">
+                  <Profissionais />
                 </RouteGuard>
               }
             />

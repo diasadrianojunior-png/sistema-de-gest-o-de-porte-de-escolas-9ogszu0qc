@@ -295,6 +295,7 @@ export type SistemaMenuKey =
   | 'painel'
   | 'unidades_escolares'
   | 'turmas'
+  | 'profissionais'
   | 'cargos'
   | 'funcoes'
   | 'etapas'
@@ -544,4 +545,34 @@ export interface VagaReal {
   turma?: Turma | null
   configuracao_rh?: ConfiguracaoRh | null
   configuracao_rh_linha?: ConfiguracaoRhLinha | null
+}
+
+// ==========================================
+// CADASTRO DE PROFISSIONAIS
+// ==========================================
+
+export interface ProfissionalVaga {
+  id: string
+  profissional_id: string
+  vaga_id: string
+  titular: boolean
+  cargo_id?: string | null
+  created_at?: string
+  updated_at?: string
+  // Relações expandidas
+  vaga?: VagaReal | null
+  cargo?: Cargo | null
+}
+
+export interface Profissional {
+  id: string
+  codigo?: string // PRO-0001
+  nome: string
+  unidade_escolar_id: string
+  ativo: boolean
+  created_at?: string
+  updated_at?: string
+  // Relações expandidas
+  unidade_escolar?: UnidadeEscolar | null
+  vagas_vinculadas?: ProfissionalVaga[]
 }
