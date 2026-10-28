@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 import {
@@ -8,6 +9,7 @@ import {
   Cargo,
   PeriodoEscola,
 } from '@/types/gestao-escolar'
+import { UnidadeVagasDrilldown } from '@/components/UnidadeVagasDrilldown'
 import {
   listarVagasCompletas,
   editarVaga,
@@ -81,7 +83,12 @@ const ANOS_DISPONIVEIS = [2024, 2025, 2026, 2027, 2028]
 export const VagasPage: React.FC = () => {
   const { user, canEdit } = useAuth()
   const { toast } = useToast()
+  const navigate = useNavigate()
+  const { unidadeId: rotaUnidadeId } = useParams<{ unidadeId?: string }>()
   const podeEditar = canEdit('vagas')
+
+  // Unidade ativa em drill-down (pela rota ou por clique local)
+  const [unidadeDrilldownId, setUnidadeDrilldownId] = useState<string | null>(rotaUnidadeId || null)
 
   // Filtros principais
   const [anoLetivo, setAnoLetivo] = useState<number>(2026)
@@ -117,6 +124,13 @@ export const VagasPage: React.FC = () => {
   const [editCargoId, setEditCargoId] = useState<string>('')
   const [editObservacao, setEditObservacao] = useState<string>('')
   const [salvandoEdicao, setSalvandoEdicao] = useState<boolean>(false)
+
+  // Sincronizar rota com unidade em drill-down se o parâmetro mudar
+  useEffect(() => {
+    if (rotaUnidadeId) {
+      setUnidadeDrilldownId(rotaUnidadeId)
+    }
+  }, [rotaUnidadeId])
 
   // Carregar dados iniciais
   const recarregarDados = async () => {
@@ -197,7 +211,15 @@ export const VagasPage: React.FC = () => {
     // Agrupamento por escola
     const porEscola = new Map<
       string,
-      { nome: string; total: number; ocupadas: number; abertas: number; excedentes: number }
+      {
+        id: string
+        nome: string
+        codigo?: string
+        total: number
+        ocupadas: number
+        abertas: number
+        excedentes: number
+      }
     >()
     // Agrupamento por função
     const porFuncao = new Map<
@@ -208,8 +230,17 @@ export const VagasPage: React.FC = () => {
     for (const v of vagas) {
       const escId = v.unidade_escolar_id
       const escNome = v.unidade_escolar?.nome || 'Não identificada'
+      const escCodigo = v.unidade_escolar?.codigo
       if (!porEscola.has(escId)) {
-        porEscola.set(escId, { nome: escNome, total: 0, ocupadas: 0, abertas: 0, excedentes: 0 })
+        porEscola.set(escId, {
+          id: escId,
+          nome: escNome,
+          codigo: escCodigo,
+          total: 0,
+          ocupadas: 0,
+          abertas: 0,
+          excedentes: 0,
+        })
       }
       const eObj = porEscola.get(escId)!
       eObj.total++
@@ -237,6 +268,24 @@ export const VagasPage: React.FC = () => {
       porFuncao: Array.from(porFuncao.entries()).map(([funcao, stats]) => ({ funcao, ...stats })),
     }
   }, [vagas])
+
+  // Abrir drilldown da unidade
+  const handleAbrirDrilldown = (unidadeId: string) => {
+    setUnidadeDrilldownId(unidadeId)
+    navigate(`/cadastros-apoio/vagas/unidade/${unidadeId}`)
+  }
+
+  // Voltar do drilldown para a listagem principal
+  const handleVoltarDrilldown = () => {
+    setUnidadeDrilldownId(null)
+    navigate('/cadastros-apoio/vagas')
+  }
+
+  // Unidade atualmente inspecionada no drilldown (se houver)
+  const unidadeEmDrilldown = useMemo(() => {
+    if (!unidadeDrilldownId) return null
+    return escolas.find((e) => e.id === unidadeDrilldownId) || null
+  }, [unidadeDrilldownId, escolas])
 
   // Abrir modal de geração
   const handleAbrirGeracao = async (escolaId?: string) => {
@@ -421,6 +470,20 @@ export const VagasPage: React.FC = () => {
     }
   }
 
+  // Se estiver em modo drilldown para uma unidade específica, renderiza a visão da unidade
+  if (unidadeEmDrilldown) {
+    return (
+      <UnidadeVagasDrilldown
+        unidade={unidadeEmDrilldown}
+        anoLetivo={anoLetivo}
+        onVoltar={handleVoltarDrilldown}
+        onMudarAno={(novoAno) => setAnoLetivo(novoAno)}
+        cargosGerais={cargosGerais}
+        onVagasAlteradas={recarregarDados}
+      />
+    )
+  }
+
   return (
     <div className="space-y-6 pb-12">
       {/* Cabeçalho da Página */}
@@ -493,6 +556,71 @@ export const VagasPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Painel com Acesso Direto às Unidades Escolares com Vagas Geradas */}
+      {resumoTotal.porEscola.length > 0 && (
+        <Card className="bg-white border-slate-200 shadow-xs">
+          <CardHeader className="p-4 pb-2 border-b border-slate-100 flex flex-row items-center justify-between">
+            <CardTitle className="text-xs font-semibold flex items-center gap-2 text-slate-800">
+              <Building2 className="w-4 h-4 text-blue-600" />
+              Unidades Escolares Dimensionadas ({resumoTotal.porEscola.length} unidades)
+            </CardTitle>
+            <span className="text-[11px] text-slate-400">
+              Clique em uma unidade para navegar e visualizar todas as vagas dela
+            </span>
+          </CardHeader>
+          <CardContent className="p-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {resumoTotal.porEscola.map((esc) => (
+                <div
+                  key={esc.id}
+                  onClick={() => handleAbrirDrilldown(esc.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      handleAbrirDrilldown(esc.id)
+                    }
+                  }}
+                  className="p-3 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-blue-50/60 hover:border-blue-300 transition-all cursor-pointer group flex items-center justify-between gap-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-slate-800 group-hover:text-blue-700 truncate flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span className="truncate">{esc.nome}</span>
+                    </p>
+                    <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
+                      <span>
+                        Total: <strong className="text-slate-700">{esc.total}</strong>
+                      </span>
+                      <span>•</span>
+                      <span className="text-emerald-700">
+                        Ocupadas: <strong>{esc.ocupadas}</strong>
+                      </span>
+                      <span>•</span>
+                      <span className="text-blue-700">
+                        Abertas: <strong>{esc.abertas}</strong>
+                      </span>
+                      {esc.excedentes > 0 && (
+                        <>
+                          <span>•</span>
+                          <span className="text-amber-700">
+                            Exced.: <strong>{esc.excedentes}</strong>
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 flex items-center text-slate-400 group-hover:text-blue-600">
+                    <ArrowRight className="w-4 h-4 transform group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Resumo no topo (Regra 4) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -859,7 +987,19 @@ export const VagasPage: React.FC = () => {
                     </TableCell>
                     <TableCell className="font-medium text-slate-900">
                       <div>
-                        {v.unidade_escolar?.nome || '—'}
+                        {v.unidade_escolar ? (
+                          <button
+                            type="button"
+                            onClick={() => handleAbrirDrilldown(v.unidade_escolar_id)}
+                            title={`Ver todas as vagas de ${v.unidade_escolar.nome}`}
+                            className="text-left font-semibold text-blue-700 hover:text-blue-900 hover:underline flex items-center gap-1 group cursor-pointer"
+                          >
+                            <span>{v.unidade_escolar.nome}</span>
+                            <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 shrink-0" />
+                          </button>
+                        ) : (
+                          <span>—</span>
+                        )}
                         <span className="block text-[10px] text-slate-400">
                           {v.unidade_escolar?.tipo_atendimento.includes('40h') ? '40h' : '20h'}
                         </span>
@@ -986,7 +1126,25 @@ export const VagasPage: React.FC = () => {
           <div className="space-y-4 pt-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
               <div>
-                <Label className="text-xs font-semibold text-slate-700">Unidade Escolar Alvo</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-slate-700">
+                    Unidade Escolar Alvo
+                  </Label>
+                  {escolaParaGerarId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModalGerarAberto(false)
+                        handleAbrirDrilldown(escolaParaGerarId)
+                      }}
+                      className="text-[11px] text-blue-600 hover:text-blue-800 font-medium hover:underline flex items-center gap-1"
+                      title="Abrir visão da unidade escolar"
+                    >
+                      <Building2 className="w-3 h-3" />
+                      Visualizar vagas desta unidade
+                    </button>
+                  )}
+                </div>
                 <Select
                   value={escolaParaGerarId}
                   onValueChange={(id) => {

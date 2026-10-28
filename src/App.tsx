@@ -119,6 +119,14 @@ const App = () => (
                 </RouteGuard>
               }
             />
+            <Route
+              path="/cadastros-apoio/vagas/unidade/:unidadeId"
+              element={
+                <RouteGuard menuKey="vagas">
+                  <VagasPage />
+                </RouteGuard>
+              }
+            />
             {/* Submenus da Administração do Sistema */}
             <Route
               path="/administracao/usuarios"
