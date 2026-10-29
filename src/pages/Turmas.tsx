@@ -42,6 +42,9 @@ import {
   BookOpen,
   Info,
   AlertTriangle,
+  HelpCircle,
+  CheckCircle2,
+  School,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
@@ -82,6 +85,9 @@ export default function Turmas() {
 
   // Modal de Exclusão de Turma
   const [deletingTurma, setDeletingTurma] = useState<Turma | null>(null)
+
+  // Modal de Ajuda e Regras
+  const [openHelpDialog, setOpenHelpDialog] = useState(false)
 
   // Modais de Criação Rápida Inline (+Novo)
   const [openNovaEtapaModal, setOpenNovaEtapaModal] = useState(false)
@@ -492,15 +498,26 @@ export default function Turmas() {
               Total de {turmas.length} turma(s) cadastrada(s) no sistema
             </CardDescription>
           </div>
-          {canEditTurmas && (
+          <div className="flex items-center gap-2">
             <Button
-              onClick={handleOpenCreate}
-              className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+              type="button"
+              variant="outline"
+              onClick={() => setOpenHelpDialog(true)}
+              className="gap-1.5 text-slate-700 border-slate-300 hover:bg-slate-50"
             >
-              <Plus className="w-4 h-4" />
-              Nova Turma
+              <HelpCircle className="w-4 h-4 text-blue-600" />
+              Ajuda e Regras
             </Button>
-          )}
+            {canEditTurmas && (
+              <Button
+                onClick={handleOpenCreate}
+                className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+              >
+                <Plus className="w-4 h-4" />
+                Nova Turma
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Barra de Filtros / Busca */}
@@ -731,7 +748,7 @@ export default function Turmas() {
           </DialogHeader>
 
           <form onSubmit={handleSaveTurma} className="space-y-4 py-2">
-            {/* Campo 1: Identificador (Automático / Informativo / Não editável) */}
+            {/* Identificador no topo: Automático / Informativo / Não editável */}
             <div className="space-y-1.5">
               <Label
                 htmlFor="t-codigo"
@@ -754,31 +771,13 @@ export default function Turmas() {
               </p>
             </div>
 
-            {/* Campo 2: Nome da Turma (Obrigatório) */}
-            <div className="space-y-1.5">
-              <Label
-                htmlFor="t-nome"
-                className="text-xs font-semibold uppercase tracking-wider text-slate-700"
-              >
-                Nome da Turma <span className="text-rose-500">*</span>
-              </Label>
-              <Input
-                id="t-nome"
-                value={formNome}
-                onChange={(e) => setFormNome(e.target.value)}
-                required
-                autoFocus
-                placeholder="Ex: 1º Ano A - Matutino"
-                className="text-sm"
-              />
-            </div>
-
-            {/* Campo: Unidade Escolar (Obrigatório para CRH / CARE) */}
-            <div className="space-y-1.5">
+            {/* 1) Unidade Escolar */}
+            <div className="space-y-1.5 border-t pt-3">
               <Label
                 htmlFor="t-unidade"
                 className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"
               >
+                <School className="w-3.5 h-3.5 text-blue-600" />
                 Unidade Escolar <span className="text-rose-500">*</span>
               </Label>
               <Select value={formUnidadeId} onValueChange={setFormUnidadeId}>
@@ -799,12 +798,13 @@ export default function Turmas() {
               </p>
             </div>
 
-            {/* Campo 3: Ano Letivo (Combobox 2020-2040) */}
-            <div className="space-y-1.5">
+            {/* 2) Ano Letivo */}
+            <div className="space-y-1.5 border-t pt-3">
               <Label
                 htmlFor="t-ano"
-                className="text-xs font-semibold uppercase tracking-wider text-slate-700"
+                className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"
               >
+                <Calendar className="w-3.5 h-3.5 text-blue-600" />
                 Ano Letivo <span className="text-rose-500">*</span>
               </Label>
               <Select value={String(formAnoLetivo)} onValueChange={handleAnoLetivoChange}>
@@ -825,7 +825,7 @@ export default function Turmas() {
               </p>
             </div>
 
-            {/* Campo 4: Etapa com botão "+ Novo" acima do atributo */}
+            {/* 3) Etapa */}
             <div className="space-y-1.5 border-t pt-3">
               <div className="flex items-center justify-between">
                 <Label
@@ -872,7 +872,7 @@ export default function Turmas() {
               )}
             </div>
 
-            {/* Campo 5: Ano/Série com botão "+ Novo" acima do atributo */}
+            {/* 4) Série (Ano/Série) */}
             <div className="space-y-1.5 border-t pt-3">
               <div className="flex items-center justify-between">
                 <Label
@@ -880,7 +880,7 @@ export default function Turmas() {
                   className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"
                 >
                   <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
-                  Ano/Série
+                  Série (Ano/Série)
                 </Label>
                 <Button
                   type="button"
@@ -920,6 +920,24 @@ export default function Turmas() {
               )}
             </div>
 
+            {/* 5) Nome da Turma */}
+            <div className="space-y-1.5 border-t pt-3">
+              <Label
+                htmlFor="t-nome"
+                className="text-xs font-semibold uppercase tracking-wider text-slate-700"
+              >
+                Nome da Turma <span className="text-rose-500">*</span>
+              </Label>
+              <Input
+                id="t-nome"
+                value={formNome}
+                onChange={(e) => setFormNome(e.target.value)}
+                required
+                placeholder="Ex: 1º Ano A - Matutino"
+                className="text-sm"
+              />
+            </div>
+
             <DialogFooter className="pt-3 border-t">
               <Button
                 type="button"
@@ -957,38 +975,21 @@ export default function Turmas() {
 
           {viewingTurma && (
             <div className="space-y-4 py-2 text-xs">
-              <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 border rounded-lg">
-                <div>
-                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold block">
-                    Identificador
-                  </span>
-                  <span className="font-mono font-bold text-sm text-blue-700 mt-0.5 block">
-                    {viewingTurma.codigo || 'TUR-0000'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold block">
-                    Ano Letivo
-                  </span>
-                  <span className="font-bold text-sm text-slate-900 mt-0.5 block flex items-center gap-1">
-                    <Calendar className="w-4 h-4 text-slate-500" />
-                    {viewingTurma.ano_letivo}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold block mb-1">
-                  Nome da Turma
+              {/* Identificador no topo */}
+              <div className="p-3 bg-slate-50 border rounded-lg space-y-1">
+                <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold block">
+                  Identificador (Automático)
                 </span>
-                <p className="text-sm font-semibold text-slate-900 bg-white p-2.5 rounded-md border border-slate-200">
-                  {viewingTurma.nome}
-                </p>
+                <span className="font-mono font-bold text-sm text-blue-700">
+                  {viewingTurma.codigo || 'TUR-0000'}
+                </span>
               </div>
 
+              {/* 1) Unidade Escolar */}
               <div>
-                <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold block mb-1">
-                  Unidade Escolar Vinculada
+                <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1.5 mb-1">
+                  <School className="w-3.5 h-3.5 text-blue-600" />
+                  Unidade Escolar
                 </span>
                 {viewingTurma.unidade_escolar ? (
                   <div className="p-2.5 rounded-md border border-slate-200 bg-white">
@@ -1004,44 +1005,64 @@ export default function Turmas() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-2.5 rounded-md border border-slate-200 bg-white">
-                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1.5 mb-1">
-                    <GraduationCap className="w-3.5 h-3.5 text-blue-600" />
-                    Etapa
-                  </span>
-                  {viewingTurma.etapa ? (
-                    <div>
-                      <p className="font-medium text-slate-900 text-xs">
-                        {viewingTurma.etapa.nome}
-                      </p>
-                      <span className="font-mono text-[10px] text-blue-700 font-semibold">
-                        {viewingTurma.etapa.codigo || 'ETA'}
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-slate-400 italic text-xs">Não vinculada</span>
-                  )}
-                </div>
+              {/* 2) Ano Letivo */}
+              <div>
+                <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1.5 mb-1">
+                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                  Ano Letivo
+                </span>
+                <span className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold px-2.5 py-1 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                  Ano {viewingTurma.ano_letivo}
+                </span>
+              </div>
 
-                <div className="p-2.5 rounded-md border border-slate-200 bg-white">
-                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1.5 mb-1">
-                    <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
-                    Ano/Série
-                  </span>
-                  {viewingTurma.ano_serie ? (
-                    <div>
-                      <p className="font-medium text-slate-900 text-xs">
-                        {viewingTurma.ano_serie.nome}
-                      </p>
-                      <span className="font-mono text-[10px] text-emerald-700 font-semibold">
-                        {viewingTurma.ano_serie.codigo || 'ANO'}
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-slate-400 italic text-xs">Não vinculado</span>
-                  )}
-                </div>
+              {/* 3) Etapa */}
+              <div>
+                <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1.5 mb-1">
+                  <GraduationCap className="w-3.5 h-3.5 text-blue-600" />
+                  Etapa
+                </span>
+                {viewingTurma.etapa ? (
+                  <div className="p-2.5 rounded-md border border-slate-200 bg-white">
+                    <p className="font-medium text-slate-900 text-xs">{viewingTurma.etapa.nome}</p>
+                    <span className="font-mono text-[10px] text-blue-700 font-semibold">
+                      {viewingTurma.etapa.codigo || 'ETA'}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-slate-400 italic text-xs">Não vinculada</span>
+                )}
+              </div>
+
+              {/* 4) Série (Ano/Série) */}
+              <div>
+                <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1.5 mb-1">
+                  <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
+                  Série (Ano/Série)
+                </span>
+                {viewingTurma.ano_serie ? (
+                  <div className="p-2.5 rounded-md border border-slate-200 bg-white">
+                    <p className="font-medium text-slate-900 text-xs">
+                      {viewingTurma.ano_serie.nome}
+                    </p>
+                    <span className="font-mono text-[10px] text-emerald-700 font-semibold">
+                      {viewingTurma.ano_serie.codigo || 'ANO'}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-slate-400 italic text-xs">Não vinculado</span>
+                )}
+              </div>
+
+              {/* 5) Nome da Turma */}
+              <div>
+                <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold block mb-1">
+                  Nome da Turma
+                </span>
+                <p className="text-sm font-semibold text-slate-900 bg-white p-2.5 rounded-md border border-slate-200">
+                  {viewingTurma.nome}
+                </p>
               </div>
 
               <div className="p-2.5 bg-slate-50 rounded-md border text-[11px] text-slate-500">
@@ -1238,6 +1259,121 @@ export default function Turmas() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* DIÁLOGO: AJUDA E REGRAS DE TURMAS */}
+      <Dialog open={openHelpDialog} onOpenChange={setOpenHelpDialog}>
+        <DialogContent className="p-6 rounded-2xl sm:max-w-[620px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="space-y-1.5 text-left">
+            <div className="flex items-center gap-2 text-[#0B2545]">
+              <div className="p-2 rounded-lg bg-blue-50">
+                <HelpCircle className="w-5 h-5 text-blue-600" />
+              </div>
+              <DialogTitle className="text-xl font-bold text-slate-900">
+                Ajuda e Regras — Cadastro de Turmas
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-slate-600">
+              Orientações sobre a ordem de preenchimento, dependências dinâmicas entre os atributos
+              e regras de consistência da turma.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2 text-sm text-slate-700 leading-relaxed">
+            {/* Bloco 1: Ordem obrigatória de preenchimento */}
+            <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/70 space-y-2">
+              <h4 className="font-semibold text-blue-950 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-700" /> Ordem Correta de Preenchimento
+              </h4>
+              <p className="text-xs text-blue-900 font-medium">
+                Para garantir a integridade das dependências dinâmicas entre cadastros, o formulário
+                segue exatamente a seguinte ordem, de cima para baixo:
+              </p>
+              <ol className="text-xs list-decimal list-inside space-y-1.5 text-slate-700 pl-1">
+                <li>
+                  <strong>Identificador (Automático):</strong> Código sequencial gerado
+                  automaticamente pelo sistema (ex: <code>TUR-0001</code>), posicionado no topo e
+                  não editável.
+                </li>
+                <li>
+                  <strong>1) Unidade Escolar:</strong> Primeiro atributo de preenchimento. Seleção
+                  da escola da rede municipal onde a turma está sediada (alimentada a partir do
+                  Cadastro de Unidades Escolares).
+                </li>
+                <li>
+                  <strong>2) Ano Letivo:</strong> Segundo atributo de preenchimento (2020 a 2040).
+                  Determina a vigência pedagógica e serve de base para filtrar as etapas e séries
+                  compatíveis.
+                </li>
+                <li>
+                  <strong>3) Etapa:</strong> Terceiro atributo de preenchimento. Filtra
+                  dinamicamente apenas as etapas cadastradas para o Ano Letivo escolhido, com botão{' '}
+                  <strong>"+ Novo"</strong> para cadastro ágil inline.
+                </li>
+                <li>
+                  <strong>4) Série (Ano/Série):</strong> Quarto atributo de preenchimento. Filtra
+                  dinamicamente apenas os anos/séries vinculados à Etapa e ao Ano Letivo
+                  selecionados, com botão <strong>"+ Novo"</strong> inline.
+                </li>
+                <li>
+                  <strong>5) Nome da Turma:</strong> Quinto atributo de preenchimento. Identificação
+                  da turma (ex: <em>"1º Ano A - Matutino"</em>, <em>"Pré-Escola II B"</em>).
+                </li>
+              </ol>
+            </div>
+
+            {/* Bloco 2: Regra de Consistência e Dependência Dinâmica */}
+            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/70 space-y-2">
+              <h4 className="font-semibold text-amber-950 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-700" /> Dependências Dinâmicas e
+                Consistência
+              </h4>
+              <p className="text-xs text-amber-900 font-medium">
+                O fluxo Unidade Escolar → Ano Letivo → Etapa → Série → Nome da Turma assegura a
+                validação prévia de cada vínculo pedagógico:
+              </p>
+              <ul className="text-xs list-disc list-inside space-y-1 text-slate-700 pl-1">
+                <li>
+                  <strong>Ano Letivo filtra as Etapas:</strong> Ao trocar o ano letivo, a lista de
+                  etapas exibe somente as compatíveis. Se a etapa previamente selecionada pertencer
+                  a outro ano, a seleção é limpa automaticamente.
+                </li>
+                <li>
+                  <strong>Etapa filtra os Anos/Séries:</strong> Ao selecionar ou trocar a etapa, a
+                  lista de séries/anos passa a mostrar unicamente as opções daquela etapa no mesmo
+                  ano letivo.
+                </li>
+                <li>
+                  <strong>Unidade Escolar:</strong> As opções são carregadas diretamente do Cadastro
+                  de Unidades Escolares e integram os cálculos de porte e dimensionamento pelo CRH e
+                  CARE.
+                </li>
+              </ul>
+            </div>
+
+            {/* Bloco 3: Rastreabilidade e Auditoria */}
+            <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/50 space-y-2">
+              <h4 className="font-semibold text-emerald-950 flex items-center gap-2">
+                <Info className="w-4 h-4 text-emerald-600" /> Auditoria e Rastreabilidade
+              </h4>
+              <p className="text-xs text-slate-700">
+                Todas as inclusões, edições e exclusões de turmas são auditadas em histórico,
+                registrando o usuário autenticado, valores anteriores e novos campos para total
+                transparência na gestão escolar.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4 border-t border-slate-100 mt-2">
+            <Button
+              type="button"
+              onClick={() => setOpenHelpDialog(false)}
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white"
+            >
+              Entendido
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
