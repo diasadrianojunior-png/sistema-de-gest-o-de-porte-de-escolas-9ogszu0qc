@@ -84,8 +84,22 @@ export const createUnidadeEscolar = async (
     entidade: 'Unidades escolares',
     acao: 'Criação',
     registro_codigo: created.codigo || null,
-    descricao: `Cadastro da unidade escolar "${created.nome}" (${created.tipo_atendimento}, ${created.nivel_porte}).`,
-    detalhes: { unidade: created, quantidade_alunos },
+    descricao: `Cadastro da unidade escolar "${created.nome}" (${created.tipo_atendimento}).`,
+    detalhes: {
+      unidade: {
+        id: created.id,
+        codigo: created.codigo,
+        nome: created.nome,
+        tipo_atendimento: created.tipo_atendimento,
+        localizacao: created.localizacao,
+        cep: created.cep,
+        logradouro: created.logradouro,
+        numero: created.numero,
+        bairro: created.bairro,
+        cidade: created.cidade,
+        estado_uf: created.estado_uf,
+      },
+    },
   })
 
   return {
@@ -148,13 +162,20 @@ export const updateUnidadeEscolar = async (
     }
   }
 
+  // Sanitiza alterações da auditoria para não incluir campos descontinuados da tela
+  const {
+    quantidade_alunos: _qtdAuditoria,
+    nivel_porte: _nivelAuditoria,
+    ...alteracoesAuditadas
+  } = (unidade as any) || {}
+
   // Registrar auditoria
   await registrarAuditoria({
     entidade: 'Unidades escolares',
     acao: 'Edição',
     registro_codigo: updated.codigo || null,
-    descricao: `Edição da unidade escolar "${updated.nome}" (${updated.tipo_atendimento}, ${updated.nivel_porte}).`,
-    detalhes: { id, alteracoes: unidade },
+    descricao: `Edição da unidade escolar "${updated.nome}" (${updated.tipo_atendimento}).`,
+    detalhes: { id, alteracoes: alteracoesAuditadas },
   })
 
   return {

@@ -38,8 +38,11 @@ import {
   Loader2,
   MapPin,
   Eye,
-  Layers,
   Clock,
+  HelpCircle,
+  CheckCircle2,
+  AlertTriangle,
+  Info,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
@@ -49,18 +52,7 @@ import {
   updateUnidadeEscolar,
   deleteUnidadeEscolar,
 } from '@/services/unidades-escolares'
-import {
-  UnidadeEscolar,
-  TipoAtendimentoUnidade,
-  OPCOES_NIVEL_40H,
-  normalizarNivelPorte,
-} from '@/types/gestao-escolar'
-import {
-  carregarMapaFaixasPorTipoAtendimento,
-  calcularNivelPorQtdAlunos,
-  resolverRotuloNivelComFaixas,
-  NivelFaixaFormatada,
-} from '@/services/faixas-nivel-unidade'
+import { UnidadeEscolar, TipoAtendimentoUnidade } from '@/types/gestao-escolar'
 import {
   LocalizacaoUnidadeSection,
   EnderecoUnidadeData,
@@ -74,12 +66,11 @@ export default function CadastrosMestres() {
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [paginaAtual, setPaginaAtual] = useState(1)
-  // Mapa dinâmico de níveis do banco por tipo de atendimento (configuracao_rh_nivel)
-  const [mapaFaixas, setMapaFaixas] = useState<Record<string, NivelFaixaFormatada[]>>({})
 
   // Modais
   const [openFormDialog, setOpenFormDialog] = useState(false)
   const [openViewDialog, setOpenViewDialog] = useState(false)
+  const [openHelpDialog, setOpenHelpDialog] = useState(false)
   const [viewingUnidade, setViewingUnidade] = useState<UnidadeEscolar | null>(null)
   const [editingUnidade, setEditingUnidade] = useState<UnidadeEscolar | null>(null)
   const [deletingUnidade, setDeletingUnidade] = useState<UnidadeEscolar | null>(null)
@@ -88,15 +79,11 @@ export default function CadastrosMestres() {
   const [formData, setFormData] = useState<{
     nome: string
     tipo_atendimento: TipoAtendimentoUnidade | ''
-    nivel_porte: string
-    quantidade_alunos: string
     localizacao: string
     endereco: EnderecoUnidadeData
   }>({
     nome: '',
     tipo_atendimento: '',
-    nivel_porte: '',
-    quantidade_alunos: '',
     localizacao: '',
     endereco: {
       cep: '',
@@ -113,12 +100,8 @@ export default function CadastrosMestres() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [data, faixasBanco] = await Promise.all([
-        getUnidadesEscolares(),
-        carregarMapaFaixasPorTipoAtendimento(),
-      ])
+      const data = await getUnidadesEscolares()
       setUnidades(data)
-      setMapaFaixas(faixasBanco)
     } catch (err: any) {
       toast({
         title: 'Erro ao carregar dados',
@@ -139,8 +122,6 @@ export default function CadastrosMestres() {
     setFormData({
       nome: '',
       tipo_atendimento: '',
-      nivel_porte: '',
-      quantidade_alunos: '',
       localizacao: '',
       endereco: {
         cep: '',
@@ -158,20 +139,9 @@ export default function CadastrosMestres() {
 
   const handleOpenEdit = (unidade: UnidadeEscolar) => {
     setEditingUnidade(unidade)
-    const niveisTipo = mapaFaixas[unidade.tipo_atendimento] || []
-    const nivelResolvido = resolverRotuloNivelComFaixas(
-      unidade.tipo_atendimento,
-      unidade.nivel_porte,
-      niveisTipo,
-    )
     setFormData({
       nome: unidade.nome,
       tipo_atendimento: unidade.tipo_atendimento,
-      nivel_porte: nivelResolvido || unidade.nivel_porte,
-      quantidade_alunos:
-        unidade.quantidade_alunos !== null && unidade.quantidade_alunos !== undefined
-          ? String(unidade.quantidade_alunos)
-          : '',
       localizacao: unidade.localizacao,
       endereco: {
         cep: unidade.cep || '',
@@ -190,48 +160,6 @@ export default function CadastrosMestres() {
   const handleOpenView = (unidade: UnidadeEscolar) => {
     setViewingUnidade(unidade)
     setOpenViewDialog(true)
-  }
-
-  // Manipulador da troca de Tipo de Atendimento:
-  // Reseta seleção incompatível e recalcula se houver quantidade de alunos preenchida
-  const handleTipoAtendimentoChange = (val: string) => {
-    const novoTipo = val as TipoAtendimentoUnidade
-    setFormData((prev) => {
-      let novoNivel = ''
-      if (prev.quantidade_alunos && Number(prev.quantidade_alunos) >= 0) {
-        const faixasNovoTipo = mapaFaixas[novoTipo] || []
-        const calculado = calcularNivelPorQtdAlunos(faixasNovoTipo, Number(prev.quantidade_alunos))
-        if (calculado) {
-          novoNivel = calculado.rotulo
-        }
-      }
-      return {
-        ...prev,
-        tipo_atendimento: novoTipo,
-        nivel_porte: novoNivel, // Recalcula se tiver alunos ou limpa para evitar vínculo incompatível
-      }
-    })
-  }
-
-  // Manipulador de alteração da quantidade de alunos:
-  // Se o usuário informar a quantidade de alunos, calcula o nível automaticamente pelas faixas do banco
-  const handleQuantidadeAlunosChange = (val: string) => {
-    const num = Number(val)
-    setFormData((prev) => {
-      let nivelAuto = prev.nivel_porte
-      if (val !== '' && !isNaN(num) && num >= 0 && prev.tipo_atendimento) {
-        const faixas = mapaFaixas[prev.tipo_atendimento] || []
-        const encontrado = calcularNivelPorQtdAlunos(faixas, num)
-        if (encontrado) {
-          nivelAuto = encontrado.rotulo
-        }
-      }
-      return {
-        ...prev,
-        quantidade_alunos: val,
-        nivel_porte: nivelAuto,
-      }
-    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -254,44 +182,6 @@ export default function CadastrosMestres() {
       })
       return
     }
-
-    if (!formData.nivel_porte) {
-      toast({
-        title: 'Atenção',
-        description: 'Selecione a opção de nível/porte compatível com o atendimento selecionado.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    // Validação e normalização de compatibilidade entre tipo de atendimento e nível/porte selecionado
-    const faixasDisponiveis = mapaFaixas[formData.tipo_atendimento] || []
-    const rotulosValidos = faixasDisponiveis.map((f) => f.rotulo)
-    const nivelResolvido = resolverRotuloNivelComFaixas(
-      formData.tipo_atendimento,
-      formData.nivel_porte,
-      faixasDisponiveis,
-    )
-
-    const ehCompativel =
-      rotulosValidos.length > 0
-        ? rotulosValidos.includes(nivelResolvido)
-        : Boolean(normalizarNivelPorte(formData.tipo_atendimento, formData.nivel_porte))
-
-    if (!ehCompativel) {
-      toast({
-        title: 'Vínculo incompatível',
-        description:
-          'O nível/porte selecionado não é compatível com o tipo de atendimento escolhido. Por favor selecione uma opção válida.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    const qtdAlunosNum =
-      formData.quantidade_alunos !== '' && !isNaN(Number(formData.quantidade_alunos))
-        ? Math.max(0, Math.floor(Number(formData.quantidade_alunos)))
-        : null
 
     // Se o usuário preencheu campos na seção de endereço do Google Maps, valida os obrigatórios da seção
     const temEnderecoIniciado =
@@ -369,7 +259,7 @@ export default function CadastrosMestres() {
       const payload = {
         nome: formData.nome.trim(),
         tipo_atendimento: formData.tipo_atendimento as TipoAtendimentoUnidade,
-        nivel_porte: nivelResolvido,
+        nivel_porte: editingUnidade?.nivel_porte || 'Padrão',
         localizacao: localizacaoFinal,
         cep: formData.endereco.cep ? formData.endereco.cep.trim() : null,
         logradouro: formData.endereco.logradouro ? formData.endereco.logradouro.trim() : null,
@@ -379,9 +269,6 @@ export default function CadastrosMestres() {
         cidade: formData.endereco.cidade ? formData.endereco.cidade.trim() : 'Cambé',
         latitude: formData.endereco.latitude,
         longitude: formData.endereco.longitude,
-        ...(qtdAlunosNum !== null
-          ? { quantidade_alunos: qtdAlunosNum }
-          : { quantidade_alunos: null }),
       }
 
       if (editingUnidade) {
@@ -437,7 +324,6 @@ export default function CadastrosMestres() {
       u.nome.toLowerCase().includes(search.toLowerCase()) ||
       (u.codigo && u.codigo.toLowerCase().includes(search.toLowerCase())) ||
       u.tipo_atendimento.toLowerCase().includes(search.toLowerCase()) ||
-      u.nivel_porte.toLowerCase().includes(search.toLowerCase()) ||
       u.localizacao.toLowerCase().includes(search.toLowerCase()) ||
       (u.logradouro && u.logradouro.toLowerCase().includes(search.toLowerCase())) ||
       (u.bairro && u.bairro.toLowerCase().includes(search.toLowerCase())) ||
@@ -475,21 +361,32 @@ export default function CadastrosMestres() {
               Total de {unidades.length} unidade(s) escolar(es) cadastrada(s)
             </CardDescription>
           </div>
-          {canEditUnidades && (
+          <div className="flex items-center gap-2">
             <Button
-              onClick={handleOpenCreate}
-              className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+              type="button"
+              variant="outline"
+              onClick={() => setOpenHelpDialog(true)}
+              className="gap-1.5 text-slate-700 border-slate-300 hover:bg-slate-50"
             >
-              <Plus className="w-4 h-4" />
-              Nova Unidade Escolar
+              <HelpCircle className="w-4 h-4 text-blue-600" />
+              Ajuda e Regras
             </Button>
-          )}
+            {canEditUnidades && (
+              <Button
+                onClick={handleOpenCreate}
+                className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+              >
+                <Plus className="w-4 h-4" />
+                Nova Unidade Escolar
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <Input
-              placeholder="Pesquisar código (UN-XXXX), nome, nível, local..."
+              placeholder="Pesquisar código (UN-XXXX), nome, atendimento, local..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value)
@@ -519,7 +416,6 @@ export default function CadastrosMestres() {
                     <th className="py-3 px-4 font-medium w-28">Código</th>
                     <th className="py-3 px-4 font-medium">Nome da Unidade Escolar</th>
                     <th className="py-3 px-4 font-medium">Tipo de Atendimento</th>
-                    <th className="py-3 px-4 font-medium">Nível / Faixa</th>
                     <th className="py-3 px-4 font-medium">Localização</th>
                     <th className="py-3 px-4 font-medium text-right w-36">Ações</th>
                   </tr>
@@ -539,18 +435,6 @@ export default function CadastrosMestres() {
                         <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md font-medium bg-slate-100 text-slate-800 border border-slate-200">
                           <Clock className="w-3 h-3 text-slate-500" />
                           {unidade.tipo_atendimento}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-slate-700">
-                        <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md font-semibold bg-blue-50 text-blue-800 border border-blue-200">
-                          <Layers className="w-3 h-3 text-blue-600" />
-                          {resolverRotuloNivelComFaixas(
-                            unidade.tipo_atendimento,
-                            unidade.nivel_porte,
-                            mapaFaixas[unidade.tipo_atendimento],
-                          ) ||
-                            normalizarNivelPorte(unidade.tipo_atendimento, unidade.nivel_porte) ||
-                            unidade.nivel_porte}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-slate-600">
@@ -673,7 +557,15 @@ export default function CadastrosMestres() {
             {/* 3. Combo box com as seguintes Opções: 'Ensino Fundamental e Educação Infantil (20h)' ou 'Educação Infantil (40h)' */}
             <div className="space-y-2">
               <Label htmlFor="tipo_atendimento">Tipo de Atendimento da Unidade *</Label>
-              <Select value={formData.tipo_atendimento} onValueChange={handleTipoAtendimentoChange}>
+              <Select
+                value={formData.tipo_atendimento}
+                onValueChange={(val) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    tipo_atendimento: val as TipoAtendimentoUnidade,
+                  }))
+                }
+              >
                 <SelectTrigger id="tipo_atendimento">
                   <SelectValue placeholder="Selecione o tipo de atendimento" />
                 </SelectTrigger>
@@ -686,119 +578,7 @@ export default function CadastrosMestres() {
               </Select>
             </div>
 
-            {/* 4. Quantidade de alunos (opcional para cálculo automático ou referência) */}
-            {formData.tipo_atendimento && (
-              <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                <div className="flex items-center justify-between">
-                  <Label
-                    htmlFor="quantidade_alunos"
-                    className="text-xs font-semibold text-slate-700"
-                  >
-                    Quantidade de Alunos (Cálculo Automático do Nível)
-                  </Label>
-                  <span className="text-[11px] text-slate-500">Opcional</span>
-                </div>
-                <Input
-                  id="quantidade_alunos"
-                  type="number"
-                  min="0"
-                  placeholder="Ex: 323"
-                  value={formData.quantidade_alunos}
-                  onChange={(e) => handleQuantidadeAlunosChange(e.target.value)}
-                  className="bg-white text-sm"
-                />
-                <p className="text-[11px] text-slate-500">
-                  Ao digitar o total de alunos, o nível oficial da unidade é enquadrado
-                  automaticamente conforme a tabela de faixas vigentes do banco.
-                </p>
-              </div>
-            )}
-
-            {/* 5. REGRA CONDICIONAL: Segundo combo box baseado na escolha do primeiro (lido do banco de configuracao_rh_nivel) */}
-            {formData.tipo_atendimento === 'Ensino Fundamental e Educação Infantil (20h)' && (
-              <div className="space-y-2 bg-blue-50/60 p-3.5 rounded-lg border border-blue-200">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="nivel_porte_20h" className="text-blue-950 font-semibold text-sm">
-                    Nível / Faixa de Alunos *
-                  </Label>
-                  <span className="text-[11px] font-medium text-blue-700">
-                    Tabela Oficial (20h)
-                  </span>
-                </div>
-                <Select
-                  value={formData.nivel_porte}
-                  onValueChange={(val) => setFormData({ ...formData, nivel_porte: val })}
-                >
-                  <SelectTrigger id="nivel_porte_20h" className="bg-white">
-                    <SelectValue placeholder="Selecione nível e faixa de alunos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(mapaFaixas['Ensino Fundamental e Educação Infantil (20h)'] || []).map(
-                      (faixa) => (
-                        <SelectItem key={faixa.rotulo} value={faixa.rotulo}>
-                          <span className="font-semibold">{faixa.rotulo}</span>
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center justify-between text-[11px] text-blue-800">
-                  <span>
-                    {(mapaFaixas['Ensino Fundamental e Educação Infantil (20h)'] || []).length}{' '}
-                    faixas ativas cadastradas no módulo de RH
-                  </span>
-                  {formData.nivel_porte && (
-                    <span className="font-semibold text-blue-900 bg-blue-100 px-2 py-0.5 rounded">
-                      Selecionado: {formData.nivel_porte.split(':')[0]}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {formData.tipo_atendimento === 'Educação Infantil (40h)' && (
-              <div className="space-y-2 bg-emerald-50/60 p-3.5 rounded-lg border border-emerald-200">
-                <div className="flex items-center justify-between">
-                  <Label
-                    htmlFor="nivel_porte_40h"
-                    className="text-emerald-950 font-semibold text-sm"
-                  >
-                    Nível / Faixa de Alunos *
-                  </Label>
-                  <span className="text-[11px] font-medium text-emerald-700">
-                    Tabela Oficial (40h)
-                  </span>
-                </div>
-                <Select
-                  value={formData.nivel_porte}
-                  onValueChange={(val) => setFormData({ ...formData, nivel_porte: val })}
-                >
-                  <SelectTrigger id="nivel_porte_40h" className="bg-white">
-                    <SelectValue placeholder="Selecione nível e faixa de alunos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(mapaFaixas['Educação Infantil (40h)'] || []).map((faixa) => (
-                      <SelectItem key={faixa.rotulo} value={faixa.rotulo}>
-                        <span className="font-semibold">{faixa.rotulo}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center justify-between text-[11px] text-emerald-800">
-                  <span>
-                    {(mapaFaixas['Educação Infantil (40h)'] || []).length} faixas ativas cadastradas
-                    no módulo de RH
-                  </span>
-                  {formData.nivel_porte && (
-                    <span className="font-semibold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded">
-                      Selecionado: {formData.nivel_porte.split(':')[0]}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* 5. Seção de Localização e Endereço da Unidade com Google Maps (Conforme imagem) */}
+            {/* 4. Seção de Localização e Endereço da Unidade com Google Maps */}
             <LocalizacaoUnidadeSection
               value={formData.endereco}
               onChange={(novoEndereco) => {
@@ -905,31 +685,6 @@ export default function CadastrosMestres() {
                 </p>
               </div>
 
-              <div className="border-b pb-3">
-                <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
-                  Nível / Porte
-                </span>
-                <p className="text-slate-800 font-medium mt-0.5">
-                  {resolverRotuloNivelComFaixas(
-                    viewingUnidade.tipo_atendimento,
-                    viewingUnidade.nivel_porte,
-                    mapaFaixas[viewingUnidade.tipo_atendimento],
-                  ) || viewingUnidade.nivel_porte}
-                </p>
-              </div>
-
-              {viewingUnidade.quantidade_alunos !== null &&
-                viewingUnidade.quantidade_alunos !== undefined && (
-                  <div className="border-b pb-3">
-                    <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
-                      Quantidade de Alunos Registrada
-                    </span>
-                    <p className="text-slate-800 font-medium mt-0.5">
-                      {viewingUnidade.quantidade_alunos} aluno(s)
-                    </p>
-                  </div>
-                )}
-
               <div className="border-b pb-3 space-y-2">
                 <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
                   Endereço Completo & Localização
@@ -1019,6 +774,105 @@ export default function CadastrosMestres() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* DIÁLOGO: AJUDA E REGRAS DE UNIDADES ESCOLARES */}
+      <Dialog open={openHelpDialog} onOpenChange={setOpenHelpDialog}>
+        <DialogContent className="p-6 rounded-2xl sm:max-w-[620px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="space-y-1.5 text-left">
+            <div className="flex items-center gap-2 text-[#0B2545]">
+              <div className="p-2 rounded-lg bg-blue-50">
+                <HelpCircle className="w-5 h-5 text-blue-600" />
+              </div>
+              <DialogTitle className="text-xl font-bold text-slate-900">
+                Ajuda e Regras — Cadastro de Unidades Escolares
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-slate-600">
+              Orientações sobre os atributos da unidade, regras de geolocalização e rastreabilidade
+              no sistema.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2 text-sm text-slate-700 leading-relaxed">
+            {/* Bloco 1: Atributos da Unidade */}
+            <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/70 space-y-2">
+              <h4 className="font-semibold text-blue-950 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-700" /> Atributos e Preenchimento
+              </h4>
+              <p className="text-xs text-blue-900 font-medium">
+                O cadastro central da unidade escolar contempla os seguintes atributos:
+              </p>
+              <ol className="text-xs list-decimal list-inside space-y-1.5 text-slate-700 pl-1">
+                <li>
+                  <strong>Identificador da Unidade (Automático):</strong> Código sequencial gerado
+                  automaticamente pelo sistema (ex: <code>UN-0001</code>), somente leitura.
+                </li>
+                <li>
+                  <strong>Nome da Unidade Escolar:</strong> Denominação oficial da escola ou CMEI da
+                  rede municipal de ensino (campo obrigatório).
+                </li>
+                <li>
+                  <strong>Tipo de Atendimento:</strong> Regime pedagógico da unidade, selecionável
+                  entre <em>"Ensino Fundamental e Educação Infantil (20h)"</em> ou{' '}
+                  <em>"Educação Infantil (40h)"</em>.
+                </li>
+                <li>
+                  <strong>Endereço e Geolocalização:</strong> Busca por CEP restrita ao município de
+                  Cambé (PR), com preenchimento de logradouro, número, bairro e posicionamento
+                  interativo no mapa.
+                </li>
+              </ol>
+            </div>
+
+            {/* Bloco 2: Regra de Consistência e Município de Cambé */}
+            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/70 space-y-2">
+              <h4 className="font-semibold text-amber-950 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-700" /> Restrição Geográfica e
+                Integração
+              </h4>
+              <p className="text-xs text-amber-900 font-medium">
+                Regras obrigatórias de integridade para a rede municipal:
+              </p>
+              <ul className="text-xs list-disc list-inside space-y-1 text-slate-700 pl-1">
+                <li>
+                  O cadastro de unidades escolares é restrito exclusivamente ao município de{' '}
+                  <strong>Cambé (PR)</strong>.
+                </li>
+                <li>
+                  O mapa interativo permite fixar o ponto exato da unidade escolar com coordenadas
+                  geográficas de alta precisão.
+                </li>
+                <li>
+                  A contagem de alunos e turmas por ano letivo é gerenciada no planejamento anual e
+                  utilizada pelos módulos de porte e cálculo de vagas.
+                </li>
+              </ul>
+            </div>
+
+            {/* Bloco 3: Rastreabilidade e Auditoria */}
+            <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/50 space-y-2">
+              <h4 className="font-semibold text-emerald-950 flex items-center gap-2">
+                <Info className="w-4 h-4 text-emerald-600" /> Auditoria e Rastreabilidade
+              </h4>
+              <p className="text-xs text-slate-700">
+                Todas as operações de criação, atualização e exclusão de unidades escolares são
+                registradas automaticamente na <strong>Auditoria</strong> do sistema com data, hora,
+                identificador da unidade e dados do usuário responsável pela alteração.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4 border-t border-slate-100 mt-2">
+            <Button
+              type="button"
+              onClick={() => setOpenHelpDialog(false)}
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white"
+            >
+              Entendido
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
