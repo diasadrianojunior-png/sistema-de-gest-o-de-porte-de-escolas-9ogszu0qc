@@ -102,10 +102,13 @@ export function encontrarNivelPorAlunos(
 }
 
 export interface VagaCalculadaMemoria {
-  funcaoId: string
+  funcaoId?: string | null
   funcaoNome: string
   linhaId: string
   linhaCodigo?: string
+  tipoLinha?: 'FUNCAO' | 'CARGO'
+  cargoId?: string | null
+  cargoNome?: string | null
   baseCalculo: string
   modalidade: ModalidadeRhVaga
   diasSemana?: number | null
@@ -233,12 +236,14 @@ export function calcularVagasPorNivel(
     const qtdMatriz = celula ? celula.quantidade : 0
     const modalidade = celula?.modalidade || 'FIXO'
     const diasSemana = celula?.dias_semana ?? null
-    const funcaoNome = linha.funcao?.nome || 'Função'
+    const isCargo = linha.tipo_linha === 'CARGO' || (!linha.funcao_id && !!linha.cargo_id)
+    const itemNome = isCargo ? linha.cargo?.nome || 'Cargo' : linha.funcao?.nome || 'Função'
+    const tipoPrefixo = isCargo ? 'Linha (Cargo)' : 'Linha (Função)'
 
     // Regra da especificação: "quantidade 0 não gera vaga"
     if (qtdMatriz <= 0) {
       passos.push(
-        `Linha "${funcaoNome}": 0 vagas previstas para o Nível ${nivelEncontrado.codigo_nivel} (não gera vaga).`,
+        `${tipoPrefixo} "${itemNome}": 0 vagas previstas para o Nível ${nivelEncontrado.codigo_nivel} (não gera vaga).`,
       )
       continue
     }
@@ -300,17 +305,39 @@ export function calcularVagasPorNivel(
 
     if (quantidadeFinal <= 0) {
       passos.push(
-        `Linha "${funcaoNome}": cálculo resultou em 0 vaga(s) (${memoriaLinha}). Não gera vaga.`,
+        `${tipoPrefixo} "${itemNome}": cálculo resultou em 0 vaga(s) (${memoriaLinha}). Não gera vaga.`,
       )
       continue
     }
 
-    // Cargos elegíveis
-    const cargosElegiveis = (linha.cargos || []).map((c) => ({
-      cargoId: c.cargo_id,
-      cargoNome: c.cargo?.nome || 'Cargo',
-      condicao: c.condicao,
-    }))
+    // Cargos elegíveis:
+    // Se a linha já é um CARGO direto:
+    // Caso tenha registro em linha.cargos com condição (ex: SEMED/Readaptado), aproveita a condição;
+    // senão o próprio cargo da linha é o único cargo elegível com condição NENHUMA.
+    let cargosElegiveis: Array<{ cargoId: string; cargoNome: string; condicao: string }> = []
+    if (isCargo && linha.cargo_id) {
+      if (linha.cargos && linha.cargos.length > 0) {
+        cargosElegiveis = linha.cargos.map((c) => ({
+          cargoId: c.cargo_id,
+          cargoNome: c.cargo?.nome || linha.cargo?.nome || 'Cargo',
+          condicao: c.condicao || 'NENHUMA',
+        }))
+      } else {
+        cargosElegiveis = [
+          {
+            cargoId: linha.cargo_id,
+            cargoNome: linha.cargo?.nome || 'Cargo',
+            condicao: 'NENHUMA',
+          },
+        ]
+      }
+    } else {
+      cargosElegiveis = (linha.cargos || []).map((c) => ({
+        cargoId: c.cargo_id,
+        cargoNome: c.cargo?.nome || 'Cargo',
+        condicao: c.condicao,
+      }))
+    }
 
     const modDesc =
       modalidade === 'ITINERANTE'
@@ -320,14 +347,17 @@ export function calcularVagasPorNivel(
         : 'Fixo'
 
     passos.push(
-      `Linha "${funcaoNome}": ${quantidadeFinal} vaga(s) [${modDesc}]. Memória: ${memoriaLinha}.`,
+      `${tipoPrefixo} "${itemNome}": ${quantidadeFinal} vaga(s) [${modDesc}]. Memória: ${memoriaLinha}.`,
     )
 
     vagasCalculadas.push({
-      funcaoId: linha.funcao_id,
-      funcaoNome,
+      funcaoId: linha.funcao_id || undefined,
+      funcaoNome: itemNome,
       linhaId: linha.id,
       linhaCodigo: linha.codigo,
+      tipoLinha: isCargo ? 'CARGO' : 'FUNCAO',
+      cargoId: isCargo ? linha.cargo_id || null : null,
+      cargoNome: isCargo ? linha.cargo?.nome || itemNome : null,
       baseCalculo: linha.base_calculo,
       modalidade,
       diasSemana,

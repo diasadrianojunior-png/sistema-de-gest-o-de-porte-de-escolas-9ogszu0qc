@@ -693,4 +693,99 @@ describe('calcularVagasPorNivel - Simulação Completa e Regras', () => {
     ).toBe(2)
     expect(res.vagas.find((v) => v.funcaoNome === 'Secretário Escolar')?.quantidadeFinal).toBe(1)
   })
+
+  it('deve calcular corretamente linhas do tipo CARGO adicionadas à configuração', () => {
+    const configComLinhaCargo: any = {
+      tipo_atendimento: 'Ensino Fundamental e Educação Infantil (20h)',
+      ano_letivo: 2026,
+      niveis: [
+        { id: 'n1', codigo_nivel: 'I', ordem: 1, min_alunos: 0, max_alunos: 150 },
+        { id: 'n2', codigo_nivel: 'II', ordem: 2, min_alunos: 151, max_alunos: 300 },
+      ],
+      linhas: [
+        {
+          id: 'l_funcao',
+          configuracao_rh_id: 'cfg_mix',
+          tipo_linha: 'FUNCAO',
+          funcao_id: 'f1',
+          ordem: 1,
+          base_calculo: 'POR_ESCOLA',
+          funcao: { id: 'f1', nome: 'Diretor' },
+        },
+        {
+          id: 'l_cargo_escola',
+          configuracao_rh_id: 'cfg_mix',
+          tipo_linha: 'CARGO',
+          cargo_id: 'c_merendeira',
+          ordem: 2,
+          base_calculo: 'POR_ESCOLA',
+          cargo: { id: 'c_merendeira', nome: 'Merendeira Escolar', carga_horaria: '40h' },
+          cargos: [
+            {
+              cargo_id: 'c_merendeira',
+              condicao: 'NENHUMA',
+              cargo: { id: 'c_merendeira', nome: 'Merendeira Escolar' },
+            },
+          ],
+        },
+        {
+          id: 'l_cargo_periodo',
+          configuracao_rh_id: 'cfg_mix',
+          tipo_linha: 'CARGO',
+          cargo_id: 'c_vigilante',
+          ordem: 3,
+          base_calculo: 'POR_PERIODO',
+          cargo: {
+            id: 'c_vigilante',
+            nome: 'Agente de Portaria e Vigilância',
+            carga_horaria: '40h',
+          },
+          cargos: [
+            {
+              cargo_id: 'c_vigilante',
+              condicao: 'READAPTADO_COMPATIVEL_LAUDO',
+              cargo: { id: 'c_vigilante', nome: 'Agente de Portaria e Vigilância' },
+            },
+          ],
+        },
+      ],
+      vagas: [
+        { id: 'v1', linha_id: 'l_funcao', nivel_id: 'n2', quantidade: 1, modalidade: 'FIXO' },
+        { id: 'v2', linha_id: 'l_cargo_escola', nivel_id: 'n2', quantidade: 2, modalidade: 'FIXO' },
+        {
+          id: 'v3',
+          linha_id: 'l_cargo_periodo',
+          nivel_id: 'n2',
+          quantidade: 1,
+          modalidade: 'FIXO',
+        },
+      ],
+    }
+
+    const res = calcularVagasPorNivel(configComLinhaCargo, 220, 2, {})
+
+    expect(res.nivelEncontrado?.codigo_nivel).toBe('II')
+    expect(res.vagas).toHaveLength(3)
+
+    // Linha de Função
+    const vFuncao = res.vagas.find((v) => v.funcaoNome === 'Diretor')
+    expect(vFuncao?.quantidadeFinal).toBe(1)
+    expect(vFuncao?.tipoLinha).toBe('FUNCAO')
+
+    // Linha de Cargo por Escola (2 vagas no nível II * 1)
+    const vMerendeira = res.vagas.find((v) => v.funcaoNome === 'Merendeira Escolar')
+    expect(vMerendeira).toBeDefined()
+    expect(vMerendeira?.tipoLinha).toBe('CARGO')
+    expect(vMerendeira?.cargoId).toBe('c_merendeira')
+    expect(vMerendeira?.quantidadeFinal).toBe(2)
+    expect(vMerendeira?.cargosElegiveis[0].cargoNome).toBe('Merendeira Escolar')
+    expect(vMerendeira?.cargosElegiveis[0].condicao).toBe('NENHUMA')
+
+    // Linha de Cargo por Período (1 vaga no nível II * 2 períodos = 2)
+    const vVigilante = res.vagas.find((v) => v.funcaoNome === 'Agente de Portaria e Vigilância')
+    expect(vVigilante).toBeDefined()
+    expect(vVigilante?.tipoLinha).toBe('CARGO')
+    expect(vVigilante?.quantidadeFinal).toBe(2) // 1 * 2 períodos
+    expect(vVigilante?.cargosElegiveis[0].condicao).toBe('READAPTADO_COMPATIVEL_LAUDO')
+  })
 })

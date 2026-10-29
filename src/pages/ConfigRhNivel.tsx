@@ -82,13 +82,17 @@ import {
   Building2,
   Calculator,
   ShieldAlert,
+  HelpCircle,
+  Briefcase,
 } from 'lucide-react'
 
-// Representação editável de uma linha da grade
+// Representação editável de uma linha da grade (seja FUNÇÃO ou CARGO)
 interface LinhaEditavel {
   tempId: string
   id?: string
-  funcao_id: string
+  tipo_linha: 'FUNCAO' | 'CARGO'
+  funcao_id: string | null
+  cargo_id: string | null
   ordem: number
   base_calculo: BaseCalculoRh
   etapas_filtro: string[]
@@ -183,9 +187,17 @@ export default function ConfigRhNivel() {
   const [dialogEditarCargosAberto, setDialogEditarCargosAberto] = useState(false)
   const [linhaEmEdicaoCargos, setLinhaEmEdicaoCargos] = useState<{
     linhaIndex: number
-    funcaoNome: string
+    tipoLinha: 'FUNCAO' | 'CARGO'
+    itemNome: string
     cargos: Array<{ cargo_id: string; condicao: CondicaoLinhaCargo }>
   } | null>(null)
+
+  const [dialogAdicionarLinhaCargoAberto, setDialogAdicionarLinhaCargoAberto] = useState(false)
+  const [cargoLinhaSelecionadoId, setCargoLinhaSelecionadoId] = useState<string>('')
+  const [cargoLinhaBaseCalculo, setCargoLinhaBaseCalculo] = useState<BaseCalculoRh>('POR_ESCOLA')
+  const [cargoLinhaCondicao, setCargoLinhaCondicao] = useState<CondicaoLinhaCargo>('NENHUMA')
+
+  const [openHelpDialog, setOpenHelpDialog] = useState(false)
 
   const [dialogExcluirAberto, setDialogExcluirAberto] = useState(false)
 
@@ -265,20 +277,25 @@ export default function ConfigRhNivel() {
       }))
       setNiveisEditaveis(niveisMapeados)
 
-      // Mapear linhas
-      const linhasMapeadas: LinhaEditavel[] = (completa.linhas || []).map((l) => ({
-        tempId: l.id,
-        id: l.id,
-        funcao_id: l.funcao_id,
-        ordem: l.ordem,
-        base_calculo: l.base_calculo,
-        etapas_filtro: l.etapas_filtro || [],
-        observacao: l.observacao || '',
-        cargos: (l.cargos || []).map((c) => ({
-          cargo_id: c.cargo_id,
-          condicao: c.condicao,
-        })),
-      }))
+      // Mapear linhas (Função ou Cargo)
+      const linhasMapeadas: LinhaEditavel[] = (completa.linhas || []).map((l) => {
+        const isCargo = l.tipo_linha === 'CARGO' || (!l.funcao_id && !!l.cargo_id)
+        return {
+          tempId: l.id,
+          id: l.id,
+          tipo_linha: isCargo ? 'CARGO' : 'FUNCAO',
+          funcao_id: isCargo ? null : l.funcao_id,
+          cargo_id: isCargo ? l.cargo_id || null : null,
+          ordem: l.ordem,
+          base_calculo: l.base_calculo,
+          etapas_filtro: l.etapas_filtro || [],
+          observacao: l.observacao || '',
+          cargos: (l.cargos || []).map((c) => ({
+            cargo_id: c.cargo_id,
+            condicao: c.condicao,
+          })),
+        }
+      })
       setLinhasEditaveis(linhasMapeadas)
 
       // Mapear matriz de vagas (chave: `linha_${lIdx}_nivel_${nIdx}`)
@@ -423,14 +440,16 @@ export default function ConfigRhNivel() {
     })
   }
 
-  // Ações de Linhas
+  // Ações de Linhas (Função)
   const handleAdicionarLinha = () => {
     if (funcoesList.length === 0) return
     const primeiraFuncao = funcoesList[0]
 
     const novaLinha: LinhaEditavel = {
       tempId: `linha_${Date.now()}`,
+      tipo_linha: 'FUNCAO',
       funcao_id: primeiraFuncao.id,
+      cargo_id: null,
       ordem: linhasEditaveis.length + 1,
       base_calculo: 'POR_ESCOLA',
       etapas_filtro: [],
@@ -453,6 +472,95 @@ export default function ConfigRhNivel() {
       }
       return novo
     })
+  }
+
+  // Ações de Linhas (Cargo)
+  const handleAbrirAdicionarLinhaCargo = () => {
+    if (cargosList.length === 0) {
+      toast({
+        title: 'Nenhum cargo disponível',
+        description: 'Cadastre cargos no sistema antes de adicionar uma linha de cargo.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Filtrar primeiro cargo que ainda NÃO exista como linha de cargo na configuração
+    const cargosJaPresentes = new Set(
+      linhasEditaveis.filter((l) => l.tipo_linha === 'CARGO' && l.cargo_id).map((l) => l.cargo_id),
+    )
+    const disponivel = cargosList.find((c) => !cargosJaPresentes.has(c.id))
+
+    setCargoLinhaSelecionadoId(disponivel ? disponivel.id : cargosList[0].id)
+    setCargoLinhaBaseCalculo('POR_ESCOLA')
+    setCargoLinhaCondicao('NENHUMA')
+    setDialogAdicionarLinhaCargoAberto(true)
+  }
+
+  const handleConfirmarAdicionarLinhaCargo = () => {
+    if (!cargoLinhaSelecionadoId) {
+      toast({
+        title: 'Selecione um cargo',
+        description: 'É necessário selecionar um cargo para adicionar a linha.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Bloqueio de duplicidade: não permitir o mesmo cargo duas vezes na mesma configuração
+    const jaExiste = linhasEditaveis.some(
+      (l) => l.tipo_linha === 'CARGO' && l.cargo_id === cargoLinhaSelecionadoId,
+    )
+    if (jaExiste) {
+      const cargoObj = cargosList.find((c) => c.id === cargoLinhaSelecionadoId)
+      toast({
+        title: 'Cargo já cadastrado nesta configuração',
+        description: `O cargo "${cargoObj?.nome || 'selecionado'}" já compõe uma linha desta grade. Não é permitida duplicidade de cargo na mesma configuração.`,
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const novaLinha: LinhaEditavel = {
+      tempId: `linha_cargo_${Date.now()}`,
+      tipo_linha: 'CARGO',
+      funcao_id: null,
+      cargo_id: cargoLinhaSelecionadoId,
+      ordem: linhasEditaveis.length + 1,
+      base_calculo: cargoLinhaBaseCalculo,
+      etapas_filtro: [],
+      observacao: '',
+      cargos: [
+        {
+          cargo_id: cargoLinhaSelecionadoId,
+          condicao: cargoLinhaCondicao,
+        },
+      ],
+    }
+
+    const novaLinhaIndex = linhasEditaveis.length
+    setLinhasEditaveis((prev) => [...prev, novaLinha])
+
+    // Preencher células default para a nova linha de cargo (1 vaga fixa padrão por nível)
+    setMatrizVagas((prev) => {
+      const novo = { ...prev }
+      for (let nIdx = 0; nIdx < niveisEditaveis.length; nIdx++) {
+        novo[`${novaLinhaIndex}_${nIdx}`] = {
+          quantidade: 1,
+          modalidade: 'FIXO',
+          dias_semana: null,
+        }
+      }
+      return novo
+    })
+
+    const cargoObj = cargosList.find((c) => c.id === cargoLinhaSelecionadoId)
+    toast({
+      title: 'Linha de Cargo adicionada',
+      description: `A linha do cargo "${cargoObj?.nome}" foi inserida na grade. Ajuste as células por nível e clique em "Salvar Grade".`,
+    })
+
+    setDialogAdicionarLinhaCargoAberto(false)
   }
 
   const handleRemoverLinha = (index: number) => {
@@ -525,17 +633,21 @@ export default function ConfigRhNivel() {
     if (!podeEditar) return
     const linha = linhasEditaveis[lIdx]
     const nivel = niveisEditaveis[nIdx]
-    const funcaoObj = funcoesList.find((f) => f.id === linha.funcao_id)
+    const isCargo = linha.tipo_linha === 'CARGO'
+    const cargoObj = isCargo ? cargosList.find((c) => c.id === linha.cargo_id) : null
+    const funcaoObj = !isCargo ? funcoesList.find((f) => f.id === linha.funcao_id) : null
     const celula = matrizVagas[`${lIdx}_${nIdx}`] || {
       quantidade: 0,
       modalidade: 'FIXO',
       dias_semana: null,
     }
 
+    const linhaNome = isCargo ? cargoObj?.nome || 'Cargo' : funcaoObj?.nome || 'Função'
+
     setCelulaEmEdicao({
       linhaIndex: lIdx,
       nivelIndex: nIdx,
-      linhaNome: funcaoObj?.nome || 'Função',
+      linhaNome,
       nivelCodigo: nivel.codigo_nivel,
       quantidade: celula.quantidade,
       modalidade: celula.modalidade,
@@ -564,12 +676,22 @@ export default function ConfigRhNivel() {
   // Abertura do modal de edição de cargos da linha
   const handleAbrirEdicaoCargos = (linhaIndex: number) => {
     const linha = linhasEditaveis[linhaIndex]
-    const funcaoObj = funcoesList.find((f) => f.id === linha.funcao_id)
+    const isCargo = linha.tipo_linha === 'CARGO'
+    const cargoObj = isCargo ? cargosList.find((c) => c.id === linha.cargo_id) : null
+    const funcaoObj = !isCargo ? funcoesList.find((f) => f.id === linha.funcao_id) : null
+    const itemNome = isCargo ? cargoObj?.nome || 'Cargo' : funcaoObj?.nome || 'Função'
+
+    // Se for linha de cargo e ainda não tiver cargos vinculados, inicializa com o próprio cargo
+    let cargosIniciais = [...(linha.cargos || [])]
+    if (isCargo && linha.cargo_id && cargosIniciais.length === 0) {
+      cargosIniciais = [{ cargo_id: linha.cargo_id, condicao: 'NENHUMA' }]
+    }
 
     setLinhaEmEdicaoCargos({
       linhaIndex,
-      funcaoNome: funcaoObj?.nome || 'Função',
-      cargos: [...(linha.cargos || [])],
+      tipoLinha: linha.tipo_linha,
+      itemNome,
+      cargos: cargosIniciais,
     })
     setDialogEditarCargosAberto(true)
   }
@@ -599,6 +721,23 @@ export default function ConfigRhNivel() {
         variant: 'destructive',
       })
       return
+    }
+
+    // Validação de duplicidade de cargos em linhas do tipo CARGO
+    const cargosUsados = new Set<string>()
+    for (const l of linhasEditaveis) {
+      if (l.tipo_linha === 'CARGO' && l.cargo_id) {
+        if (cargosUsados.has(l.cargo_id)) {
+          const cObj = cargosList.find((c) => c.id === l.cargo_id)
+          toast({
+            title: 'Cargo duplicado na configuração',
+            description: `O cargo "${cObj?.nome || 'selecionado'}" aparece mais de uma vez como linha de cargo. Remova a linha duplicada antes de salvar.`,
+            variant: 'destructive',
+          })
+          return
+        }
+        cargosUsados.add(l.cargo_id)
+      }
     }
 
     try {
@@ -645,11 +784,27 @@ export default function ConfigRhNivel() {
         }
       }
 
+      const linhasPayload = linhasEditaveis.map((l) => ({
+        tipo_linha: l.tipo_linha,
+        funcao_id: l.tipo_linha === 'CARGO' ? null : l.funcao_id,
+        cargo_id: l.tipo_linha === 'CARGO' ? l.cargo_id : null,
+        ordem: l.ordem,
+        base_calculo: l.base_calculo,
+        etapas_filtro: l.etapas_filtro,
+        observacao: l.observacao,
+        cargos:
+          l.tipo_linha === 'CARGO' && l.cargo_id
+            ? l.cargos && l.cargos.length > 0
+              ? l.cargos
+              : [{ cargo_id: l.cargo_id, condicao: 'NENHUMA' as const }]
+            : l.cargos,
+      }))
+
       const atualizado = await salvarEstruturaCompletaConfiguracaoRh(
         configuracaoAtual.id,
         {
           niveis: niveisEditaveis as any,
-          linhas: linhasEditaveis as any,
+          linhas: linhasPayload as any,
           vagas: vagasPayload,
         },
         user?.email || 'Sistema',
@@ -824,21 +979,44 @@ export default function ConfigRhNivel() {
     }))
 
     const linhasSim: ConfiguracaoRhLinha[] = linhasEditaveis.map((l, idx) => {
-      const fnObj = funcoesList.find((f) => f.id === l.funcao_id)
+      const isCargo = l.tipo_linha === 'CARGO'
+      const fnObj = !isCargo ? funcoesList.find((f) => f.id === l.funcao_id) : undefined
+      const crgObj = isCargo ? cargosList.find((c) => c.id === l.cargo_id) : undefined
+
+      const cargosSim =
+        isCargo && l.cargo_id
+          ? l.cargos && l.cargos.length > 0
+            ? l.cargos.map((c) => ({
+                cargo_id: c.cargo_id,
+                condicao: c.condicao,
+                cargo: cargosList.find((crg) => crg.id === c.cargo_id) || crgObj,
+              }))
+            : [
+                {
+                  cargo_id: l.cargo_id,
+                  condicao: 'NENHUMA' as const,
+                  cargo: crgObj,
+                },
+              ]
+          : l.cargos.map((c) => ({
+              cargo_id: c.cargo_id,
+              condicao: c.condicao,
+              cargo: cargosList.find((crg) => crg.id === c.cargo_id),
+            }))
+
       return {
         id: l.id || `sim_l_${idx}`,
         configuracao_rh_id: configuracaoAtual.id,
-        funcao_id: l.funcao_id,
+        tipo_linha: l.tipo_linha,
+        funcao_id: isCargo ? null : l.funcao_id,
+        cargo_id: isCargo ? l.cargo_id : null,
         ordem: idx + 1,
         base_calculo: l.base_calculo,
         etapas_filtro: l.etapas_filtro,
         funcao: fnObj,
+        cargo: crgObj,
         observacao: l.observacao,
-        cargos: l.cargos.map((c) => ({
-          cargo_id: c.cargo_id,
-          condicao: c.condicao,
-          cargo: cargosList.find((crg) => crg.id === c.cargo_id),
-        })),
+        cargos: cargosSim,
       }
     })
 
@@ -937,6 +1115,17 @@ export default function ConfigRhNivel() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setOpenHelpDialog(true)}
+            className="text-xs gap-1.5 border-slate-300 text-slate-700 hover:bg-slate-100"
+            title="Ajuda e Regras da Configuração de Vagas"
+          >
+            <HelpCircle className="w-4 h-4 text-blue-600" />
+            Ajuda e Regras
+          </Button>
+
           {podeEditar && (
             <>
               <Button
@@ -1116,14 +1305,14 @@ export default function ConfigRhNivel() {
               </div>
 
               {podeEditar && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={handleAdicionarNivel}
                     className="text-xs gap-1.5 h-8 text-blue-700 border-blue-200 hover:bg-blue-50"
                   >
-                    <Plus className="w-3.5 h-3.5" />+ Adicionar Nível
+                    <Plus className="w-3.5 h-3.5" /> Adicionar Nível
                   </Button>
                   <Button
                     size="sm"
@@ -1131,7 +1320,15 @@ export default function ConfigRhNivel() {
                     onClick={handleAdicionarLinha}
                     className="text-xs gap-1.5 h-8 text-blue-700 border-blue-200 hover:bg-blue-50"
                   >
-                    <Plus className="w-3.5 h-3.5" />+ Adicionar Linha (Função)
+                    <Plus className="w-3.5 h-3.5" /> Adicionar Linha (Função)
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleAbrirAdicionarLinhaCargo}
+                    className="text-xs gap-1.5 h-8 text-emerald-700 border-emerald-300 hover:bg-emerald-50 bg-emerald-50/40"
+                  >
+                    <Briefcase className="w-3.5 h-3.5 text-emerald-600" /> Adicionar Linha (Cargo)
                   </Button>
                 </div>
               )}
@@ -1143,8 +1340,8 @@ export default function ConfigRhNivel() {
                   {/* Linha 1 de Cabeçalho: Código do Nível */}
                   <TableRow className="border-b border-slate-200">
                     <TableHead className="w-12 text-center font-bold text-slate-700">#</TableHead>
-                    <TableHead className="min-w-[200px] font-bold text-slate-900">
-                      Função e Critério
+                    <TableHead className="min-w-[230px] font-bold text-slate-900">
+                      Função / Cargo e Critério
                     </TableHead>
                     <TableHead className="min-w-[130px] font-bold text-slate-700">
                       Base Cálculo
@@ -1260,16 +1457,23 @@ export default function ConfigRhNivel() {
 
                 <TableBody>
                   {linhasEditaveis.map((linha, lIdx) => {
-                    const funcaoObj = funcoesList.find((f) => f.id === linha.funcao_id)
+                    const isCargo = linha.tipo_linha === 'CARGO'
+                    const funcaoObj = !isCargo
+                      ? funcoesList.find((f) => f.id === linha.funcao_id)
+                      : null
+                    const cargoObj = isCargo
+                      ? cargosList.find((c) => c.id === linha.cargo_id)
+                      : null
                     const isSG =
-                      funcaoObj?.nome.includes('Serviços Gerais') ||
+                      funcaoObj?.nome?.includes('Serviços Gerais') ||
+                      cargoObj?.nome?.includes('Serviços Gerais') ||
                       linha.observacao?.includes('pendente de validação')
 
                     return (
                       <TableRow
                         key={linha.tempId}
                         className={`hover:bg-blue-50/30 transition-colors ${
-                          isSG ? 'bg-amber-50/30' : ''
+                          isCargo ? 'bg-emerald-50/20' : isSG ? 'bg-amber-50/30' : ''
                         }`}
                       >
                         {/* 1. Ordem */}
@@ -1277,27 +1481,90 @@ export default function ConfigRhNivel() {
                           {lIdx + 1}
                         </TableCell>
 
-                        {/* 2. Função / Nome */}
+                        {/* 2. Função / Cargo / Nome */}
                         <TableCell className="py-2.5">
                           {podeEditar ? (
-                            <div className="space-y-1">
-                              <Select
-                                value={linha.funcao_id}
-                                onValueChange={(val) =>
-                                  handleAtualizarLinha(lIdx, 'funcao_id', val)
-                                }
-                              >
-                                <SelectTrigger className="h-8 text-xs font-semibold bg-white">
-                                  <SelectValue placeholder="Selecione uma função..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {funcoesList.map((f) => (
-                                    <SelectItem key={f.id} value={f.id}>
-                                      {f.nome}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-1.5">
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    isCargo
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold text-[10px] px-1.5 py-0'
+                                      : 'bg-blue-50 text-blue-800 border-blue-300 font-bold text-[10px] px-1.5 py-0'
+                                  }
+                                >
+                                  {isCargo ? 'CARGO' : 'FUNÇÃO'}
+                                </Badge>
+                                {isCargo && cargoObj?.carga_horaria && (
+                                  <span className="text-[10px] text-slate-500 font-mono">
+                                    {cargoObj.carga_horaria}
+                                  </span>
+                                )}
+                              </div>
+
+                              {isCargo ? (
+                                <Select
+                                  value={linha.cargo_id || ''}
+                                  onValueChange={(val) => {
+                                    // Bloqueio de duplicidade se escolher cargo já usado em outra linha de cargo
+                                    const jaUsado = linhasEditaveis.some(
+                                      (l, idx) =>
+                                        idx !== lIdx &&
+                                        l.tipo_linha === 'CARGO' &&
+                                        l.cargo_id === val,
+                                    )
+                                    if (jaUsado) {
+                                      const cSel = cargosList.find((c) => c.id === val)
+                                      toast({
+                                        title: 'Cargo já em uso nesta configuração',
+                                        description: `O cargo "${cSel?.nome || 'selecionado'}" já está presente em outra linha da grade. Não é permitida duplicidade de cargo na mesma configuração.`,
+                                        variant: 'destructive',
+                                      })
+                                      return
+                                    }
+
+                                    // Atualiza cargo_id e sincroniza o cargo da linha
+                                    handleAtualizarLinha(lIdx, 'cargo_id', val)
+                                    const cAtual = linha.cargos?.[0]
+                                    handleAtualizarLinha(lIdx, 'cargos', [
+                                      {
+                                        cargo_id: val,
+                                        condicao: cAtual?.condicao || 'NENHUMA',
+                                      },
+                                    ])
+                                  }}
+                                >
+                                  <SelectTrigger className="h-8 text-xs font-semibold bg-white border-emerald-300 focus:ring-emerald-400">
+                                    <SelectValue placeholder="Selecione um cargo..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {cargosList.map((c) => (
+                                      <SelectItem key={c.id} value={c.id}>
+                                        {c.nome} {c.carga_horaria ? `(${c.carga_horaria})` : ''}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <Select
+                                  value={linha.funcao_id || ''}
+                                  onValueChange={(val) =>
+                                    handleAtualizarLinha(lIdx, 'funcao_id', val)
+                                  }
+                                >
+                                  <SelectTrigger className="h-8 text-xs font-semibold bg-white">
+                                    <SelectValue placeholder="Selecione uma função..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {funcoesList.map((f) => (
+                                      <SelectItem key={f.id} value={f.id}>
+                                        {f.nome}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
 
                               {linha.observacao && (
                                 <p className="text-[11px] text-amber-700 font-medium flex items-center gap-1">
@@ -1308,8 +1575,20 @@ export default function ConfigRhNivel() {
                             </div>
                           ) : (
                             <div>
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    isCargo
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold text-[10px] px-1.5 py-0'
+                                      : 'bg-blue-50 text-blue-800 border-blue-300 font-bold text-[10px] px-1.5 py-0'
+                                  }
+                                >
+                                  {isCargo ? 'CARGO' : 'FUNÇÃO'}
+                                </Badge>
+                              </div>
                               <p className="font-semibold text-slate-900">
-                                {funcaoObj?.nome || 'Função'}
+                                {isCargo ? cargoObj?.nome || 'Cargo' : funcaoObj?.nome || 'Função'}
                               </p>
                               {linha.observacao && (
                                 <p className="text-[11px] text-amber-700 font-medium">
@@ -1403,12 +1682,24 @@ export default function ConfigRhNivel() {
                         {/* 5. Cargos Elegíveis Vinculados */}
                         <TableCell className="text-center py-2.5">
                           <Button
-                            variant="ghost"
+                            variant={isCargo ? 'outline' : 'ghost'}
                             size="sm"
                             onClick={() => handleAbrirEdicaoCargos(lIdx)}
-                            className="h-7 px-2 text-xs font-semibold text-blue-700 hover:text-blue-800 hover:bg-blue-50"
+                            className={`h-7 px-2 text-xs font-semibold ${
+                              isCargo
+                                ? 'text-emerald-800 border-emerald-300 bg-emerald-50/60 hover:bg-emerald-100'
+                                : 'text-blue-700 hover:text-blue-800 hover:bg-blue-50'
+                            }`}
                           >
-                            {linha.cargos && linha.cargos.length > 0 ? (
+                            {isCargo ? (
+                              <span className="flex items-center gap-1">
+                                <Briefcase className="w-3 h-3 text-emerald-700" />
+                                {linha.cargos?.[0]?.condicao &&
+                                linha.cargos[0].condicao !== 'NENHUMA'
+                                  ? 'Condição especial'
+                                  : 'Cargo direto'}
+                              </span>
+                            ) : linha.cargos && linha.cargos.length > 0 ? (
                               <Badge
                                 variant="secondary"
                                 className="bg-blue-100 text-blue-800 font-bold"
@@ -1894,113 +2185,175 @@ export default function ConfigRhNivel() {
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG: VINCULAR CARGOS PERMITIDOS À LINHA */}
+      {/* DIALOG: VINCULAR CARGOS PERMITIDOS OU CONDIÇÃO DA LINHA */}
       <Dialog open={dialogEditarCargosAberto} onOpenChange={setDialogEditarCargosAberto}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900">
-              Cargos Elegíveis: {linhaEmEdicaoCargos?.funcaoNome}
+            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              {linhaEmEdicaoCargos?.tipoLinha === 'CARGO' ? (
+                <>
+                  <Briefcase className="w-4 h-4 text-emerald-600" />
+                  Condição do Cargo: {linhaEmEdicaoCargos?.itemNome}
+                </>
+              ) : (
+                <>
+                  <Layers className="w-4 h-4 text-blue-600" />
+                  Cargos Elegíveis: {linhaEmEdicaoCargos?.itemNome}
+                </>
+              )}
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Defina quais cargos da rede podem ocupar as vagas desta função e a condição aplicável.
+              {linhaEmEdicaoCargos?.tipoLinha === 'CARGO'
+                ? 'Como esta linha já referencia um Cargo diretamente, configure a condição especial aplicável a esta lotação.'
+                : 'Defina quais cargos da rede podem ocupar as vagas desta função e a condição aplicável.'}
             </DialogDescription>
           </DialogHeader>
 
           {linhaEmEdicaoCargos && (
             <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto pr-1">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <span className="text-xs font-bold text-slate-700">
-                  Cargos Vinculados ({linhaEmEdicaoCargos.cargos.length})
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (cargosList.length === 0) return
-                    setLinhaEmEdicaoCargos({
-                      ...linhaEmEdicaoCargos,
-                      cargos: [
-                        ...linhaEmEdicaoCargos.cargos,
-                        { cargo_id: cargosList[0].id, condicao: 'NENHUMA' },
-                      ],
-                    })
-                  }}
-                  className="h-7 text-xs text-blue-700 border-blue-200"
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1" />+ Adicionar Cargo
-                </Button>
-              </div>
+              {linhaEmEdicaoCargos.tipoLinha === 'CARGO' ? (
+                <div className="p-3 rounded-lg border border-emerald-200 bg-emerald-50/40 space-y-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-slate-800">Cargo da Linha</Label>
+                    <p className="text-sm font-bold text-emerald-900">
+                      {linhaEmEdicaoCargos.itemNome}
+                    </p>
+                  </div>
 
-              {linhaEmEdicaoCargos.cargos.length === 0 ? (
-                <p className="text-xs text-slate-500 text-center py-4">
-                  Nenhum cargo restrito configurado para esta função.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {linhaEmEdicaoCargos.cargos.map((cargoVinc, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3 rounded-lg border border-slate-200 bg-slate-50/50 space-y-2"
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">
+                      Condição de Ocupação da Vaga
+                    </Label>
+                    <Select
+                      value={linhaEmEdicaoCargos.cargos[0]?.condicao || 'NENHUMA'}
+                      onValueChange={(val: CondicaoLinhaCargo) => {
+                        const cargoIdAtual =
+                          linhasEditaveis[linhaEmEdicaoCargos.linhaIndex]?.cargo_id ||
+                          linhaEmEdicaoCargos.cargos[0]?.cargo_id ||
+                          cargosList[0]?.id
+
+                        setLinhaEmEdicaoCargos({
+                          ...linhaEmEdicaoCargos,
+                          cargos: [{ cargo_id: cargoIdAtual, condicao: val }],
+                        })
+                      }}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <Select
-                          value={cargoVinc.cargo_id}
-                          onValueChange={(val) => {
-                            const copia = [...linhaEmEdicaoCargos.cargos]
-                            copia[idx].cargo_id = val
-                            setLinhaEmEdicaoCargos({ ...linhaEmEdicaoCargos, cargos: copia })
-                          }}
-                        >
-                          <SelectTrigger className="h-8 text-xs font-semibold bg-white flex-1">
-                            <SelectValue placeholder="Selecione o cargo..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {cargosList.map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                {c.nome} {c.carga_horaria ? `(${c.carga_horaria})` : ''}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => {
-                            const copia = linhaEmEdicaoCargos.cargos.filter((_, i) => i !== idx)
-                            setLinhaEmEdicaoCargos({ ...linhaEmEdicaoCargos, cargos: copia })
-                          }}
-                          className="h-8 w-8 text-slate-400 hover:text-red-600"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-slate-600">Condição de ocupação</Label>
-                        <Select
-                          value={cargoVinc.condicao}
-                          onValueChange={(val: CondicaoLinhaCargo) => {
-                            const copia = [...linhaEmEdicaoCargos.cargos]
-                            copia[idx].condicao = val
-                            setLinhaEmEdicaoCargos({ ...linhaEmEdicaoCargos, cargos: copia })
-                          }}
-                        >
-                          <SelectTrigger className="h-7 text-[11px] bg-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {OPCOES_CONDICAO.map((opt) => (
-                              <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                                {opt.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  ))}
+                      <SelectTrigger className="h-8 text-xs bg-white border-emerald-300">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {OPCOES_CONDICAO.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-slate-500">
+                      A vaga gerada a partir desta linha de cargo adotará esta restrição caso
+                      configurada.
+                    </p>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <span className="text-xs font-bold text-slate-700">
+                      Cargos Vinculados ({linhaEmEdicaoCargos.cargos.length})
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (cargosList.length === 0) return
+                        setLinhaEmEdicaoCargos({
+                          ...linhaEmEdicaoCargos,
+                          cargos: [
+                            ...linhaEmEdicaoCargos.cargos,
+                            { cargo_id: cargosList[0].id, condicao: 'NENHUMA' },
+                          ],
+                        })
+                      }}
+                      className="h-7 text-xs text-blue-700 border-blue-200"
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Cargo
+                    </Button>
+                  </div>
+
+                  {linhaEmEdicaoCargos.cargos.length === 0 ? (
+                    <p className="text-xs text-slate-500 text-center py-4">
+                      Nenhum cargo restrito configurado para esta função.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {linhaEmEdicaoCargos.cargos.map((cargoVinc, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3 rounded-lg border border-slate-200 bg-slate-50/50 space-y-2"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <Select
+                              value={cargoVinc.cargo_id}
+                              onValueChange={(val) => {
+                                const copia = [...linhaEmEdicaoCargos.cargos]
+                                copia[idx].cargo_id = val
+                                setLinhaEmEdicaoCargos({ ...linhaEmEdicaoCargos, cargos: copia })
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-xs font-semibold bg-white flex-1">
+                                <SelectValue placeholder="Selecione o cargo..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {cargosList.map((c) => (
+                                  <SelectItem key={c.id} value={c.id}>
+                                    {c.nome} {c.carga_horaria ? `(${c.carga_horaria})` : ''}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => {
+                                const copia = linhaEmEdicaoCargos.cargos.filter((_, i) => i !== idx)
+                                setLinhaEmEdicaoCargos({ ...linhaEmEdicaoCargos, cargos: copia })
+                              }}
+                              className="h-8 w-8 text-slate-400 hover:text-red-600"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-slate-600">
+                              Condição de ocupação
+                            </Label>
+                            <Select
+                              value={cargoVinc.condicao}
+                              onValueChange={(val: CondicaoLinhaCargo) => {
+                                const copia = [...linhaEmEdicaoCargos.cargos]
+                                copia[idx].condicao = val
+                                setLinhaEmEdicaoCargos({ ...linhaEmEdicaoCargos, cargos: copia })
+                              }}
+                            >
+                              <SelectTrigger className="h-7 text-[11px] bg-white">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {OPCOES_CONDICAO.map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -2020,6 +2373,204 @@ export default function ConfigRhNivel() {
               className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
             >
               Salvar Cargos da Linha
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG: ADICIONAR LINHA (CARGO) */}
+      <Dialog
+        open={dialogAdicionarLinhaCargoAberto}
+        onOpenChange={setDialogAdicionarLinhaCargoAberto}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Briefcase className="w-4 h-4 text-emerald-600" />
+              Adicionar Linha (Cargo)
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Insira uma linha referenciando diretamente um Cargo na grade de dimensionamento.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3.5 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-700">Cargo da Linha *</Label>
+              <Select
+                value={cargoLinhaSelecionadoId}
+                onValueChange={(val) => setCargoLinhaSelecionadoId(val)}
+              >
+                <SelectTrigger className="h-9 text-xs font-semibold bg-white">
+                  <SelectValue placeholder="Selecione um cargo..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-56">
+                  {cargosList.map((c) => {
+                    const jaExiste = linhasEditaveis.some(
+                      (l) => l.tipo_linha === 'CARGO' && l.cargo_id === c.id,
+                    )
+                    return (
+                      <SelectItem
+                        key={c.id}
+                        value={c.id}
+                        disabled={jaExiste}
+                        className={jaExiste ? 'opacity-50 text-slate-400' : ''}
+                      >
+                        {c.nome} {c.carga_horaria ? `(${c.carga_horaria})` : ''}{' '}
+                        {jaExiste ? '— (já presente)' : ''}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-slate-500">
+                Apenas cargos ainda não inseridos nesta configuração estão habilitados.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-700">Base de Cálculo</Label>
+              <Select
+                value={cargoLinhaBaseCalculo}
+                onValueChange={(val: BaseCalculoRh) => setCargoLinhaBaseCalculo(val)}
+              >
+                <SelectTrigger className="h-8 text-xs bg-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OPCOES_BASE_CALCULO.map((bc) => (
+                    <SelectItem key={bc.value} value={bc.value} className="text-xs">
+                      {bc.label} — {bc.desc}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-700">Condição do Cargo</Label>
+              <Select
+                value={cargoLinhaCondicao}
+                onValueChange={(val: CondicaoLinhaCargo) => setCargoLinhaCondicao(val)}
+              >
+                <SelectTrigger className="h-8 text-xs bg-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OPCOES_CONDICAO.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDialogAdicionarLinhaCargoAberto(false)}
+              className="text-xs"
+            >
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleConfirmarAdicionarLinhaCargo}
+              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+            >
+              Adicionar à Grade
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG: AJUDA E REGRAS */}
+      <Dialog open={openHelpDialog} onOpenChange={setOpenHelpDialog}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+              <HelpCircle className="w-5 h-5 text-blue-600" />
+              Ajuda e Regras — Configuração de Vagas por Nível (Etapa 1)
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Guia operacional e parâmetros oficiais de dimensionamento de pessoal e cargos/funções.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs text-slate-700 leading-relaxed">
+            <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-200 space-y-1.5">
+              <h4 className="font-bold text-blue-900 flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-blue-700" />
+                Composição por Funções e Cargos
+              </h4>
+              <p>A matriz de dimensionamento de RH suporta dois tipos de linhas:</p>
+              <ul className="list-disc pl-4 space-y-1 text-slate-600">
+                <li>
+                  <strong>Linha (Função):</strong> referencia uma Função oficial (ex: Diretor, Apoio
+                  Administrativo). Permite vincular uma lista de múltiplos cargos elegíveis com suas
+                  respectivas condições (exige SEMED, readaptado).
+                </li>
+                <li>
+                  <strong>Linha (Cargo):</strong> adicionada via botão{' '}
+                  <span className="font-semibold text-emerald-800">"Adicionar Linha (Cargo)"</span>.
+                  Permite incluir diretamente cargos do cadastro oficial na matriz com sua própria
+                  base de cálculo e condição. Bloqueia duplicidade (o mesmo cargo não pode ser
+                  duplicado na mesma configuração).
+                </li>
+              </ul>
+            </div>
+
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-1.5">
+              <h4 className="font-bold text-slate-900">Bases de Cálculo Disponíveis</h4>
+              <ul className="list-disc pl-4 space-y-1 text-slate-600">
+                <li>
+                  <strong>Por Escola (fixo):</strong> multiplica a quantidade da célula por 1,
+                  independente da quantidade de turnos ou turmas da escola.
+                </li>
+                <li>
+                  <strong>Por Período:</strong> multiplica a quantidade de vagas pelo número de
+                  turnos/períodos atendidos pela unidade (ex: 2 turnos = 2x vagas).
+                </li>
+                <li>
+                  <strong>Por Turma (total):</strong> multiplica pelo total geral de turmas da
+                  unidade escolar.
+                </li>
+                <li>
+                  <strong>Por Turma e Etapa:</strong> multiplica apenas pelas turmas das etapas
+                  especificadas no filtro da linha (ex: Infantil I, Infantil II).
+                </li>
+              </ul>
+            </div>
+
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-1.5">
+              <h4 className="font-bold text-slate-900">Validação e Contiguidade de Faixas</h4>
+              <p>
+                As faixas de alunos de cada nível devem ser estritamente contíguas, sem lacunas e
+                sem sobreposições. O sistema valida automaticamente e impede o salvamento de faixas
+                inconsistentes.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-1.5">
+              <h4 className="font-bold text-slate-900">Auditoria e Rastreabilidade</h4>
+              <p>
+                Toda criação, alteração ou exclusão de níveis, linhas de função, linhas de cargo e
+                células é registrada no histórico de Auditoria do sistema com identificação do
+                usuário responsável, data/hora e valores alterados.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              size="sm"
+              onClick={() => setOpenHelpDialog(false)}
+              className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Entendido
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -675,6 +675,53 @@ export type Database = {
           },
         ]
       }
+      porte_escola_ano: {
+        Row: {
+          ano_letivo: number
+          codigo: string | null
+          created_at: string
+          id: string
+          justificativa_mudanca: string | null
+          nivel_faixa: string
+          nivel_sugerido: string | null
+          quantidade_alunos: number
+          unidade_escolar_id: string
+          updated_at: string
+        }
+        Insert: {
+          ano_letivo: number
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          justificativa_mudanca?: string | null
+          nivel_faixa: string
+          nivel_sugerido?: string | null
+          quantidade_alunos?: number
+          unidade_escolar_id: string
+          updated_at?: string
+        }
+        Update: {
+          ano_letivo?: number
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          justificativa_mudanca?: string | null
+          nivel_faixa?: string
+          nivel_sugerido?: string | null
+          quantidade_alunos?: number
+          unidade_escolar_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'porte_escola_ano_unidade_escolar_id_fkey'
+            columns: ['unidade_escolar_id']
+            isOneToOne: false
+            referencedRelation: 'unidades_escolares'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       profissionais: {
         Row: {
           ativo: boolean

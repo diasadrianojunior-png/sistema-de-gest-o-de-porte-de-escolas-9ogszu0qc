@@ -421,6 +421,8 @@ export type ModalidadeRhVaga = 'FIXO' | 'ITINERANTE'
 
 export type CondicaoLinhaCargo = 'NENHUMA' | 'READAPTADO_COMPATIVEL_LAUDO' | 'AUTORIZACAO_SEMED'
 
+export type TipoLinhaRh = 'FUNCAO' | 'CARGO'
+
 export interface ConfiguracaoRh {
   id: string
   codigo?: string // CRHN-0001
@@ -458,7 +460,9 @@ export interface ConfiguracaoRhLinha {
   id: string
   codigo?: string // LNH-0001
   configuracao_rh_id: string
-  funcao_id: string
+  tipo_linha?: TipoLinhaRh // 'FUNCAO' | 'CARGO'
+  funcao_id?: string | null
+  cargo_id?: string | null
   ordem: number
   base_calculo: BaseCalculoRh
   etapas_filtro?: string[] | null // ex: ["INFANTIL", "INFANTIL_I", "INFANTIL_II"]
@@ -466,6 +470,7 @@ export interface ConfiguracaoRhLinha {
   created_at?: string
   updated_at?: string
   funcao?: Funcao
+  cargo?: Cargo
   cargos?: ConfiguracaoRhLinhaCargo[]
 }
 

@@ -249,14 +249,37 @@ export function expandirSlotsIndividuais(
     modalidade: 'FIXO' | 'ITINERANTE'
     diasSemana?: number | null
     cargosElegiveis: Array<{ cargoId: string; cargoNome: string; condicao: string }>
+    cargoIdPredefinido?: string | null
   }> = []
 
-  const funcaoNome = linha.funcao?.nome || 'Função'
-  const cargosElegiveis = (linha.cargos || []).map((c) => ({
-    cargoId: c.cargo_id,
-    cargoNome: c.cargo?.nome || 'Cargo',
-    condicao: c.condicao,
-  }))
+  const isCargo = linha.tipo_linha === 'CARGO' || (!linha.funcao_id && !!linha.cargo_id)
+  const funcaoNome = isCargo ? linha.cargo?.nome || 'Cargo' : linha.funcao?.nome || 'Função'
+  const cargoIdPredefinido = isCargo ? linha.cargo_id || null : null
+
+  let cargosElegiveis: Array<{ cargoId: string; cargoNome: string; condicao: string }> = []
+  if (isCargo && linha.cargo_id) {
+    if (linha.cargos && linha.cargos.length > 0) {
+      cargosElegiveis = linha.cargos.map((c) => ({
+        cargoId: c.cargo_id,
+        cargoNome: c.cargo?.nome || linha.cargo?.nome || 'Cargo',
+        condicao: c.condicao || 'NENHUMA',
+      }))
+    } else {
+      cargosElegiveis = [
+        {
+          cargoId: linha.cargo_id,
+          cargoNome: linha.cargo?.nome || 'Cargo',
+          condicao: 'NENHUMA',
+        },
+      ]
+    }
+  } else {
+    cargosElegiveis = (linha.cargos || []).map((c) => ({
+      cargoId: c.cargo_id,
+      cargoNome: c.cargo?.nome || 'Cargo',
+      condicao: c.condicao,
+    }))
+  }
 
   if (qtdMatriz <= 0) return slots
 
@@ -273,6 +296,7 @@ export function expandirSlotsIndividuais(
           modalidade,
           diasSemana,
           cargosElegiveis,
+          cargoIdPredefinido,
         })
       }
       break
@@ -291,6 +315,7 @@ export function expandirSlotsIndividuais(
             modalidade,
             diasSemana,
             cargosElegiveis,
+            cargoIdPredefinido,
           })
         }
       }
@@ -308,6 +333,7 @@ export function expandirSlotsIndividuais(
           modalidade,
           diasSemana,
           cargosElegiveis,
+          cargoIdPredefinido,
         })
       }
       break
@@ -324,6 +350,7 @@ export function expandirSlotsIndividuais(
           modalidade,
           diasSemana,
           cargosElegiveis,
+          cargoIdPredefinido,
         })
       }
       break
@@ -339,6 +366,7 @@ export function expandirSlotsIndividuais(
           modalidade,
           diasSemana,
           cargosElegiveis,
+          cargoIdPredefinido,
         })
       }
     }
@@ -892,7 +920,7 @@ export async function confirmarGeracaoVagas(
       periodo: s.periodo || null,
       modalidade: s.modalidade,
       dias_semana: s.diasSemana ?? null,
-      cargo_id: null,
+      cargo_id: (s as any).cargoIdPredefinido || null,
       servidor_id: null,
       nome_ocupante: null,
       status: 'ABERTA' as StatusVagaReal,

@@ -63,12 +63,13 @@ export async function getConfiguracaoRhCompleta(
     throw nivError
   }
 
-  // 3. Linhas com funções e cargos
+  // 3. Linhas com funções, cargos diretos e cargos vinculados
   const { data: linhas, error: linError } = await db
     .from('configuracao_rh_linha')
     .select(`
       *,
       funcao:funcoes (id, codigo, nome, descricao, exige_autorizacao_semed),
+      cargo:cargos!configuracao_rh_linha_cargo_id_fkey (id, codigo, nome, carga_horaria, natureza, docente, ativo),
       cargos:configuracao_rh_linha_cargo (
         id,
         linha_id,
@@ -279,7 +280,9 @@ export async function duplicarConfiguracaoRh(
       .from('configuracao_rh_linha')
       .insert({
         configuracao_rh_id: novaCfg.id,
-        funcao_id: l.funcao_id,
+        tipo_linha: l.tipo_linha || (l.cargo_id && !l.funcao_id ? 'CARGO' : 'FUNCAO'),
+        funcao_id: l.funcao_id || null,
+        cargo_id: l.cargo_id || null,
         ordem: l.ordem,
         base_calculo: l.base_calculo,
         etapas_filtro: l.etapas_filtro,
@@ -358,7 +361,10 @@ export async function salvarEstruturaCompletaConfiguracaoRh(
       Omit<ConfiguracaoRhNivel, 'id' | 'codigo' | 'configuracao_rh_id'> & { id?: string }
     >
     linhas: Array<
-      Omit<ConfiguracaoRhLinha, 'id' | 'codigo' | 'configuracao_rh_id' | 'funcao' | 'cargos'> & {
+      Omit<
+        ConfiguracaoRhLinha,
+        'id' | 'codigo' | 'configuracao_rh_id' | 'funcao' | 'cargo' | 'cargos'
+      > & {
         id?: string
         cargos?: Array<{ cargo_id: string; condicao: any }>
       }
@@ -414,11 +420,14 @@ export async function salvarEstruturaCompletaConfiguracaoRh(
   const novasLinhasIds: string[] = []
   for (let i = 0; i < dados.linhas.length; i++) {
     const l = dados.linhas[i]
+    const tipoFinal = l.tipo_linha || (l.cargo_id && !l.funcao_id ? 'CARGO' : 'FUNCAO')
     const { data: linData, error: linErr } = await db
       .from('configuracao_rh_linha')
       .insert({
         configuracao_rh_id: configuracaoId,
-        funcao_id: l.funcao_id,
+        tipo_linha: tipoFinal,
+        funcao_id: tipoFinal === 'CARGO' ? null : l.funcao_id || null,
+        cargo_id: tipoFinal === 'CARGO' ? l.cargo_id || null : null,
         ordem: i + 1,
         base_calculo: l.base_calculo,
         etapas_filtro: l.etapas_filtro && l.etapas_filtro.length > 0 ? l.etapas_filtro : null,
