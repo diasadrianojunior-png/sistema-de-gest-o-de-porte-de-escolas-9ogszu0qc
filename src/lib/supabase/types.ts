@@ -161,41 +161,54 @@ export type Database = {
       configuracao_rh_linha: {
         Row: {
           base_calculo: string
+          cargo_id: string | null
           codigo: string | null
           configuracao_rh_id: string
           created_at: string
           etapas_filtro: Json | null
-          funcao_id: string
+          funcao_id: string | null
           id: string
           observacao: string | null
           ordem: number
+          tipo_linha: string
           updated_at: string
         }
         Insert: {
           base_calculo: string
+          cargo_id?: string | null
           codigo?: string | null
           configuracao_rh_id: string
           created_at?: string
           etapas_filtro?: Json | null
-          funcao_id: string
+          funcao_id?: string | null
           id?: string
           observacao?: string | null
           ordem?: number
+          tipo_linha?: string
           updated_at?: string
         }
         Update: {
           base_calculo?: string
+          cargo_id?: string | null
           codigo?: string | null
           configuracao_rh_id?: string
           created_at?: string
           etapas_filtro?: Json | null
-          funcao_id?: string
+          funcao_id?: string | null
           id?: string
           observacao?: string | null
           ordem?: number
+          tipo_linha?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: 'configuracao_rh_linha_cargo_id_fkey'
+            columns: ['cargo_id']
+            isOneToOne: false
+            referencedRelation: 'cargos'
+            referencedColumns: ['id']
+          },
           {
             foreignKeyName: 'configuracao_rh_linha_configuracao_rh_id_fkey'
             columns: ['configuracao_rh_id']

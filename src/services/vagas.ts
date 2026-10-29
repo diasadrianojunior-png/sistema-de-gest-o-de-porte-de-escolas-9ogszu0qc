@@ -3,6 +3,7 @@ import {
   ConfiguracaoRhCompleta,
   ConfiguracaoRhLinha,
   PeriodoEscola,
+  PorteEscolaAno,
   StatusVagaReal,
   UnidadeEscolar,
   UnidadeEscolarAno,
@@ -170,6 +171,14 @@ export interface PreviaItemIndividual {
 export interface PreviaGeracaoResultado {
   escola: UnidadeEscolar
   anoLetivo: number
+  porteEscola: PorteEscolaAno | null
+  turmasCadastradas: Array<{
+    id: string
+    nome: string
+    etapaNome?: string
+    anoSerieNome?: string
+  }>
+  contagemTurmasPorEtapa: Record<string, number>
   unidadeAno: UnidadeEscolarAno
   configuracaoUsada: ConfiguracaoRhCompleta
   criterioConfiguracao: 'VIGENTE_ANO' | 'MAIS_RECENTE'
@@ -396,10 +405,25 @@ export async function calcularPreviaGeracao(
   }
   const escola = escolaData as UnidadeEscolar
 
-  // 2. Carregar turmas cadastradas para a unidade e ano letivo (com etapa)
+  // 2. Carregar dados do Porte da Escola no Ano Letivo (porte_escola_ano)
+  const { data: porteEscolaData, error: errPorte } = await db
+    .from('porte_escola_ano')
+    .select('*')
+    .eq('unidade_escolar_id', unidadeEscolarId)
+    .eq('ano_letivo', anoLetivo)
+    .maybeSingle()
+
+  if (errPorte) {
+    console.error('Erro ao consultar porte_escola_ano:', errPorte)
+  }
+  const porteEscola = (porteEscolaData as PorteEscolaAno | null) || null
+
+  // 3. Carregar turmas cadastradas para a unidade e ano letivo (com etapa e ano/série)
   const { data: turmasCadastradas, error: errTurmas } = await db
     .from('turmas')
-    .select('id, nome, etapa_id, etapa:etapas(id, codigo, nome)')
+    .select(
+      'id, nome, ano_letivo, etapa_id, ano_serie_id, etapa:etapas(id, codigo, nome), ano_serie:anos_series(id, codigo, nome)',
+    )
     .eq('unidade_escolar_id', unidadeEscolarId)
     .eq('ano_letivo', anoLetivo)
 
@@ -418,7 +442,7 @@ export async function calcularPreviaGeracao(
     contagemPorEtapaCalculada[chaveEtapa] = (contagemPorEtapaCalculada[chaveEtapa] || 0) + 1
   }
 
-  // 3. Carregar unidade_escolar_ano existente
+  // 4. Carregar unidade_escolar_ano existente
   let unidadeAno = await getUnidadeEscolarAno(unidadeEscolarId, anoLetivo)
 
   // Períodos padrão definidos pelo tipo de atendimento
@@ -426,14 +450,16 @@ export async function calcularPreviaGeracao(
     ? ['INTEGRAL']
     : ['MANHA', 'TARDE']
 
-  // Quantidade de alunos derivada:
-  // Usa o valor já registrado em unidade_escolar_ano (se > 0) ou deriva da escola/nível
+  // Quantidade de alunos prioritária:
+  // VEM DO CADASTRO 'porte_escola_ano' (regra do usuário), com fallback para unidade_escolar_ano
   const alunosDerivados =
-    unidadeAno && unidadeAno.qtd_alunos > 0
-      ? unidadeAno.qtd_alunos
-      : escola.quantidade_alunos && escola.quantidade_alunos > 0
-        ? escola.quantidade_alunos
-        : 0
+    porteEscola && porteEscola.quantidade_alunos > 0
+      ? porteEscola.quantidade_alunos
+      : unidadeAno && unidadeAno.qtd_alunos > 0
+        ? unidadeAno.qtd_alunos
+        : escola.quantidade_alunos && escola.quantidade_alunos > 0
+          ? escola.quantidade_alunos
+          : 0
 
   // Quantidade de turmas derivada:
   // Usa a contagem real de turmas cadastradas para a unidade/ano letivo
@@ -456,7 +482,7 @@ export async function calcularPreviaGeracao(
   if (
     !unidadeAno ||
     unidadeAno.qtd_turmas !== turmasDerivadas ||
-    (!unidadeAno.qtd_alunos && alunosDerivados > 0)
+    unidadeAno.qtd_alunos !== alunosDerivados
   ) {
     try {
       unidadeAno = await salvarUnidadeEscolarAno({
@@ -491,21 +517,74 @@ export async function calcularPreviaGeracao(
     }
   }
 
-  // 3. Resolver configuração de RH
+  // 5. Resolver configuração de RH
   const resolucao = await resolverConfiguracaoParaEscola(escola.tipo_atendimento, anoLetivo)
   const config = resolucao.configuracao
 
-  // 4. Validação de dados essenciais (Etapa 2 ajustada conforme solicitação do usuário)
-  // "Se ainda assim faltar dado essencial (ex.: unidade sem nenhum aluno cadastrado ou sem turmas vinculadas),
-  // mostre mensagem clara explicando o que falta e onde cadastrar (link/dica para o cadastro correspondente) — não abra o formulário embutido de alunos/turmas."
   const periodos = (
     unidadeAno.periodos && unidadeAno.periodos.length > 0 ? unidadeAno.periodos : defaultPeriodos
   ) as PeriodoEscola[]
 
-  if (unidadeAno.qtd_alunos <= 0) {
+  // Bloqueio se porte_escola_ano não estiver cadastrado ou sem alunos
+  if (!porteEscola || porteEscola.quantidade_alunos <= 0) {
+    const turmasResumoFormatado = turmasList.map((t) => ({
+      id: t.id,
+      nome: t.nome,
+      etapaNome: t.etapa?.nome || 'Etapa não informada',
+      anoSerieNome: t.ano_serie?.nome || 'Não informada',
+    }))
+
     return {
       escola,
       anoLetivo,
+      porteEscola,
+      turmasCadastradas: turmasResumoFormatado,
+      contagemTurmasPorEtapa: contagemPorEtapaCalculada,
+      unidadeAno,
+      configuracaoUsada: config,
+      criterioConfiguracao: resolucao.criterio,
+      motivoConfiguracao: resolucao.motivoTexto,
+      resultadoCalculo: {
+        nivelEncontrado: null,
+        totalAlunos: 0,
+        totalPeriodos: 0,
+        totalTurmas: 0,
+        vagas: [],
+        passosMemoria: [],
+        avisos: [],
+      },
+      nivelEncontradoCodigo: '',
+      nivelFaixaDescricao: '',
+      vagasLinhas: [],
+      totalVagasCalculadas: 0,
+      vagasExistentes: [],
+      novasVagasCriar: [],
+      abertasRemover: [],
+      ocupadasExcedentes: [],
+      ocupadasMantidas: [],
+      resumoTexto: 'Porte da Escola não cadastrado',
+      bloqueadoPorFaltaDados: {
+        campo: 'porte_escola_ano',
+        mensagem:
+          'Não há registro de Porte da Escola cadastrado para esta Unidade no Ano Letivo. Acesse "Cadastros de Apoio > Porte da Escola por Ano Letivo" para cadastrá-lo antes de gerar as vagas.',
+      },
+    }
+  }
+
+  if (unidadeAno.qtd_alunos <= 0) {
+    const turmasResumoFormatado = turmasList.map((t) => ({
+      id: t.id,
+      nome: t.nome,
+      etapaNome: t.etapa?.nome || 'Etapa não informada',
+      anoSerieNome: t.ano_serie?.nome || 'Não informada',
+    }))
+
+    return {
+      escola,
+      anoLetivo,
+      porteEscola,
+      turmasCadastradas: turmasResumoFormatado,
+      contagemTurmasPorEtapa: contagemPorEtapaCalculada,
       unidadeAno,
       configuracaoUsada: config,
       criterioConfiguracao: resolucao.criterio,
@@ -532,15 +611,25 @@ export async function calcularPreviaGeracao(
       bloqueadoPorFaltaDados: {
         campo: 'qtd_alunos',
         mensagem:
-          'A unidade escolar não possui quantidade de alunos cadastrada para o ano letivo. Acesse o menu "Cadastros Mestres > Unidades Escolares" para atualizar o nível/porte de alunos da unidade.',
+          'A unidade escolar não possui quantidade de alunos cadastrada no cadastro "Porte da Escola por Ano Letivo". Acesse esse cadastro para preencher a quantidade de alunos e nível da escola.',
       },
     }
   }
 
   if (unidadeAno.qtd_turmas <= 0) {
+    const turmasResumoFormatado = turmasList.map((t) => ({
+      id: t.id,
+      nome: t.nome,
+      etapaNome: t.etapa?.nome || 'Etapa não informada',
+      anoSerieNome: t.ano_serie?.nome || 'Não informada',
+    }))
+
     return {
       escola,
       anoLetivo,
+      porteEscola,
+      turmasCadastradas: turmasResumoFormatado,
+      contagemTurmasPorEtapa: contagemPorEtapaCalculada,
       unidadeAno,
       configuracaoUsada: config,
       criterioConfiguracao: resolucao.criterio,
@@ -584,9 +673,19 @@ export async function calcularPreviaGeracao(
 
   // Se tem linha por turma etapa e não há turmas com etapa correspondente
   if (temLinhaPorTurmaEtapa && totalTurmasEtapaInformadas <= 0) {
+    const turmasResumoFormatado = turmasList.map((t) => ({
+      id: t.id,
+      nome: t.nome,
+      etapaNome: t.etapa?.nome || 'Etapa não informada',
+      anoSerieNome: t.ano_serie?.nome || 'Não informada',
+    }))
+
     return {
       escola,
       anoLetivo,
+      porteEscola,
+      turmasCadastradas: turmasResumoFormatado,
+      contagemTurmasPorEtapa: contagemPorEtapaCalculada,
       unidadeAno,
       configuracaoUsada: config,
       criterioConfiguracao: resolucao.criterio,
@@ -811,9 +910,19 @@ export async function calcularPreviaGeracao(
 
   const resumoTexto = partesResumo.join(', ')
 
+  const turmasResumoFormatado = turmasList.map((t) => ({
+    id: t.id,
+    nome: t.nome,
+    etapaNome: t.etapa?.nome || 'Etapa não informada',
+    anoSerieNome: t.ano_serie?.nome || 'Não informada',
+  }))
+
   return {
     escola,
     anoLetivo,
+    porteEscola,
+    turmasCadastradas: turmasResumoFormatado,
+    contagemTurmasPorEtapa: contagemPorEtapaCalculada,
     unidadeAno,
     configuracaoUsada: config,
     criterioConfiguracao: resolucao.criterio,
@@ -1092,16 +1201,143 @@ export async function listarVagasCompletas(filtros: FiltrosVagas): Promise<VagaR
  * O combo de cargo mostra apenas os cargos permitidos na configuração para aquela função.
  * Se a condição for READAPTADO_COMPATIVEL_LAUDO ou AUTORIZACAO_SEMED, exigir marcação e observação."
  */
+// ==========================================
+// INSERÇÃO, EDIÇÃO E EXCLUSÃO MANUAL DE VAGAS
+// ==========================================
+
+export interface InserirVagaManualInput {
+  unidadeEscolarId: string
+  anoLetivo: number
+  configuracaoRhId: string
+  configuracaoRhLinhaId: string
+  funcao: string
+  cargoId?: string | null
+  periodo?: PeriodoEscola | null
+  modalidade: 'FIXO' | 'ITINERANTE'
+  diasSemana?: number | null
+  numeroSequencial?: number | null
+  nomeOcupante?: string | null
+  observacao?: string | null
+}
+
+export async function inserirVagaManual(input: InserirVagaManualInput): Promise<VagaReal> {
+  const {
+    unidadeEscolarId,
+    anoLetivo,
+    configuracaoRhId,
+    configuracaoRhLinhaId,
+    funcao,
+    cargoId,
+    periodo,
+    modalidade,
+    diasSemana,
+    nomeOcupante,
+    observacao,
+  } = input
+
+  if (!unidadeEscolarId) {
+    throw new Error('A "Unidade Escolar" é obrigatória para inserir uma vaga.')
+  }
+  if (!anoLetivo) {
+    throw new Error('O "Ano Letivo" é obrigatório.')
+  }
+  if (!funcao || !funcao.trim()) {
+    throw new Error('A "Função" é obrigatória.')
+  }
+
+  // Determinar número sequencial se não fornecido
+  let seq = Number(input.numeroSequencial) || 0
+  if (!seq || seq <= 0) {
+    const { data: vagasExistentes } = await db
+      .from('vaga')
+      .select('numero_sequencial')
+      .eq('unidade_escolar_id', unidadeEscolarId)
+      .eq('ano_letivo', anoLetivo)
+      .eq('configuracao_rh_linha_id', configuracaoRhLinhaId)
+
+    const maior = (vagasExistentes || []).reduce(
+      (acc: number, v: any) => Math.max(acc, Number(v.numero_sequencial) || 0),
+      0,
+    )
+    seq = maior + 1
+  }
+
+  const temOcupante = Boolean(nomeOcupante && nomeOcupante.trim().length > 0)
+  const statusDerivado: StatusVagaReal = temOcupante ? 'OCUPADA' : 'ABERTA'
+
+  const payload: any = {
+    unidade_escolar_id: unidadeEscolarId,
+    ano_letivo: anoLetivo,
+    configuracao_rh_id: configuracaoRhId,
+    configuracao_rh_linha_id: configuracaoRhLinhaId,
+    funcao: funcao.trim(),
+    numero_sequencial: seq,
+    periodo: periodo || null,
+    modalidade: modalidade || 'FIXO',
+    dias_semana: modalidade === 'ITINERANTE' ? Number(diasSemana) || 2 : null,
+    cargo_id: cargoId || null,
+    nome_ocupante: temOcupante ? nomeOcupante!.trim() : null,
+    status: statusDerivado,
+    observacao: observacao?.trim() || null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+
+  const { data, error } = await db
+    .from('vaga')
+    .insert([payload])
+    .select('*, cargo:cargos(*), unidade_escolar:unidades_escolares(*)')
+    .single()
+
+  if (error) {
+    console.error('Erro ao inserir vaga manualmente:', error)
+    throw error
+  }
+
+  const nova = data as VagaReal
+
+  await registrarAuditoria({
+    entidade: 'Cadastro de Vagas',
+    acao: 'Inserção Manual',
+    registro_codigo: nova.codigo || null,
+    descricao: `Inserção manual da vaga ${nova.codigo || ''} (${nova.funcao} Nº ${nova.numero_sequencial} - ${nova.unidade_escolar?.nome || ''}, Ano ${anoLetivo}). Ocupante: "${nova.nome_ocupante || 'Nenhum'}" (${nova.status}).`,
+    detalhes: {
+      vaga_id: nova.id,
+      unidade_escolar_id: unidadeEscolarId,
+      ano_letivo: anoLetivo,
+      valores_novos: nova,
+    },
+  })
+
+  return nova
+}
+
 export interface EditarVagaInput {
   vagaId: string
   nomeOcupante?: string | null
   cargoId?: string | null
+  periodo?: PeriodoEscola | null
+  modalidade?: 'FIXO' | 'ITINERANTE'
+  diasSemana?: number | null
+  numeroSequencial?: number | null
+  status?: StatusVagaReal
   observacao?: string | null
   turmaId?: string | null
 }
 
 export async function editarVaga(input: EditarVagaInput): Promise<VagaReal> {
-  const { vagaId, nomeOcupante, cargoId, observacao, turmaId } = input
+  const {
+    vagaId,
+    nomeOcupante,
+    cargoId,
+    periodo,
+    modalidade,
+    diasSemana,
+    numeroSequencial,
+    status,
+    observacao,
+    turmaId,
+  } = input
 
   // Buscar vaga atual para auditoria
   const { data: anteriorData } = await db
@@ -1113,10 +1349,16 @@ export async function editarVaga(input: EditarVagaInput): Promise<VagaReal> {
   const anterior = anteriorData as VagaReal
 
   const temOcupante = Boolean(nomeOcupante && nomeOcupante.trim().length > 0)
-  // Se tem ocupante -> OCUPADA (a não ser que já fosse EXCEDENTE, que continua com ocupante)
-  let novoStatus: StatusVagaReal = temOcupante ? 'OCUPADA' : 'ABERTA'
-  if (anterior?.status === 'EXCEDENTE' && temOcupante) {
+
+  // Regra padrão: com ocupante -> OCUPADA; sem ocupante -> ABERTA.
+  // Se o usuário explicitou EXCEDENTE e há ocupante, respeita.
+  let novoStatus: StatusVagaReal
+  if (status === 'EXCEDENTE' && temOcupante) {
     novoStatus = 'EXCEDENTE'
+  } else if (temOcupante) {
+    novoStatus = anterior?.status === 'EXCEDENTE' ? 'EXCEDENTE' : 'OCUPADA'
+  } else {
+    novoStatus = 'ABERTA'
   }
 
   const payload: any = {
@@ -1126,6 +1368,17 @@ export async function editarVaga(input: EditarVagaInput): Promise<VagaReal> {
     turma_id: turmaId || null,
     status: novoStatus,
     updated_at: new Date().toISOString(),
+  }
+
+  if (periodo !== undefined) {
+    payload.periodo = periodo || null
+  }
+  if (modalidade !== undefined) {
+    payload.modalidade = modalidade
+    payload.dias_semana = modalidade === 'ITINERANTE' ? Number(diasSemana) || 2 : null
+  }
+  if (numeroSequencial !== undefined && numeroSequencial !== null) {
+    payload.numero_sequencial = Number(numeroSequencial)
   }
 
   const { data, error } = await db
@@ -1145,25 +1398,48 @@ export async function editarVaga(input: EditarVagaInput): Promise<VagaReal> {
   // Registrar auditoria
   await registrarAuditoria({
     entidade: 'Cadastro de Vagas',
-    acao: 'Edição',
+    acao: 'Edição Manual',
     registro_codigo: atualizada.codigo || null,
-    descricao: `Vaga ${atualizada.codigo || vagaId} (${atualizada.funcao} - ${atualizada.unidade_escolar?.nome || ''}) atualizada: ocupante "${atualizada.nome_ocupante || 'Nenhum'}" (${atualizada.status}).`,
+    descricao: `Edição manual da vaga ${atualizada.codigo || vagaId} (${atualizada.funcao} - ${atualizada.unidade_escolar?.nome || ''}): ocupante "${atualizada.nome_ocupante || 'Nenhum'}" (${atualizada.status}).`,
     detalhes: {
       vaga_id: vagaId,
-      anterior: {
-        ocupante: anterior?.nome_ocupante,
-        cargo_id: anterior?.cargo_id,
-        status: anterior?.status,
-      },
-      novo: {
-        ocupante: atualizada.nome_ocupante,
-        cargo_id: atualizada.cargo_id,
-        status: atualizada.status,
-      },
+      valores_antigos: anterior,
+      valores_novos: atualizada,
     },
   })
 
   return atualizada
+}
+
+/**
+ * Excluir vaga manualmente com verificação e auditoria
+ */
+export async function excluirVagaManual(vagaId: string): Promise<void> {
+  const { data: anteriorData } = await db
+    .from('vaga')
+    .select('*, cargo:cargos(*), unidade_escolar:unidades_escolares(*)')
+    .eq('id', vagaId)
+    .single()
+
+  const anterior = anteriorData as VagaReal
+
+  const { error } = await db.from('vaga').delete().eq('id', vagaId)
+
+  if (error) {
+    console.error('Erro ao excluir vaga manualmente:', error)
+    throw error
+  }
+
+  await registrarAuditoria({
+    entidade: 'Cadastro de Vagas',
+    acao: 'Exclusão Manual',
+    registro_codigo: anterior?.codigo || null,
+    descricao: `Exclusão manual da vaga ${anterior?.codigo || vagaId} (${anterior?.funcao} Nº ${anterior?.numero_sequencial} - ${anterior?.unidade_escolar?.nome || ''}, Ano ${anterior?.ano_letivo || '-'}). Ocupante desvinculado: "${anterior?.nome_ocupante || 'Nenhum'}".`,
+    detalhes: {
+      vaga_id: vagaId,
+      registro_excluido: anterior,
+    },
+  })
 }
 
 /**
