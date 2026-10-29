@@ -40,6 +40,9 @@ import {
   Calendar,
   GraduationCap,
   Info,
+  HelpCircle,
+  CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
@@ -87,6 +90,9 @@ export default function AnosSeries() {
 
   // Modal de Exclusão
   const [deletingAnoSerie, setDeletingAnoSerie] = useState<AnoSerie | null>(null)
+
+  // Modal de Ajuda e Regras
+  const [openHelpDialog, setOpenHelpDialog] = useState(false)
 
   const carregarDados = async () => {
     try {
@@ -383,15 +389,26 @@ export default function AnosSeries() {
               Total de {anosSeries.length} ano(s)/série(s) cadastrado(s) na tabela de apoio
             </CardDescription>
           </div>
-          {canEditAnosSeries && (
+          <div className="flex items-center gap-2">
             <Button
-              onClick={handleOpenCreate}
-              className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+              type="button"
+              variant="outline"
+              onClick={() => setOpenHelpDialog(true)}
+              className="gap-1.5 text-slate-700 border-slate-300 hover:bg-slate-50"
             >
-              <Plus className="w-4 h-4" />
-              Novo Ano/Série
+              <HelpCircle className="w-4 h-4 text-blue-600" />
+              Ajuda e Regras
             </Button>
-          )}
+            {canEditAnosSeries && (
+              <Button
+                onClick={handleOpenCreate}
+                className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+              >
+                <Plus className="w-4 h-4" />
+                Novo Ano/Série
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Barra de Filtros / Busca */}
@@ -606,7 +623,7 @@ export default function AnosSeries() {
           </DialogHeader>
 
           <form onSubmit={handleSave} className="space-y-4 py-2">
-            {/* Campo 1: Identificador (Automático / Informativo / Não editável) */}
+            {/* Campo 1: Identificador (Automático / Informativo / Não editável) — permanece no topo */}
             <div className="space-y-1.5">
               <Label
                 htmlFor="ano-codigo"
@@ -629,7 +646,34 @@ export default function AnosSeries() {
               </p>
             </div>
 
-            {/* Campo 2: Etapa (Obrigatório) com botão "+ Novo" inline acima do campo */}
+            {/* Campo 2: Ano Letivo (Combobox de 2020 a 2040) — primeiro campo de preenchimento */}
+            <div className="space-y-1.5 border-t pt-3">
+              <Label
+                htmlFor="ano-letivo"
+                className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"
+              >
+                <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                Ano Letivo <span className="text-rose-500">*</span>
+              </Label>
+              <Select value={formAnoLetivo} onValueChange={handleAnoLetivoChange}>
+                <SelectTrigger id="ano-letivo" className="text-sm">
+                  <SelectValue placeholder="Selecione uma opção" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ANOS_LETIVOS.map((ano) => (
+                    <SelectItem key={ano} value={String(ano)}>
+                      Ano {ano}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                O Ano/Série e a Etapa vinculada devem pertencer estritamente ao mesmo ano letivo.
+              </p>
+            </div>
+
+            {/* Campo 3: Etapa (Obrigatório) com botão "+ Novo" inline acima do campo — segundo campo */}
             <div className="space-y-1.5 border-t pt-3">
               <div className="flex items-center justify-between">
                 <Label
@@ -668,7 +712,7 @@ export default function AnosSeries() {
                 <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
                   {formAnoLetivo
                     ? `Nenhuma etapa cadastrada para o ano letivo ${formAnoLetivo}. Clique em "+ Novo" acima para cadastrar.`
-                    : 'Nenhuma etapa encontrada. Clique em "+ Novo" acima para cadastrar.'}
+                    : 'Nenhuma etapa encontrada. Selecione o ano letivo acima ou clique em "+ Novo" para cadastrar.'}
                 </p>
               ) : (
                 <p className="text-[11px] text-slate-500">
@@ -679,8 +723,8 @@ export default function AnosSeries() {
               )}
             </div>
 
-            {/* Campo 3: Nome do Ano/Série (Obrigatório) */}
-            <div className="space-y-1.5">
+            {/* Campo 4: Nome do Ano/Série (Obrigatório) — último campo */}
+            <div className="space-y-1.5 border-t pt-3">
               <Label
                 htmlFor="ano-nome"
                 className="text-xs font-semibold uppercase tracking-wider text-slate-700"
@@ -695,32 +739,6 @@ export default function AnosSeries() {
                 required
                 className="text-sm"
               />
-            </div>
-
-            {/* Campo 4: Ano Letivo (Combobox de 2020 a 2040) */}
-            <div className="space-y-1.5 border-t pt-3">
-              <Label
-                htmlFor="ano-letivo"
-                className="text-xs font-semibold uppercase tracking-wider text-slate-700"
-              >
-                Ano Letivo <span className="text-rose-500">*</span>
-              </Label>
-              <Select value={formAnoLetivo} onValueChange={handleAnoLetivoChange}>
-                <SelectTrigger id="ano-letivo" className="text-sm">
-                  <SelectValue placeholder="Selecione uma opção" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ANOS_LETIVOS.map((ano) => (
-                    <SelectItem key={ano} value={String(ano)}>
-                      Ano {ano}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                O Ano/Série e a Etapa vinculada devem pertencer estritamente ao mesmo ano letivo.
-              </p>
             </div>
 
             <DialogFooter className="pt-4 border-t">
@@ -922,6 +940,108 @@ export default function AnosSeries() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* DIÁLOGO: AJUDA E REGRAS DE ANO/SÉRIE */}
+      <Dialog open={openHelpDialog} onOpenChange={setOpenHelpDialog}>
+        <DialogContent className="p-6 rounded-2xl sm:max-w-[620px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="space-y-1.5 text-left">
+            <div className="flex items-center gap-2 text-[#0B2545]">
+              <div className="p-2 rounded-lg bg-blue-50">
+                <HelpCircle className="w-5 h-5 text-blue-600" />
+              </div>
+              <DialogTitle className="text-xl font-bold text-slate-900">
+                Ajuda e Regras — Cadastro de Ano/Série
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-slate-600">
+              Orientações sobre a ordem de preenchimento, vínculo de etapas e regras de integridade
+              do cadastro.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2 text-sm text-slate-700 leading-relaxed">
+            {/* Bloco 1: Ordem obrigatória de preenchimento */}
+            <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/70 space-y-2">
+              <h4 className="font-semibold text-blue-950 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-700" /> Ordem Correta de Preenchimento
+              </h4>
+              <p className="text-xs text-blue-900 font-medium">
+                Para garantir a integridade das dependências dinâmicas entre cadastros, o formulário
+                segue a ordem:
+              </p>
+              <ol className="text-xs list-decimal list-inside space-y-1.5 text-slate-700 pl-1">
+                <li>
+                  <strong>Identificador (Automático):</strong> Código sequencial gerado
+                  automaticamente pelo sistema (ex: <code>ANO-0001</code>), somente leitura.
+                </li>
+                <li>
+                  <strong>Ano Letivo:</strong> Primeiro campo de preenchimento. Define o exercício
+                  escolar (de 2020 a 2040) ao qual o ano/série pertence.
+                </li>
+                <li>
+                  <strong>Etapa:</strong> Segundo campo de preenchimento. Exibe dinamicamente apenas
+                  as etapas compatíveis com o ano letivo selecionado. Caso necessário, utilize o
+                  botão <strong>"+ Novo"</strong> para criar e vincular uma etapa instantaneamente.
+                </li>
+                <li>
+                  <strong>Nome do Ano/Série:</strong> Último campo de preenchimento. Denominação
+                  formal do ano/série escolar (ex: <em>"1º Ano do Ensino Fundamental"</em>,{' '}
+                  <em>"Berçário I"</em>).
+                </li>
+              </ol>
+            </div>
+
+            {/* Bloco 2: Regra de Consistência e Dependência Dinâmica */}
+            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/70 space-y-2">
+              <h4 className="font-semibold text-amber-950 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-700" /> Dependência Dinâmica e
+                Integridade de Vínculos
+              </h4>
+              <p className="text-xs text-amber-900 font-medium">
+                O Ano/Série e a Etapa vinculada devem pertencer estritamente ao mesmo ano letivo.
+              </p>
+              <ul className="text-xs list-disc list-inside space-y-1 text-slate-700 pl-1">
+                <li>
+                  Ao alterar o <strong>Ano Letivo</strong>, o sistema filtra a lista de Etapas
+                  imediatamente. Se a etapa previamente selecionada pertencer a outro ano letivo, o
+                  vínculo é desfeito automaticamente para evitar inconsistências.
+                </li>
+                <li>
+                  Caso não existam etapas cadastradas para o ano letivo escolhido, uma mensagem
+                  explicativa com o ano selecionado orienta o usuário a clicar em{' '}
+                  <strong>"+ Novo"</strong> para cadastrar a etapa sem sair do modal.
+                </li>
+                <li>
+                  Ao salvar, o sistema valida no banco se o ano da Etapa coincide rigorosamente com
+                  o ano do Ano/Série, bloqueando qualquer vínculo incompatível.
+                </li>
+              </ul>
+            </div>
+
+            {/* Bloco 3: Rastreabilidade e Auditoria */}
+            <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/50 space-y-2">
+              <h4 className="font-semibold text-emerald-950 flex items-center gap-2">
+                <Info className="w-4 h-4 text-emerald-600" /> Auditoria e Rastreabilidade
+              </h4>
+              <p className="text-xs text-slate-700">
+                Todas as operações de criação, atualização e exclusão de Anos/Séries são registradas
+                na <strong>Auditoria</strong> do sistema com usuário responsável, data, hora, código
+                identificador e detalhes das alterações realizadas.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4 border-t border-slate-100 mt-2">
+            <Button
+              type="button"
+              onClick={() => setOpenHelpDialog(false)}
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white"
+            >
+              Entendido
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
