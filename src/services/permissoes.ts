@@ -56,6 +56,14 @@ export const MENUS_SISTEMA_PADRAO: Array<{
     categoria: 'Cadastros Mestres',
   },
   {
+    key: 'porte_escola',
+    label: 'Porte da Escola por Ano Letivo',
+    path: '/cadastros-mestres/porte-escola',
+    suporta_edicao: true,
+    ordem: 5,
+    categoria: 'Cadastros Mestres',
+  },
+  {
     key: 'cargos',
     label: 'Cargos',
     path: '/cadastros-apoio/cargos',
@@ -165,6 +173,14 @@ export const getPermissoesPadraoOperador = (): PermissaoItemForm[] => {
       pode_editar: true,
       suporta_edicao: true,
       ordem: 4,
+    },
+    {
+      menu_key: 'porte_escola',
+      menu_label: 'Porte da Escola por Ano Letivo',
+      pode_ver: true,
+      pode_editar: true,
+      suporta_edicao: true,
+      ordem: 5,
     },
     {
       menu_key: 'cargos',

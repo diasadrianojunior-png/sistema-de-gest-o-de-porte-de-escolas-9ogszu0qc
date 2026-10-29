@@ -186,26 +186,96 @@ export const updateUnidadeEscolar = async (
 }
 
 export const deleteUnidadeEscolar = async (id: string): Promise<void> => {
-  // Busca registro antes de excluir para salvar informações de auditoria
+  // 1. Busca registro antes de excluir para salvar informações de auditoria
   const { data: anterior } = await db
     .from('unidades_escolares')
     .select('*')
     .eq('id', id)
     .maybeSingle()
 
-  const { error } = await db.from('unidades_escolares').delete().eq('id', id)
+  const nomeUnidade = anterior?.nome || id
+  const codigoUnidade = anterior?.codigo || null
 
-  if (error) {
-    console.error('Erro ao excluir unidade escolar:', error)
-    throw error
+  // 2. Verificação prévia de uso no cadastro "Porte da Escola por Ano Letivo" (porte_escola_ano)
+  const { data: portesVinculados, error: errPortes } = await db
+    .from('porte_escola_ano')
+    .select('id, codigo, ano_letivo, nivel_faixa')
+    .eq('unidade_escolar_id', id)
+
+  if (errPortes) {
+    console.warn('Aviso ao consultar vínculos de porte_escola_ano:', errPortes)
   }
 
-  // Registrar auditoria
-  await registrarAuditoria({
-    entidade: 'Unidades escolares',
-    acao: 'Exclusão',
-    registro_codigo: anterior?.codigo || null,
-    descricao: `Exclusão da unidade escolar "${anterior?.nome || id}".`,
-    detalhes: { id, registro_anterior: anterior },
-  })
+  if (portesVinculados && portesVinculados.length > 0) {
+    const anos = portesVinculados.map((p: any) => p.ano_letivo).join(', ')
+    const motivo = `Esta unidade escolar não pode ser excluída porque possui registro(s) vinculado(s) no cadastro "Porte da Escola por Ano Letivo" (Ano(s): ${anos}). Remova os portes vinculados antes de excluir.`
+
+    // Registrar tentativa de exclusão bloqueada na auditoria
+    await registrarAuditoria({
+      entidade: 'Unidades escolares',
+      acao: 'Tentativa de Exclusão Bloqueada',
+      registro_codigo: codigoUnidade,
+      descricao: `Tentativa de exclusão bloqueada: a unidade "${nomeUnidade}" possui registro em "Porte da Escola por Ano Letivo".`,
+      detalhes: {
+        id,
+        unidade: anterior,
+        motivo,
+        portes_vinculados: portesVinculados,
+      },
+    })
+
+    throw new Error(motivo)
+  }
+
+  try {
+    const { error } = await db.from('unidades_escolares').delete().eq('id', id)
+
+    if (error) {
+      console.error('Erro ao excluir unidade escolar:', error)
+      throw error
+    }
+
+    // Registrar auditoria
+    await registrarAuditoria({
+      entidade: 'Unidades escolares',
+      acao: 'Exclusão',
+      registro_codigo: codigoUnidade,
+      descricao: `Exclusão da unidade escolar "${nomeUnidade}".`,
+      detalhes: { id, registro_anterior: anterior },
+    })
+  } catch (err: any) {
+    // Defesa em profundidade: interceptar qualquer erro de foreign key do Postgres
+    const msg = String(err?.message || err || '')
+    const isForeignKeyViolation =
+      err?.code === '23503' ||
+      msg.includes('violates foreign key constraint') ||
+      msg.includes('foreign key constraint') ||
+      msg.includes('porte_escola_ano')
+
+    if (isForeignKeyViolation) {
+      const mensagemAmigavel =
+        'Esta unidade escolar não pode ser excluída porque está vinculada ao cadastro "Porte da Escola por Ano Letivo" (ou outros cadastros dependentes do sistema). Remova os registros vinculados antes de excluir.'
+
+      try {
+        await registrarAuditoria({
+          entidade: 'Unidades escolares',
+          acao: 'Tentativa de Exclusão Bloqueada',
+          registro_codigo: codigoUnidade,
+          descricao: `Tentativa de exclusão bloqueada pelo banco de dados: a unidade "${nomeUnidade}" possui referências ativas.`,
+          detalhes: {
+            id,
+            unidade: anterior,
+            motivo: mensagemAmigavel,
+            erro_original: msg,
+          },
+        })
+      } catch (auditoriaErr) {
+        console.warn('Falha ao registrar auditoria de bloqueio:', auditoriaErr)
+      }
+
+      throw new Error(mensagemAmigavel)
+    }
+
+    throw err
+  }
 }

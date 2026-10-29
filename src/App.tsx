@@ -16,6 +16,7 @@ import VagasPage from './pages/Vagas'
 import CadastrosMestres from './pages/CadastrosMestres'
 import Turmas from './pages/Turmas'
 import Profissionais from './pages/Profissionais'
+import PorteEscolaAnoPage from './pages/PorteEscolaAno'
 import Administracao from './pages/Administracao'
 import ContasEmail from './pages/ContasEmail'
 import Auditoria from './pages/Auditoria'
@@ -65,6 +66,14 @@ const App = () => (
               element={
                 <RouteGuard menuKey="profissionais">
                   <Profissionais />
+                </RouteGuard>
+              }
+            />
+            <Route
+              path="/cadastros-mestres/porte-escola"
+              element={
+                <RouteGuard menuKey="porte_escola">
+                  <PorteEscolaAnoPage />
                 </RouteGuard>
               }
             />

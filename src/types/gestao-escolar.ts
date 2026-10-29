@@ -296,6 +296,7 @@ export type SistemaMenuKey =
   | 'unidades_escolares'
   | 'turmas'
   | 'profissionais'
+  | 'porte_escola'
   | 'cargos'
   | 'funcoes'
   | 'etapas'
@@ -575,4 +576,23 @@ export interface Profissional {
   // Relações expandidas
   unidade_escolar?: UnidadeEscolar | null
   vagas_vinculadas?: ProfissionalVaga[]
+}
+
+// ==========================================
+// PORTE DA ESCOLA POR ANO LETIVO
+// ==========================================
+
+export interface PorteEscolaAno {
+  id: string
+  codigo?: string // PRT-0001
+  unidade_escolar_id: string
+  ano_letivo: number
+  quantidade_alunos: number
+  nivel_faixa: string // ex: "Nível V: De 321 a 420 alunos" ou "Nível V"
+  nivel_sugerido?: string | null // Nível calculado pela configuração de vagas
+  justificativa_mudanca?: string | null
+  created_at?: string
+  updated_at?: string
+  // Relações expandidas
+  unidade_escolar?: UnidadeEscolar | null
 }
