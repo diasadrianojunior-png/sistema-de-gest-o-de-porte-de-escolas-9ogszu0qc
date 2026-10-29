@@ -20,6 +20,7 @@ import PorteEscolaAnoPage from './pages/PorteEscolaAno'
 import Administracao from './pages/Administracao'
 import ContasEmail from './pages/ContasEmail'
 import Auditoria from './pages/Auditoria'
+import LimpezaBancoPage from './pages/LimpezaBanco'
 import { RouteGuard } from './components/RouteGuard'
 import NotFound from './pages/NotFound'
 import Layout from './components/Layout'
@@ -179,6 +180,14 @@ const App = () => (
               element={
                 <RouteGuard menuKey="auditoria">
                   <Auditoria />
+                </RouteGuard>
+              }
+            />
+            <Route
+              path="/administracao/limpeza-banco"
+              element={
+                <RouteGuard menuKey="limpeza_banco">
+                  <LimpezaBancoPage />
                 </RouteGuard>
               }
             />

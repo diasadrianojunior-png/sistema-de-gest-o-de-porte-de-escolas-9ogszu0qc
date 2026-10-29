@@ -25,6 +25,7 @@ import {
   Users,
   SlidersHorizontal,
   UserCheck,
+  Trash2,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -100,7 +101,9 @@ export default function Layout() {
   const isContasEmailActive = location.pathname === '/administracao/contas-email'
   const isAuditoriaActive =
     location.pathname === '/administracao/auditoria' || location.pathname === '/auditoria'
-  const isAdministracaoActive = location.pathname.startsWith('/administracao') || isAuditoriaActive
+  const isLimpezaBancoActive = location.pathname === '/administracao/limpeza-banco'
+  const isAdministracaoActive =
+    location.pathname.startsWith('/administracao') || isAuditoriaActive || isLimpezaBancoActive
 
   // Permissões de visualização por item de menu
   const canViewPainel = canView('painel')
@@ -118,6 +121,7 @@ export default function Layout() {
   const canViewUsuarios = canView('usuarios')
   const canViewContasEmail = canView('contas_email')
   const canViewAuditoria = canView('auditoria')
+  const canViewLimpezaBanco = canView('limpeza_banco')
 
   // Seções agrupadas têm visibilidade se pelo menos um submenu puder ser visto
   const showCadastrosMestres =
@@ -128,7 +132,8 @@ export default function Layout() {
     canViewConfigRh ||
     canViewVagas
   const showCadastrosApoio = canViewCargos || canViewFuncoes || canViewEtapas || canViewAnosSeries
-  const showAdministracao = canViewUsuarios || canViewContasEmail || canViewAuditoria
+  const showAdministracao =
+    canViewUsuarios || canViewContasEmail || canViewAuditoria || canViewLimpezaBanco
 
   // Conteúdo unificado da barra lateral (Sidebar)
   const renderSidebarContent = (isMobile = false) => {
@@ -856,6 +861,23 @@ export default function Layout() {
                               <span>Auditoria</span>
                             </NavLink>
                           )}
+
+                          {canViewLimpezaBanco && (
+                            <NavLink
+                              to="/administracao/limpeza-banco"
+                              onClick={() => setAdministracaoPopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                isLimpezaBancoActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Trash2
+                                className={`w-4 h-4 shrink-0 ${isLimpezaBancoActive ? 'text-white' : 'text-slate-500'}`}
+                              />
+                              <span>Limpeza do Banco</span>
+                            </NavLink>
+                          )}
                         </div>
                       </PopoverContent>
                     </Popover>
@@ -940,6 +962,24 @@ export default function Layout() {
                                 className={`w-3.5 h-3.5 shrink-0 ${isAuditoriaActive ? 'text-white' : 'text-slate-400'}`}
                               />
                               <span className="truncate">Auditoria</span>
+                            </NavLink>
+                          )}
+
+                          {canViewLimpezaBanco && (
+                            <NavLink
+                              to="/administracao/limpeza-banco"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Rotina de Limpeza do Banco de Dados"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isLimpezaBancoActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Trash2
+                                className={`w-3.5 h-3.5 shrink-0 ${isLimpezaBancoActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Rotina de Limpeza do Banco</span>
                             </NavLink>
                           )}
                         </div>
@@ -1160,11 +1200,13 @@ export default function Layout() {
                   <span className="text-slate-600">Administração do sistema</span>
                   <span className="mx-2 text-slate-300">/</span>
                   <span className="text-blue-700 font-semibold">
-                    {isAuditoriaActive
-                      ? 'Auditoria'
-                      : isContasEmailActive
-                        ? 'Contas de Email'
-                        : 'Usuários'}
+                    {isLimpezaBancoActive
+                      ? 'Rotina de Limpeza do Banco de Dados'
+                      : isAuditoriaActive
+                        ? 'Auditoria'
+                        : isContasEmailActive
+                          ? 'Contas de Email'
+                          : 'Usuários'}
                   </span>
                 </>
               )}{' '}

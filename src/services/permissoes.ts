@@ -135,6 +135,14 @@ export const MENUS_SISTEMA_PADRAO: Array<{
     ordem: 14,
     categoria: 'Administração do Sistema',
   },
+  {
+    key: 'limpeza_banco',
+    label: 'Rotina de Limpeza do Banco de Dados',
+    path: '/administracao/limpeza-banco',
+    suporta_edicao: true,
+    ordem: 15,
+    categoria: 'Administração do Sistema',
+  },
 ]
 
 /**
@@ -253,6 +261,14 @@ export const getPermissoesPadraoOperador = (): PermissaoItemForm[] => {
       pode_editar: false,
       suporta_edicao: false,
       ordem: 14,
+    },
+    {
+      menu_key: 'limpeza_banco',
+      menu_label: 'Rotina de Limpeza do Banco de Dados',
+      pode_ver: true,
+      pode_editar: false,
+      suporta_edicao: true,
+      ordem: 15,
     },
   ]
 }

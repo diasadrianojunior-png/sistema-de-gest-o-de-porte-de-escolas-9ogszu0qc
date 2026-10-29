@@ -306,6 +306,7 @@ export type SistemaMenuKey =
   | 'usuarios'
   | 'contas_email'
   | 'auditoria'
+  | 'limpeza_banco'
 
 export interface NivelPorte {
   id: string
