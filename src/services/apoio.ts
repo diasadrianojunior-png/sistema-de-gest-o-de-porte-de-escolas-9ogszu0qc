@@ -458,29 +458,154 @@ export const updateFuncao = async (id: string, input: UpdateFuncaoInput): Promis
   return updated
 }
 
-export const deleteFuncao = async (id: string): Promise<void> => {
-  // 1. Buscar registro anterior para histórico de auditoria
-  const { data: anterior } = await db.from('funcoes').select('*').eq('id', id).maybeSingle()
+export interface VerificacaoUsoFuncaoResultado {
+  emUso: boolean
+  motivo?: string
+  configuracoesVinculadas?: Array<{
+    id: string
+    codigo: string | null
+    tipo_atendimento: string | null
+    ano_letivo: number | null
+  }>
+}
 
-  // 1.1 Limpeza explícita de vínculos pré-exclusão para garantir consistência
-  await db.from('funcao_cargos').delete().eq('funcao_id', id)
+/**
+ * Verifica previamente se a função está em uso na Configuração de Vagas por Nível
+ * ou em outros registros do sistema antes de permitir a exclusão.
+ */
+export const verificarUsoFuncao = async (
+  funcaoId: string,
+): Promise<VerificacaoUsoFuncaoResultado> => {
+  // 1. Verificar em configuracao_rh_linha (linhas da grade de RH)
+  const { data: linhas, error: linhasError } = await db
+    .from('configuracao_rh_linha')
+    .select(
+      'id, configuracao_rh_id, configuracao_rh:configuracao_rh(id, codigo, tipo_atendimento, ano_letivo)',
+    )
+    .eq('funcao_id', funcaoId)
 
-  // 2. Excluir a função (ON DELETE CASCADE da migration remove redundâncias em funcao_cargos)
-  const { error } = await db.from('funcoes').delete().eq('id', id)
-
-  if (error) {
-    console.error('Erro ao excluir função:', error)
-    throw error
+  if (linhasError) {
+    console.warn('Erro ao verificar vínculos em configuracao_rh_linha:', linhasError)
   }
 
-  // 3. Registrar Auditoria com código FUN-XXXX
-  await registrarAuditoria({
-    entidade: 'Funções',
-    acao: 'Exclusão',
-    registro_codigo: anterior?.codigo || null,
-    descricao: `Exclusão da função "${anterior?.nome || id}".`,
-    detalhes: { id, registro_anterior: anterior },
-  })
+  if (linhas && linhas.length > 0) {
+    const cfgs = linhas.map((l: any) => l.configuracao_rh).filter(Boolean) as Array<{
+      id: string
+      codigo: string | null
+      tipo_atendimento: string | null
+      ano_letivo: number | null
+    }>
+
+    // Remove duplicidades
+    const cfgsUnicas = Array.from(new Map(cfgs.map((c) => [c.id, c])).values())
+    const identificadores = cfgsUnicas
+      .map(
+        (c) =>
+          `${c.codigo || 'CRH'} (${c.tipo_atendimento || 'Padrão'} - ${c.ano_letivo || 'Geral'})`,
+      )
+      .slice(0, 3)
+      .join(', ')
+
+    const complemento =
+      cfgsUnicas.length > 3 ? ` e mais ${cfgsUnicas.length - 3} configuração(ões)` : ''
+
+    const motivo = `A função não pode ser excluída porque está vinculada à Configuração de Vagas por Nível em: ${identificadores}${complemento}. Remova ou substitua a função nessas configurações antes de excluir.`
+
+    return {
+      emUso: true,
+      motivo,
+      configuracoesVinculadas: cfgsUnicas,
+    }
+  }
+
+  return { emUso: false }
+}
+
+export const deleteFuncao = async (id: string): Promise<void> => {
+  // 1. Buscar registro anterior para auditoria e conferência
+  const { data: anterior } = await db.from('funcoes').select('*').eq('id', id).maybeSingle()
+  const nomeFuncao = anterior?.nome || id
+  const codigoFuncao = anterior?.codigo || null
+
+  // 2. Verificação prévia de uso (evita erro bruto do banco)
+  const checagem = await verificarUsoFuncao(id)
+  if (checagem.emUso) {
+    // Registrar tentativa de exclusão bloqueada na auditoria
+    await registrarAuditoria({
+      entidade: 'Funções',
+      acao: 'Tentativa de Exclusão Bloqueada',
+      registro_codigo: codigoFuncao,
+      descricao: `Tentativa de exclusão bloqueada: a função "${nomeFuncao}" está em uso na Configuração de Vagas por Nível.`,
+      detalhes: {
+        id,
+        funcao: anterior,
+        motivo: checagem.motivo,
+        configuracoes_vinculadas: checagem.configuracoesVinculadas,
+      },
+    })
+
+    throw new Error(
+      checagem.motivo ||
+        'Esta função não pode ser excluída porque está vinculada à Configuração de Vagas por Nível. Remova ou substitua a função nas configurações antes de excluir.',
+    )
+  }
+
+  try {
+    // 3. Limpeza explícita de vínculos com cargos em funcao_cargos
+    await db.from('funcao_cargos').delete().eq('funcao_id', id)
+
+    // 4. Executar exclusão na tabela funcoes
+    const { error } = await db.from('funcoes').delete().eq('id', id)
+
+    if (error) {
+      console.error('Erro ao excluir função:', error)
+      throw error
+    }
+
+    // 5. Registrar auditoria de exclusão bem-sucedida
+    await registrarAuditoria({
+      entidade: 'Funções',
+      acao: 'Exclusão',
+      registro_codigo: codigoFuncao,
+      descricao: `Exclusão da função "${nomeFuncao}".`,
+      detalhes: { id, registro_anterior: anterior },
+    })
+  } catch (err: any) {
+    // Defesa em profundidade: interceptar qualquer erro de foreign key do Postgres
+    const msg = String(err?.message || err || '')
+    const isForeignKeyViolation =
+      err?.code === '23503' ||
+      msg.includes('violates foreign key constraint') ||
+      msg.includes('foreign key constraint') ||
+      msg.includes('configuracao_rh_linha_funcao_id_fkey')
+
+    if (isForeignKeyViolation) {
+      const mensagemAmigavel =
+        'Esta função não pode ser excluída porque está vinculada à Configuração de Vagas por Nível (e/ou outros cadastros do sistema). Remova ou substitua a função nas configurações antes de excluir.'
+
+      // Registrar bloqueio na auditoria
+      try {
+        await registrarAuditoria({
+          entidade: 'Funções',
+          acao: 'Tentativa de Exclusão Bloqueada',
+          registro_codigo: codigoFuncao,
+          descricao: `Tentativa de exclusão bloqueada pelo banco de dados: a função "${nomeFuncao}" está vinculada a configurações ativas.`,
+          detalhes: {
+            id,
+            funcao: anterior,
+            motivo: mensagemAmigavel,
+            erro_original: msg,
+          },
+        })
+      } catch (auditoriaErr) {
+        console.warn('Falha ao registrar auditoria de bloqueio:', auditoriaErr)
+      }
+
+      throw new Error(mensagemAmigavel)
+    }
+
+    throw err
+  }
 }
 
 // --- Etapas ---

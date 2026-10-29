@@ -34,6 +34,10 @@ import {
   CheckSquare,
   Square,
   ShieldAlert,
+  HelpCircle,
+  AlertTriangle,
+  Info,
+  CheckCircle2,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
@@ -76,6 +80,9 @@ export default function Funcoes() {
 
   // Diálogo de exclusão
   const [deletingFuncao, setDeletingFuncao] = useState<Funcao | null>(null)
+
+  // Diálogo de Ajuda e Regras
+  const [openHelpDialog, setOpenHelpDialog] = useState(false)
 
   const carregarDados = async () => {
     try {
@@ -310,15 +317,26 @@ export default function Funcoes() {
               Total de {funcoes.length} função(ões) cadastrada(s) na tabela de apoio
             </CardDescription>
           </div>
-          {canEditFuncoes && (
+          <div className="flex items-center gap-2">
             <Button
-              onClick={handleOpenCreateFuncao}
-              className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+              type="button"
+              variant="outline"
+              onClick={() => setOpenHelpDialog(true)}
+              className="gap-1.5 text-slate-700 border-slate-300 hover:bg-slate-50"
             >
-              <Plus className="w-4 h-4" />
-              Nova Função
+              <HelpCircle className="w-4 h-4 text-blue-600" />
+              Ajuda e Regras
             </Button>
-          )}
+            {canEditFuncoes && (
+              <Button
+                onClick={handleOpenCreateFuncao}
+                className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+              >
+                <Plus className="w-4 h-4" />
+                Nova Função
+              </Button>
+            )}
+          </div>
         </CardHeader>
 
         <CardContent className="space-y-4">
@@ -808,15 +826,23 @@ export default function Funcoes() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
+            <AlertDialogTitle className="flex items-center gap-2 text-rose-700">
               <ShieldAlert className="w-5 h-5 text-rose-600" />
               Excluir Função?
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação removerá permanentemente a função{' '}
-              <strong className="text-slate-900">"{deletingFuncao?.nome}"</strong> (
-              {deletingFuncao?.codigo}) e todos os seus vínculos com cargos. O histórico desta
-              exclusão será registrado na Auditoria.
+            <AlertDialogDescription className="space-y-2 text-left">
+              <span>
+                Esta ação removerá permanentemente a função{' '}
+                <strong className="text-slate-900">"{deletingFuncao?.nome}"</strong> (
+                {deletingFuncao?.codigo}) e seus vínculos de cargos autorizados. O histórico desta
+                exclusão será registrado na Auditoria.
+              </span>
+              <span className="block p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs">
+                <strong>Regra de integridade:</strong> Uma função vinculada à Configuração de Vagas
+                por Nível não pode ser excluída. Caso ela esteja em uso em matrizes curriculares/RH,
+                o sistema bloqueará preventivamente a exclusão e registrará a tentativa na
+                Auditoria.
+              </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -836,6 +862,104 @@ export default function Funcoes() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* DIÁLOGO: AJUDA E REGRAS DE FUNÇÕES E EXCLUSÃO */}
+      <Dialog open={openHelpDialog} onOpenChange={setOpenHelpDialog}>
+        <DialogContent className="p-6 rounded-2xl sm:max-w-[620px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="space-y-1.5 text-left">
+            <div className="flex items-center gap-2 text-[#0B2545]">
+              <div className="p-2 rounded-lg bg-blue-50">
+                <HelpCircle className="w-5 h-5 text-blue-600" />
+              </div>
+              <DialogTitle className="text-xl font-bold text-slate-900">
+                Ajuda e Regras — Cadastro de Funções
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-slate-600">
+              Orientações sobre cadastro de funções, vínculos com cargos e regras de integridade na
+              exclusão.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2 text-sm text-slate-700 leading-relaxed">
+            {/* Bloco 1: Regra de Exclusão e Configuração de Vagas */}
+            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/70 space-y-2">
+              <h4 className="font-semibold text-amber-950 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-700" /> Regra Geral de Exclusão de
+                Funções
+              </h4>
+              <p className="text-xs text-amber-900 font-medium">
+                Uma função vinculada à Configuração de Vagas por Nível não pode ser excluída. Remova
+                ou substitua a função nas configurações antes de excluir.
+              </p>
+              <ul className="text-xs list-disc list-inside space-y-1 text-slate-700 pl-1">
+                <li>
+                  O sistema verifica automaticamente se a função compõe linhas de grade ativa na{' '}
+                  <strong>Configuração de Vagas por Nível (Etapa 1)</strong> antes de tentar a
+                  exclusão.
+                </li>
+                <li>
+                  Se houver vínculo, a exclusão é imediatamente{' '}
+                  <strong>bloqueada com aviso amigável</strong>, informando quais configurações
+                  utilizam a função e orientando o usuário a desvinculá-la.
+                </li>
+                <li>
+                  Toda tentativa de exclusão bloqueada é registrada na <strong>Auditoria</strong>{' '}
+                  com o usuário responsável, data, hora, função e motivo detalhado.
+                </li>
+              </ul>
+            </div>
+
+            {/* Bloco 2: Como funciona o cadastro e vínculos com cargos */}
+            <div className="p-4 rounded-xl border border-blue-100 bg-blue-50/50 space-y-2">
+              <h4 className="font-semibold text-blue-950 flex items-center gap-2">
+                <Briefcase className="w-4 h-4 text-blue-600" /> Vínculo de Cargos que Podem Exercer
+              </h4>
+              <p className="text-xs text-slate-700">
+                Cada função (ex: <em>Diretor Escolar</em>, <em>Coordenador Pedagógico</em>) pode ser
+                exercida por um ou mais cargos estatutários/concursados.
+              </p>
+              <ul className="text-xs list-disc list-inside space-y-1 text-slate-700 pl-1">
+                <li>
+                  No formulário da função, utilize o checklist para selecionar quais cargos são
+                  habilitados para desempenhar a atividade.
+                </li>
+                <li>
+                  É possível cadastrar novos cargos diretamente através do botão{' '}
+                  <strong>"+ Novo cargo"</strong> inline, sem perder os dados já preenchidos da
+                  função.
+                </li>
+                <li>
+                  Ao excluir uma função que não esteja em uso em vagas/RH, seus vínculos na tabela
+                  de cargos autorizados são removidos de forma limpa e automática.
+                </li>
+              </ul>
+            </div>
+
+            {/* Bloco 3: Identificador e Rastreabilidade */}
+            <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/50 space-y-2">
+              <h4 className="font-semibold text-emerald-950 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Identificador e Auditoria
+              </h4>
+              <p className="text-xs text-slate-700">
+                Todas as funções recebem um código automático no formato <code>FUN-XXXX</code> (ex:
+                FUN-0001), garantindo integridade histórica em relatórios, gerações de vagas e
+                registros de auditoria.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4 border-t border-slate-100 mt-2">
+            <Button
+              type="button"
+              onClick={() => setOpenHelpDialog(false)}
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white"
+            >
+              Entendido
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
