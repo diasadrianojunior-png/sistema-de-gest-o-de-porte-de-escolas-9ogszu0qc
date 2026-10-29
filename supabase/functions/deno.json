@@ -1,6 +1,6 @@
 {
   "_versions": {
-    "admin-users": 3,
-    "reset-password-email": 4
+    "admin-users": 4,
+    "reset-password-email": 5
   }
 }
