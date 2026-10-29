@@ -675,6 +675,96 @@ export type Database = {
           },
         ]
       }
+      profissionais: {
+        Row: {
+          ativo: boolean
+          codigo: string | null
+          created_at: string
+          id: string
+          nome: string
+          unidade_escolar_id: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          unidade_escolar_id: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          unidade_escolar_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'profissionais_unidade_escolar_id_fkey'
+            columns: ['unidade_escolar_id']
+            isOneToOne: false
+            referencedRelation: 'unidades_escolares'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      profissional_vagas: {
+        Row: {
+          cargo_id: string | null
+          created_at: string
+          id: string
+          profissional_id: string
+          titular: boolean
+          updated_at: string
+          vaga_id: string
+        }
+        Insert: {
+          cargo_id?: string | null
+          created_at?: string
+          id?: string
+          profissional_id: string
+          titular?: boolean
+          updated_at?: string
+          vaga_id: string
+        }
+        Update: {
+          cargo_id?: string | null
+          created_at?: string
+          id?: string
+          profissional_id?: string
+          titular?: boolean
+          updated_at?: string
+          vaga_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'profissional_vagas_cargo_id_fkey'
+            columns: ['cargo_id']
+            isOneToOne: false
+            referencedRelation: 'cargos'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'profissional_vagas_profissional_id_fkey'
+            columns: ['profissional_id']
+            isOneToOne: false
+            referencedRelation: 'profissionais'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'profissional_vagas_vaga_id_fkey'
+            columns: ['vaga_id']
+            isOneToOne: false
+            referencedRelation: 'vaga'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       tipos_escola: {
         Row: {
           codigo: string | null

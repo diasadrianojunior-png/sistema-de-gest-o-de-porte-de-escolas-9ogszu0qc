@@ -66,6 +66,12 @@ describe('validarContiguidadeNiveis', () => {
     expect(res.valido).toBe(false)
     expect(res.erros[0]).toContain('iniciar em 0 alunos')
   })
+
+  it('retorna erro se array de níveis for vazio ou indefinido', () => {
+    const resVazio = validarContiguidadeNiveis([])
+    expect(resVazio.valido).toBe(false)
+    expect(resVazio.erros[0]).toBe('A configuração deve conter ao menos um nível de alunos.')
+  })
 })
 
 describe('encontrarNivelPorAlunos - Limites de Faixa', () => {

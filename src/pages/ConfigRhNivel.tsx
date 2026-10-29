@@ -148,6 +148,7 @@ export default function ConfigRhNivel() {
   const [funcoesList, setFuncoesList] = useState<Funcao[]>([])
   const [cargosList, setCargosList] = useState<Cargo[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingConfiguracao, setLoadingConfiguracao] = useState(false)
   const [salvando, setSalvando] = useState(false)
 
   // Configuração selecionada atualmente
@@ -244,6 +245,7 @@ export default function ConfigRhNivel() {
   // Carrega configuração completa e popula estados locais
   const carregarConfiguracaoCompleta = async (id: string) => {
     try {
+      setLoadingConfiguracao(true)
       const completa = await getConfiguracaoRhCompleta(id)
       if (!completa) return
 
@@ -320,13 +322,19 @@ export default function ConfigRhNivel() {
         description: err.message,
         variant: 'destructive',
       })
+    } finally {
+      setLoadingConfiguracao(false)
     }
   }
 
   // Validação dinâmica das faixas de alunos em tempo real
+  // Executada apenas quando há uma configuração efetivamente selecionada e carregada
   const validacaoFaixas = useMemo(() => {
+    if (loading || loadingConfiguracao || !configuracaoAtual) {
+      return { valido: true, erros: [] }
+    }
     return validarContiguidadeNiveis(niveisEditaveis)
-  }, [niveisEditaveis])
+  }, [niveisEditaveis, loading, loadingConfiguracao, configuracaoAtual])
 
   // Formatação de exibição da célula da grade
   const formatarCelula = (celula?: CelulaVagaEditavel): string => {
@@ -874,11 +882,11 @@ export default function ConfigRhNivel() {
   }
 
   // Presets rápidos de validação dos exemplos solicitados pelo usuário
-  const carregarExemplo20h = () => {
+  const carregarExemplo20h = async () => {
     // Buscar cfg 20h
     const cfg20h = configuracoes.find((c) => c.tipo_atendimento.includes('20h'))
     if (cfg20h && cfg20h.id !== configuracaoAtivaId) {
-      carregarConfiguracaoCompleta(cfg20h.id)
+      await carregarConfiguracaoCompleta(cfg20h.id)
     }
     setSimAlunos(323)
     setSimPeriodos(2)
@@ -889,11 +897,11 @@ export default function ConfigRhNivel() {
     })
   }
 
-  const carregarExemplo40h = () => {
+  const carregarExemplo40h = async () => {
     // Buscar cfg 40h
     const cfg40h = configuracoes.find((c) => c.tipo_atendimento.includes('40h'))
     if (cfg40h && cfg40h.id !== configuracaoAtivaId) {
-      carregarConfiguracaoCompleta(cfg40h.id)
+      await carregarConfiguracaoCompleta(cfg40h.id)
     }
     setSimAlunos(148)
     setSimPeriodos(1)
@@ -983,7 +991,7 @@ export default function ConfigRhNivel() {
               <Select
                 value={configuracaoAtivaId}
                 onValueChange={(val) => carregarConfiguracaoCompleta(val)}
-                disabled={loading}
+                disabled={loading || loadingConfiguracao}
               >
                 <SelectTrigger className="w-full bg-white text-xs sm:text-sm">
                   <SelectValue placeholder="Selecione..." />
@@ -1056,7 +1064,7 @@ export default function ConfigRhNivel() {
       </Card>
 
       {/* ALERTA DE VALIDAÇÃO DE FAIXAS (CONTIGUIDADE E SOBREPOSIÇÃO) */}
-      {!validacaoFaixas.valido && (
+      {!loading && !loadingConfiguracao && !!configuracaoAtual && !validacaoFaixas.valido && (
         <Alert variant="destructive" className="bg-red-50 border-red-300 text-red-900">
           <AlertTriangle className="h-5 w-5 text-red-600" />
           <AlertTitle className="font-bold text-sm">
