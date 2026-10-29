@@ -3,6 +3,41 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import nodemailer from 'npm:nodemailer@6.9.16'
 import { corsHeaders } from '../_shared/cors.ts'
 
+const DEFAULT_PROD_URL = 'https://sistema-de-gestao-de-porte-de-escolas-bf76d.goskip.app'
+
+function sanitizeRedirectUrl(rawUrl?: string): string {
+  if (!rawUrl || rawUrl.includes('localhost') || rawUrl.includes('127.0.0.1')) {
+    return `${DEFAULT_PROD_URL}/login`
+  }
+  return rawUrl
+}
+
+function normalizeActionLink(actionLink: string, targetRedirect: string): string {
+  if (!actionLink) return actionLink
+  let fixedLink = actionLink
+
+  // Se o GoTrue gerou o link apontando para localhost, substituir pelo domínio de produção
+  if (fixedLink.includes('http://localhost:3000') || fixedLink.includes('http://localhost:5173')) {
+    fixedLink = fixedLink
+      .replace('http://localhost:3000', DEFAULT_PROD_URL)
+      .replace('http://localhost:5173', DEFAULT_PROD_URL)
+  }
+
+  // Assegurar que o parâmetro redirect_to na query string do link também aponte para a URL de produção
+  try {
+    const urlObj = new URL(fixedLink)
+    const currentRedirect = urlObj.searchParams.get('redirect_to')
+    if (!currentRedirect || currentRedirect.includes('localhost')) {
+      urlObj.searchParams.set('redirect_to', targetRedirect)
+      fixedLink = urlObj.toString()
+    }
+  } catch (_e) {
+    // Continua com substituição de string
+  }
+
+  return fixedLink
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -34,7 +69,8 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => ({}))
     const rawEmail = (body.email || '').trim().toLowerCase()
-    const redirectUrl = body.redirect_to || `${req.headers.get('origin') || ''}/login`
+    const requestRedirect = body.redirect_to || `${req.headers.get('origin') || ''}/login`
+    const redirectUrl = sanitizeRedirectUrl(requestRedirect)
 
     if (!rawEmail || !rawEmail.includes('@')) {
       return new Response(
@@ -120,7 +156,8 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const resetActionLink = linkData.properties.action_link
+    const rawActionLink = linkData.properties.action_link
+    const resetActionLink = normalizeActionLink(rawActionLink, redirectUrl)
 
     // 4. Preparar e-mail institucional
     const senderName = contaAtiva.nome_from || 'Sistema de Gestão de Porte de Escolas'
@@ -259,7 +296,7 @@ Deno.serve(async (req: Request) => {
         entidade: 'Autenticação',
         acao: 'Esqueci Senha',
         registro_codigo: contaAtiva.codigo,
-        descricao: `Solicitação de redefinição de senha para o e-mail ${rawEmail} processada através da conta ${contaAtiva.codigo} (${contaAtiva.descricao}).`,
+        descricao: `Solicitação de redefinição de senha para o e-mail ${rawEmail} processada através da conta ${contaAtiva.codigo} (${contaAtiva.descricao}). Link gerado para ${redirectUrl}.`,
         usuario_nome: 'Sistema / Recuperação de Senha',
         usuario_email: rawEmail,
         detalhes: {
@@ -275,6 +312,7 @@ Deno.serve(async (req: Request) => {
           smtp_erro: smtpErrorDetails || null,
           auth_fallback: authResetTriggered,
           action_link_gerado: Boolean(resetActionLink),
+          redirect_to: redirectUrl,
           timestamp: new Date().toISOString(),
         },
       })
@@ -309,7 +347,6 @@ Deno.serve(async (req: Request) => {
           remetente: contaAtiva.email_from,
         },
         smtp_enviado: smtpSent,
-        // Enviar o link de ação para garantir que o usuário consiga redefinir imediatamente
         reset_link: resetActionLink,
       }),
       {

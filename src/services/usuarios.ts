@@ -41,13 +41,25 @@ export const getUsuarios = async (): Promise<UsuarioSistema[]> => {
  */
 export const createUsuario = async (
   input: CreateUsuarioInput,
-): Promise<{ usuario: UsuarioSistema; inviteSent: boolean; message?: string }> => {
+): Promise<{
+  usuario: UsuarioSistema
+  inviteSent: boolean
+  message?: string
+  action_link?: string
+}> => {
   let inviteSent = false
   let userId: string | null = null
   let inviteMessage = ''
+  let actionLink = ''
 
-  // 1. Tentar Edge Function para inviteUserByEmail
+  // 1. Tentar Edge Function 'admin-users' com envio via SMTP institucional configurado
   try {
+    const origin =
+      typeof window !== 'undefined'
+        ? window.location.origin
+        : 'https://sistema-de-gestao-de-porte-de-escolas-bf76d.goskip.app'
+    const redirectUrl = `${origin}/login`
+
     const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
       body: {
         action: 'invite',
@@ -55,6 +67,7 @@ export const createUsuario = async (
         nome_completo: input.nome_completo.trim(),
         perfil: input.perfil,
         estado: input.estado,
+        redirect_to: redirectUrl,
       },
     })
 
@@ -65,6 +78,7 @@ export const createUsuario = async (
       inviteSent = Boolean(fnData.inviteSent)
       userId = fnData.user_id || null
       inviteMessage = fnData.message || ''
+      actionLink = fnData.action_link || ''
 
       if (fnData.usuario) {
         const usrCriado = fnData.usuario as UsuarioSistema
@@ -89,19 +103,20 @@ export const createUsuario = async (
           entidade: 'Usuários',
           acao: 'Criação',
           registro_codigo: usrCriado.codigo || null,
-          descricao: `Cadastro do usuário "${usrCriado.nome_completo}" (${usrCriado.email}, perfil ${usrCriado.perfil}, estado ${usrCriado.estado}). Convite enviado.`,
-          detalhes: { usuario: usrCriado, inviteSent },
+          descricao: `Cadastro do usuário "${usrCriado.nome_completo}" (${usrCriado.email}, perfil ${usrCriado.perfil}, estado ${usrCriado.estado}). Link de confirmação gerado${inviteSent ? ' e enviado via SMTP' : ''}.`,
+          detalhes: { usuario: usrCriado, inviteSent, action_link: actionLink },
         })
 
         return {
           usuario: usrCriado,
           inviteSent,
           message: inviteMessage,
+          action_link: actionLink,
         }
       }
     }
   } catch (err: any) {
-    console.warn('Edge function inviteUserByEmail falhou ou indisponível:', err?.message || err)
+    console.warn('Edge function admin-users falhou ou indisponível:', err?.message || err)
     // Prossegue com fallback direto na tabela usuarios_sistema
   }
 
@@ -158,6 +173,67 @@ export const createUsuario = async (
     usuario: usuarioCriado,
     inviteSent,
     message: inviteMessage,
+    action_link: actionLink,
+  }
+}
+
+/**
+ * Reenvia o e-mail de confirmação/ativação para um usuário existente via SMTP configurado.
+ */
+export const reenviarConfirmacaoUsuario = async (
+  usuario: UsuarioSistema,
+): Promise<{ success: boolean; inviteSent: boolean; message: string; action_link?: string }> => {
+  try {
+    const origin =
+      typeof window !== 'undefined'
+        ? window.location.origin
+        : 'https://sistema-de-gestao-de-porte-de-escolas-bf76d.goskip.app'
+    const redirectUrl = `${origin}/login`
+
+    const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-users', {
+      body: {
+        action: 'resend_invite',
+        email: usuario.email.trim().toLowerCase(),
+        nome_completo: usuario.nome_completo.trim(),
+        codigo: usuario.codigo,
+        redirect_to: redirectUrl,
+      },
+    })
+
+    if (fnError) {
+      throw new Error(fnError.message || 'Falha ao acionar serviço de reenvio.')
+    }
+
+    if (fnData?.error) {
+      throw new Error(fnData.error)
+    }
+
+    await registrarAuditoria({
+      entidade: 'Usuários',
+      acao: 'Reenvio de Confirmação',
+      registro_codigo: usuario.codigo || null,
+      descricao: `Reenvio manual de e-mail de confirmação para o usuário "${usuario.nome_completo}" (${usuario.email}).`,
+      detalhes: {
+        usuario_id: usuario.id,
+        email: usuario.email,
+        inviteSent: fnData?.inviteSent,
+        action_link: fnData?.action_link,
+      },
+    })
+
+    return {
+      success: true,
+      inviteSent: Boolean(fnData?.inviteSent),
+      message: fnData?.message || `E-mail de confirmação reenviado para ${usuario.email}.`,
+      action_link: fnData?.action_link,
+    }
+  } catch (err: any) {
+    console.error('Erro ao reenviar confirmação:', err)
+    return {
+      success: false,
+      inviteSent: false,
+      message: err?.message || 'Falha ao reenviar e-mail de confirmação.',
+    }
   }
 }
 

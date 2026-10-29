@@ -34,6 +34,9 @@ import {
   FileEdit,
   Trash2,
   LogIn,
+  Send,
+  KeyRound,
+  CheckCircle,
 } from 'lucide-react'
 import { getRegistrosAuditoria } from '@/services/auditoria'
 import { RegistroAuditoria } from '@/types/gestao-escolar'
@@ -177,6 +180,27 @@ export default function Auditoria() {
           <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-semibold bg-purple-50 text-purple-700 border border-purple-200">
             <LogIn className="w-3 h-3 text-purple-600" />
             Login
+          </span>
+        )
+      case 'Reenvio de Confirmação':
+        return (
+          <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-semibold bg-cyan-50 text-cyan-800 border border-cyan-200">
+            <Send className="w-3 h-3 text-cyan-600" />
+            Reenvio de Confirmação
+          </span>
+        )
+      case 'Esqueci Senha':
+        return (
+          <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+            <KeyRound className="w-3 h-3 text-amber-600" />
+            Esqueci Senha
+          </span>
+        )
+      case 'Redefinição de Senha':
+        return (
+          <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+            <CheckCircle className="w-3 h-3 text-emerald-600" />
+            Redefinição de Senha
           </span>
         )
       default:
@@ -344,6 +368,9 @@ export default function Auditoria() {
                   <SelectItem value="Edição">Edição</SelectItem>
                   <SelectItem value="Exclusão">Exclusão</SelectItem>
                   <SelectItem value="Login">Login</SelectItem>
+                  <SelectItem value="Reenvio de Confirmação">Reenvio de Confirmação</SelectItem>
+                  <SelectItem value="Esqueci Senha">Esqueci Senha</SelectItem>
+                  <SelectItem value="Redefinição de Senha">Redefinição de Senha</SelectItem>
                 </SelectContent>
               </Select>
             </div>

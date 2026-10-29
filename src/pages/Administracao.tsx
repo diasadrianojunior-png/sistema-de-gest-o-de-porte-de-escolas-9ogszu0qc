@@ -33,9 +33,17 @@ import {
   Info,
   Calendar,
   KeyRound,
+  Send,
+  HelpCircle,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
-import { getUsuarios, createUsuario, updateUsuario, deleteUsuario } from '@/services/usuarios'
+import {
+  getUsuarios,
+  createUsuario,
+  updateUsuario,
+  deleteUsuario,
+  reenviarConfirmacaoUsuario,
+} from '@/services/usuarios'
 import { UsuarioSistema, PerfilUsuario, EstadoUsuario } from '@/types/gestao-escolar'
 import { PaginacaoTabela, ITENS_POR_PAGINA_PADRAO } from '@/components/PaginacaoTabela'
 import {
@@ -60,6 +68,8 @@ export default function Administracao() {
   const [openEditDialog, setOpenEditDialog] = useState(false)
   const [editingUsuario, setEditingUsuario] = useState<UsuarioSistema | null>(null)
   const [deletingUsuario, setDeletingUsuario] = useState<UsuarioSistema | null>(null)
+  const [resendingEmailId, setResendingEmailId] = useState<string | null>(null)
+  const [openHelpDialog, setOpenHelpDialog] = useState(false)
 
   // Formulário Novo Usuário (exatamente como na imagem + permissões se for Operador)
   const [formNome, setFormNome] = useState('')
@@ -283,6 +293,33 @@ export default function Administracao() {
     }
   }
 
+  const handleResendConfirmation = async (targetUser: UsuarioSistema) => {
+    try {
+      setResendingEmailId(targetUser.id)
+      const res = await reenviarConfirmacaoUsuario(targetUser)
+      if (res.success) {
+        toast({
+          title: res.inviteSent ? 'E-mail reenviado com sucesso!' : 'Confirmação gerada',
+          description: res.message,
+        })
+      } else {
+        toast({
+          title: 'Aviso de envio',
+          description: res.message,
+          variant: 'destructive',
+        })
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao reenviar',
+        description: err.message || 'Falha ao processar o reenvio.',
+        variant: 'destructive',
+      })
+    } finally {
+      setResendingEmailId(null)
+    }
+  }
+
   const filteredUsuarios = usuarios.filter((u) => {
     const q = search.toLowerCase()
     return (
@@ -320,15 +357,26 @@ export default function Administracao() {
               Total de {usuarios.length} usuário(s) registrado(s) na plataforma
             </CardDescription>
           </div>
-          {canEditUsuarios && (
+          <div className="flex items-center gap-2">
             <Button
-              onClick={handleOpenCreate}
-              className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+              type="button"
+              variant="outline"
+              onClick={() => setOpenHelpDialog(true)}
+              className="gap-1.5 text-slate-700 border-slate-300 hover:bg-slate-50"
             >
-              <Plus className="w-4 h-4" />
-              Novo Usuário
+              <HelpCircle className="w-4 h-4 text-blue-600" />
+              Ajuda de Acesso
             </Button>
-          )}
+            {canEditUsuarios && (
+              <Button
+                onClick={handleOpenCreate}
+                className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+              >
+                <Plus className="w-4 h-4" />
+                Novo Usuário
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="relative max-w-sm">
@@ -433,6 +481,19 @@ export default function Administracao() {
                         <td className="py-3 px-4 text-right space-x-1">
                           {canEditUsuarios ? (
                             <>
+                              <Button
+                                size="icon"
+                                className="h-8 w-8 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200"
+                                onClick={() => handleResendConfirmation(u)}
+                                disabled={resendingEmailId === u.id}
+                                title="Reenviar e-mail de confirmação/ativação via SMTP"
+                              >
+                                {resendingEmailId === u.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Send className="w-3.5 h-3.5" />
+                                )}
+                              </Button>
                               <Button
                                 size="icon"
                                 className="h-8 w-8 bg-[#0B2545] hover:bg-[#133A68] text-white"
@@ -941,6 +1002,119 @@ export default function Administracao() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ========================================================================= */}
+      {/* MODAL: AJUDA DE ACESSO, CONFIRMAÇÃO DE E-MAIL E REDEFINIÇÃO DE SENHA      */}
+      {/* ========================================================================= */}
+      <Dialog open={openHelpDialog} onOpenChange={setOpenHelpDialog}>
+        <DialogContent className="p-6 rounded-2xl sm:max-w-[620px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="space-y-1.5 text-left">
+            <div className="flex items-center gap-2 text-[#0B2545]">
+              <div className="p-2 rounded-lg bg-blue-50">
+                <HelpCircle className="w-5 h-5 text-blue-600" />
+              </div>
+              <DialogTitle className="text-xl font-bold text-slate-900">
+                Instruções de Acesso, E-mails e Redefinição de Senha
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-slate-600">
+              Guia operacional sobre como funciona a confirmação de novos cadastros e a recuperação
+              de senhas.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2 text-sm text-slate-700 leading-relaxed">
+            {/* Bloco 1: Novo Usuário e Confirmação */}
+            <div className="p-4 rounded-xl border border-blue-100 bg-blue-50/50 space-y-2">
+              <h4 className="font-semibold text-blue-950 flex items-center gap-2">
+                <Mail className="w-4 h-4 text-blue-600" /> 1. Confirmação de E-mail de Novos
+                Usuários
+              </h4>
+              <p className="text-xs text-slate-700">
+                Ao cadastrar um novo usuário na plataforma (botão <strong>"Novo Usuário"</strong>),
+                um link de ativação é gerado com o endereço oficial de produção do sistema.
+              </p>
+              <ul className="text-xs list-disc list-inside space-y-1 text-slate-700 pl-1">
+                <li>
+                  O e-mail é disparado utilizando a <strong>conta SMTP institucional ativa</strong>{' '}
+                  cadastrada em <em>Administração &gt; Contas de E-mail</em> (mesmo remetente
+                  oficial do sistema).
+                </li>
+                <li>
+                  O link do e-mail abre diretamente na tela de cadastro da primeira senha da
+                  plataforma, sem mensagens de{' '}
+                  <code className="bg-white px-1 py-0.5 rounded border text-[11px]">
+                    ERR_CONNECTION_REFUSED
+                  </code>{' '}
+                  ou redirecionamentos para localhost.
+                </li>
+                <li>
+                  Caso o usuário não tenha recebido a mensagem, você pode usar o botão com ícone de{' '}
+                  <strong>avião de papel (Reenviar e-mail)</strong> na tabela de usuários para
+                  reenviar a qualquer momento.
+                </li>
+              </ul>
+            </div>
+
+            {/* Bloco 2: Esqueci Minha Senha */}
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+              <h4 className="font-semibold text-slate-900 flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-amber-600" /> 2. Redefinição de Senha ("Esqueci
+                minha senha")
+              </h4>
+              <p className="text-xs text-slate-700">
+                Na tela de login do sistema (<strong>/login</strong>), qualquer usuário pode clicar
+                em <em>"Esqueci minha senha"</em> e informar seu e-mail cadastrado:
+              </p>
+              <ul className="text-xs list-disc list-inside space-y-1 text-slate-700 pl-1">
+                <li>
+                  O sistema gera um link de redefinição com segurança e dispara a mensagem pela
+                  conta SMTP institucional ativa.
+                </li>
+                <li>
+                  O link de redefinição abre o modal <em>"Cadastrar Nova Senha"</em> diretamente no
+                  domínio oficial do sistema.
+                </li>
+                <li>
+                  Após informar e confirmar a nova senha (mínimo de 6 caracteres), o acesso é
+                  validado e o usuário pode entrar imediatamente.
+                </li>
+              </ul>
+            </div>
+
+            {/* Bloco 3: Domínio Oficial e Segurança */}
+            <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/50 space-y-2">
+              <h4 className="font-semibold text-emerald-950 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" /> 3. Domínio e Rastreabilidade em
+                Auditoria
+              </h4>
+              <p className="text-xs text-slate-700">
+                Todos os links de autenticação apontam para o domínio do sistema:
+                <br />
+                <code className="text-[11px] font-mono font-medium text-emerald-800 bg-white px-1.5 py-0.5 rounded border border-emerald-200 mt-1 inline-block">
+                  https://sistema-de-gestao-de-porte-de-escolas-bf76d.goskip.app
+                </code>
+              </p>
+              <p className="text-xs text-slate-700">
+                Todas as operações (criação de usuários, disparos via SMTP, reenvios manuais,
+                pedidos de redefinição de senha e alterações bem-sucedidas) são registradas
+                automaticamente no menu <strong>Auditoria</strong> com data, hora, remetente e
+                detalhes da ação.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4 border-t border-slate-100 mt-2">
+            <Button
+              type="button"
+              onClick={() => setOpenHelpDialog(false)}
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white"
+            >
+              Entendido
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
