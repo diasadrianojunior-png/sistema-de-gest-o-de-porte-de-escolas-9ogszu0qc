@@ -325,6 +325,10 @@ export default function Auditoria() {
                   <SelectItem value="todas">Todas as entidades</SelectItem>
                   <SelectItem value="Unidades escolares">Unidades escolares</SelectItem>
                   <SelectItem value="Turmas">Turmas</SelectItem>
+                  <SelectItem value="Profissionais">Profissionais</SelectItem>
+                  <SelectItem value="Porte da Escola por Ano Letivo">
+                    Porte da Escola por Ano Letivo
+                  </SelectItem>
                   <SelectItem value="Municípios/Redes">Municípios/Redes</SelectItem>
                   <SelectItem value="Tipos de escola">Tipos de escola</SelectItem>
                   <SelectItem value="Cargos">Cargos</SelectItem>
@@ -332,6 +336,7 @@ export default function Auditoria() {
                   <SelectItem value="Etapas">Etapas</SelectItem>
                   <SelectItem value="Ano/Série">Ano/Série</SelectItem>
                   <SelectItem value="Configuração RH">Configuração de Vagas por Nível</SelectItem>
+                  <SelectItem value="Vagas">Cadastro de Vagas</SelectItem>
                   <SelectItem value="Configurações de RH (CRH)">
                     Configurações de RH (CRH) [Legado]
                   </SelectItem>
@@ -342,6 +347,7 @@ export default function Auditoria() {
                   <SelectItem value="Usuários">Usuários</SelectItem>
                   <SelectItem value="Contas de E-mail">Contas de E-mail</SelectItem>
                   <SelectItem value="Permissões">Permissões de Acesso</SelectItem>
+                  <SelectItem value="Administração">Administração</SelectItem>
                   <SelectItem value="Autenticação">Autenticação (Login)</SelectItem>
                 </SelectContent>
               </Select>

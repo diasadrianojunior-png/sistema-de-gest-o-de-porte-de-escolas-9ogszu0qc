@@ -77,20 +77,30 @@ export default function Layout() {
   const isTurmasActive = location.pathname === '/cadastros-mestres/turmas'
   const isProfissionaisActive = location.pathname === '/cadastros-mestres/profissionais'
   const isPorteEscolaActive = location.pathname === '/cadastros-mestres/porte-escola'
-  const isMestresActive = location.pathname.startsWith('/cadastros-mestres')
+  const isConfigRhActive =
+    location.pathname === '/cadastros-mestres/configuracao-rh' ||
+    location.pathname === '/cadastros-apoio/configuracao-rh'
+  const isVagasActive =
+    location.pathname === '/cadastros-mestres/vagas' ||
+    location.pathname.startsWith('/cadastros-mestres/vagas/') ||
+    location.pathname === '/cadastros-apoio/vagas' ||
+    location.pathname.startsWith('/cadastros-apoio/vagas/')
+  const isMestresActive =
+    location.pathname.startsWith('/cadastros-mestres') || isConfigRhActive || isVagasActive
+
   const isCargosActive = location.pathname === '/cadastros-apoio/cargos'
   const isFuncoesActive = location.pathname === '/cadastros-apoio/funcoes'
   const isEtapasActive = location.pathname === '/cadastros-apoio/etapas'
   const isAnosSeriesActive = location.pathname === '/cadastros-apoio/anos-series'
-  const isConfigRhActive = location.pathname === '/cadastros-apoio/configuracao-rh'
-  const isVagasActive = location.pathname === '/cadastros-apoio/vagas'
-  const isApoioActive = location.pathname.startsWith('/cadastros-apoio')
+  const isApoioActive =
+    location.pathname.startsWith('/cadastros-apoio') && !isConfigRhActive && !isVagasActive
 
   const isUsuariosActive =
     location.pathname === '/administracao/usuarios' || location.pathname === '/administracao'
   const isContasEmailActive = location.pathname === '/administracao/contas-email'
-  const isAdministracaoActive = location.pathname.startsWith('/administracao')
-  const isAuditoriaActive = location.pathname === '/auditoria'
+  const isAuditoriaActive =
+    location.pathname === '/administracao/auditoria' || location.pathname === '/auditoria'
+  const isAdministracaoActive = location.pathname.startsWith('/administracao') || isAuditoriaActive
 
   // Permissões de visualização por item de menu
   const canViewPainel = canView('painel')
@@ -111,15 +121,14 @@ export default function Layout() {
 
   // Seções agrupadas têm visibilidade se pelo menos um submenu puder ser visto
   const showCadastrosMestres =
-    canViewUnidades || canViewTurmas || canViewProfissionais || canViewPorteEscola
-  const showCadastrosApoio =
-    canViewCargos ||
-    canViewFuncoes ||
-    canViewEtapas ||
-    canViewAnosSeries ||
+    canViewUnidades ||
+    canViewTurmas ||
+    canViewProfissionais ||
+    canViewPorteEscola ||
     canViewConfigRh ||
     canViewVagas
-  const showAdministracao = canViewUsuarios || canViewContasEmail
+  const showCadastrosApoio = canViewCargos || canViewFuncoes || canViewEtapas || canViewAnosSeries
+  const showAdministracao = canViewUsuarios || canViewContasEmail || canViewAuditoria
 
   // Conteúdo unificado da barra lateral (Sidebar)
   const renderSidebarContent = (isMobile = false) => {
@@ -251,221 +260,7 @@ export default function Layout() {
                     </NavLink>
                   ))}
 
-                {/* Item 2: Cadastros Mestres */}
-                {showCadastrosMestres &&
-                  (collapsed ? (
-                    <Popover open={mestresPopoverOpen} onOpenChange={setMestresPopoverOpen}>
-                      <Tooltip open={mestresPopoverOpen ? false : undefined}>
-                        <TooltipTrigger asChild>
-                          <PopoverTrigger asChild>
-                            <button
-                              type="button"
-                              aria-label="Cadastros Mestres"
-                              className={`flex items-center justify-center w-11 h-11 mx-auto rounded-lg transition-colors cursor-pointer outline-none ${
-                                isMestresActive
-                                  ? 'bg-blue-50 text-blue-700 shadow-xs ring-1 ring-blue-200'
-                                  : mestresPopoverOpen
-                                    ? 'bg-slate-100 text-slate-900'
-                                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                              }`}
-                            >
-                              <School
-                                className={`w-5 h-5 ${isMestresActive ? 'text-blue-700' : 'text-slate-600'}`}
-                              />
-                            </button>
-                          </PopoverTrigger>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="text-xs font-medium">
-                          Cadastros Mestres
-                        </TooltipContent>
-                      </Tooltip>
-                      <PopoverContent
-                        side="right"
-                        align="start"
-                        sideOffset={12}
-                        className="w-56 p-2 rounded-xl shadow-lg border border-slate-200 bg-white"
-                      >
-                        <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1 flex items-center justify-between">
-                          <span className="text-xs font-bold text-slate-800 tracking-tight flex items-center gap-1.5">
-                            <School className="w-3.5 h-3.5 text-blue-600" />
-                            Cadastros Mestres
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-semibold uppercase">
-                            Menu
-                          </span>
-                        </div>
-                        <div className="space-y-1">
-                          {canViewUnidades && (
-                            <NavLink
-                              to="/cadastros-mestres"
-                              onClick={() => setMestresPopoverOpen(false)}
-                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-                                isUnidadesActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                              }`}
-                            >
-                              <Building
-                                className={`w-4 h-4 shrink-0 ${isUnidadesActive ? 'text-white' : 'text-slate-500'}`}
-                              />
-                              <span>Unidades escolares</span>
-                            </NavLink>
-                          )}
-                          {canViewTurmas && (
-                            <NavLink
-                              to="/cadastros-mestres/turmas"
-                              onClick={() => setMestresPopoverOpen(false)}
-                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-                                isTurmasActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                              }`}
-                            >
-                              <Users
-                                className={`w-4 h-4 shrink-0 ${isTurmasActive ? 'text-white' : 'text-slate-500'}`}
-                              />
-                              <span>Turmas</span>
-                            </NavLink>
-                          )}
-                          {canViewProfissionais && (
-                            <NavLink
-                              to="/cadastros-mestres/profissionais"
-                              onClick={() => setMestresPopoverOpen(false)}
-                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-                                isProfissionaisActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                              }`}
-                            >
-                              <UserCheck
-                                className={`w-4 h-4 shrink-0 ${isProfissionaisActive ? 'text-white' : 'text-slate-500'}`}
-                              />
-                              <span>Profissionais</span>
-                            </NavLink>
-                          )}
-                          {canViewPorteEscola && (
-                            <NavLink
-                              to="/cadastros-mestres/porte-escola"
-                              onClick={() => setMestresPopoverOpen(false)}
-                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-                                isPorteEscolaActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                              }`}
-                            >
-                              <SlidersHorizontal
-                                className={`w-4 h-4 shrink-0 ${isPorteEscolaActive ? 'text-white' : 'text-slate-500'}`}
-                              />
-                              <span>Porte da Escola por Ano Letivo</span>
-                            </NavLink>
-                          )}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  ) : (
-                    <div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCadastrosMestresExpanded((prev) => !prev)
-                        }}
-                        title="Cadastros Mestres"
-                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                          isMestresActive
-                            ? 'text-blue-700 font-semibold bg-blue-50/70'
-                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <School
-                            className={`w-5 h-5 shrink-0 ${isMestresActive ? 'text-blue-700' : 'text-slate-500'}`}
-                          />
-                          <span className="truncate">Cadastros Mestres</span>
-                        </div>
-                        {cadastrosMestresExpanded ? (
-                          <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                        )}
-                      </button>
-
-                      {/* Submenu de Cadastros Mestres */}
-                      {cadastrosMestresExpanded && (
-                        <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-200 space-y-1 py-1">
-                          {canViewUnidades && (
-                            <NavLink
-                              to="/cadastros-mestres"
-                              onClick={() => isMobile && setMobileSidebarOpen(false)}
-                              title="Unidades escolares"
-                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                isUnidadesActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                              }`}
-                            >
-                              <Building
-                                className={`w-3.5 h-3.5 shrink-0 ${isUnidadesActive ? 'text-white' : 'text-slate-400'}`}
-                              />
-                              <span className="truncate">Unidades escolares</span>
-                            </NavLink>
-                          )}
-                          {canViewTurmas && (
-                            <NavLink
-                              to="/cadastros-mestres/turmas"
-                              onClick={() => isMobile && setMobileSidebarOpen(false)}
-                              title="Turmas"
-                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                isTurmasActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                              }`}
-                            >
-                              <Users
-                                className={`w-3.5 h-3.5 shrink-0 ${isTurmasActive ? 'text-white' : 'text-slate-400'}`}
-                              />
-                              <span className="truncate">Turmas</span>
-                            </NavLink>
-                          )}
-                          {canViewProfissionais && (
-                            <NavLink
-                              to="/cadastros-mestres/profissionais"
-                              onClick={() => isMobile && setMobileSidebarOpen(false)}
-                              title="Profissionais"
-                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                isProfissionaisActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                              }`}
-                            >
-                              <UserCheck
-                                className={`w-3.5 h-3.5 shrink-0 ${isProfissionaisActive ? 'text-white' : 'text-slate-400'}`}
-                              />
-                              <span className="truncate">Profissionais</span>
-                            </NavLink>
-                          )}
-                          {canViewPorteEscola && (
-                            <NavLink
-                              to="/cadastros-mestres/porte-escola"
-                              onClick={() => isMobile && setMobileSidebarOpen(false)}
-                              title="Porte da Escola por Ano Letivo"
-                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                isPorteEscolaActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                              }`}
-                            >
-                              <SlidersHorizontal
-                                className={`w-3.5 h-3.5 shrink-0 ${isPorteEscolaActive ? 'text-white' : 'text-slate-400'}`}
-                              />
-                              <span className="truncate">Porte da Escola por Ano Letivo</span>
-                            </NavLink>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-
-                {/* Item 3: Cadastros de Apoio */}
+                {/* Item 2: Cadastros de Apoio */}
                 {showCadastrosApoio &&
                   (collapsed ? (
                     <Popover open={apoioPopoverOpen} onOpenChange={setApoioPopoverOpen}>
@@ -576,40 +371,6 @@ export default function Layout() {
                               <span>Ano/Série</span>
                             </NavLink>
                           )}
-
-                          {canViewConfigRh && (
-                            <NavLink
-                              to="/cadastros-apoio/configuracao-rh"
-                              onClick={() => setApoioPopoverOpen(false)}
-                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-                                isConfigRhActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                              }`}
-                            >
-                              <SlidersHorizontal
-                                className={`w-4 h-4 shrink-0 ${isConfigRhActive ? 'text-white' : 'text-slate-500'}`}
-                              />
-                              <span>Configuração de Vagas por Nível</span>
-                            </NavLink>
-                          )}
-
-                          {canViewVagas && (
-                            <NavLink
-                              to="/cadastros-apoio/vagas"
-                              onClick={() => setApoioPopoverOpen(false)}
-                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-                                isVagasActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                              }`}
-                            >
-                              <Briefcase
-                                className={`w-4 h-4 shrink-0 ${isVagasActive ? 'text-white' : 'text-slate-500'}`}
-                              />
-                              <span>Cadastro de Vagas</span>
-                            </NavLink>
-                          )}
                         </div>
                       </PopoverContent>
                     </Popover>
@@ -713,10 +474,255 @@ export default function Layout() {
                               <span className="truncate">Ano/Série</span>
                             </NavLink>
                           )}
+                        </div>
+                      )}{' '}
+                    </div>
+                  ))}
 
+                {/* Item 3: Cadastros Mestres */}
+                {showCadastrosMestres &&
+                  (collapsed ? (
+                    <Popover open={mestresPopoverOpen} onOpenChange={setMestresPopoverOpen}>
+                      <Tooltip open={mestresPopoverOpen ? false : undefined}>
+                        <TooltipTrigger asChild>
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              aria-label="Cadastros Mestres"
+                              className={`flex items-center justify-center w-11 h-11 mx-auto rounded-lg transition-colors cursor-pointer outline-none ${
+                                isMestresActive
+                                  ? 'bg-blue-50 text-blue-700 shadow-xs ring-1 ring-blue-200'
+                                  : mestresPopoverOpen
+                                    ? 'bg-slate-100 text-slate-900'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <School
+                                className={`w-5 h-5 ${isMestresActive ? 'text-blue-700' : 'text-slate-600'}`}
+                              />
+                            </button>
+                          </PopoverTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="text-xs font-medium">
+                          Cadastros Mestres
+                        </TooltipContent>
+                      </Tooltip>
+                      <PopoverContent
+                        side="right"
+                        align="start"
+                        sideOffset={12}
+                        className="w-56 p-2 rounded-xl shadow-lg border border-slate-200 bg-white"
+                      >
+                        <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1 flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-800 tracking-tight flex items-center gap-1.5">
+                            <School className="w-3.5 h-3.5 text-blue-600" />
+                            Cadastros Mestres
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-semibold uppercase">
+                            Menu
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          {canViewUnidades && (
+                            <NavLink
+                              to="/cadastros-mestres"
+                              onClick={() => setMestresPopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                isUnidadesActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Building
+                                className={`w-4 h-4 shrink-0 ${isUnidadesActive ? 'text-white' : 'text-slate-500'}`}
+                              />
+                              <span>Unidades escolares</span>
+                            </NavLink>
+                          )}
+                          {canViewTurmas && (
+                            <NavLink
+                              to="/cadastros-mestres/turmas"
+                              onClick={() => setMestresPopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                isTurmasActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Users
+                                className={`w-4 h-4 shrink-0 ${isTurmasActive ? 'text-white' : 'text-slate-500'}`}
+                              />
+                              <span>Turmas</span>
+                            </NavLink>
+                          )}
+                          {canViewProfissionais && (
+                            <NavLink
+                              to="/cadastros-mestres/profissionais"
+                              onClick={() => setMestresPopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                isProfissionaisActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <UserCheck
+                                className={`w-4 h-4 shrink-0 ${isProfissionaisActive ? 'text-white' : 'text-slate-500'}`}
+                              />
+                              <span>Profissionais</span>
+                            </NavLink>
+                          )}
+                          {canViewPorteEscola && (
+                            <NavLink
+                              to="/cadastros-mestres/porte-escola"
+                              onClick={() => setMestresPopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                isPorteEscolaActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <SlidersHorizontal
+                                className={`w-4 h-4 shrink-0 ${isPorteEscolaActive ? 'text-white' : 'text-slate-500'}`}
+                              />
+                              <span>Porte da Escola por Ano Letivo</span>
+                            </NavLink>
+                          )}
                           {canViewConfigRh && (
                             <NavLink
-                              to="/cadastros-apoio/configuracao-rh"
+                              to="/cadastros-mestres/configuracao-rh"
+                              onClick={() => setMestresPopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                isConfigRhActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <SlidersHorizontal
+                                className={`w-4 h-4 shrink-0 ${isConfigRhActive ? 'text-white' : 'text-slate-500'}`}
+                              />
+                              <span>Configuração de Vagas por Nível</span>
+                            </NavLink>
+                          )}
+                          {canViewVagas && (
+                            <NavLink
+                              to="/cadastros-mestres/vagas"
+                              onClick={() => setMestresPopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                isVagasActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Briefcase
+                                className={`w-4 h-4 shrink-0 ${isVagasActive ? 'text-white' : 'text-slate-500'}`}
+                              />
+                              <span>Cadastro de Vagas</span>
+                            </NavLink>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  ) : (
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCadastrosMestresExpanded((prev) => !prev)
+                        }}
+                        title="Cadastros Mestres"
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                          isMestresActive
+                            ? 'text-blue-700 font-semibold bg-blue-50/70'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <School
+                            className={`w-5 h-5 shrink-0 ${isMestresActive ? 'text-blue-700' : 'text-slate-500'}`}
+                          />
+                          <span className="truncate">Cadastros Mestres</span>
+                        </div>
+                        {cadastrosMestresExpanded ? (
+                          <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                        )}
+                      </button>
+
+                      {/* Submenu de Cadastros Mestres */}
+                      {cadastrosMestresExpanded && (
+                        <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-200 space-y-1 py-1">
+                          {canViewUnidades && (
+                            <NavLink
+                              to="/cadastros-mestres"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Unidades escolares"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isUnidadesActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Building
+                                className={`w-3.5 h-3.5 shrink-0 ${isUnidadesActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Unidades escolares</span>
+                            </NavLink>
+                          )}
+                          {canViewTurmas && (
+                            <NavLink
+                              to="/cadastros-mestres/turmas"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Turmas"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isTurmasActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Users
+                                className={`w-3.5 h-3.5 shrink-0 ${isTurmasActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Turmas</span>
+                            </NavLink>
+                          )}
+                          {canViewProfissionais && (
+                            <NavLink
+                              to="/cadastros-mestres/profissionais"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Profissionais"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isProfissionaisActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <UserCheck
+                                className={`w-3.5 h-3.5 shrink-0 ${isProfissionaisActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Profissionais</span>
+                            </NavLink>
+                          )}
+                          {canViewPorteEscola && (
+                            <NavLink
+                              to="/cadastros-mestres/porte-escola"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Porte da Escola por Ano Letivo"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isPorteEscolaActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <SlidersHorizontal
+                                className={`w-3.5 h-3.5 shrink-0 ${isPorteEscolaActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Porte da Escola por Ano Letivo</span>
+                            </NavLink>
+                          )}
+                          {canViewConfigRh && (
+                            <NavLink
+                              to="/cadastros-mestres/configuracao-rh"
                               onClick={() => isMobile && setMobileSidebarOpen(false)}
                               title="Configuração de Vagas por Nível"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
@@ -731,10 +737,9 @@ export default function Layout() {
                               <span className="truncate">Configuração de Vagas por Nível</span>
                             </NavLink>
                           )}
-
                           {canViewVagas && (
                             <NavLink
-                              to="/cadastros-apoio/vagas"
+                              to="/cadastros-mestres/vagas"
                               onClick={() => isMobile && setMobileSidebarOpen(false)}
                               title="Cadastro de Vagas"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
@@ -750,7 +755,7 @@ export default function Layout() {
                             </NavLink>
                           )}
                         </div>
-                      )}{' '}
+                      )}
                     </div>
                   ))}
 
@@ -834,6 +839,23 @@ export default function Layout() {
                               <span>Contas de Email</span>
                             </NavLink>
                           )}
+
+                          {canViewAuditoria && (
+                            <NavLink
+                              to="/administracao/auditoria"
+                              onClick={() => setAdministracaoPopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                isAuditoriaActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <ShieldAlert
+                                className={`w-4 h-4 shrink-0 ${isAuditoriaActive ? 'text-white' : 'text-slate-500'}`}
+                              />
+                              <span>Auditoria</span>
+                            </NavLink>
+                          )}
                         </div>
                       </PopoverContent>
                     </Popover>
@@ -902,51 +924,27 @@ export default function Layout() {
                               <span className="truncate">Contas de Email</span>
                             </NavLink>
                           )}
+
+                          {canViewAuditoria && (
+                            <NavLink
+                              to="/administracao/auditoria"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Auditoria"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isAuditoriaActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <ShieldAlert
+                                className={`w-3.5 h-3.5 shrink-0 ${isAuditoriaActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Auditoria</span>
+                            </NavLink>
+                          )}
                         </div>
                       )}
                     </div>
-                  ))}
-
-                {/* Item 5: Auditoria (última posição) */}
-                {canViewAuditoria &&
-                  (collapsed ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <NavLink
-                          to="/auditoria"
-                          title="Auditoria"
-                          aria-label="Auditoria"
-                          className={`flex items-center justify-center w-11 h-11 mx-auto rounded-lg transition-colors ${
-                            isAuditoriaActive
-                              ? 'bg-blue-50 text-blue-700 shadow-xs ring-1 ring-blue-200'
-                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                          }`}
-                        >
-                          <ShieldAlert
-                            className={`w-5 h-5 ${isAuditoriaActive ? 'text-blue-700' : 'text-slate-600'}`}
-                          />
-                        </NavLink>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="text-xs font-medium">
-                        Auditoria
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    <NavLink
-                      to="/auditoria"
-                      onClick={() => isMobile && setMobileSidebarOpen(false)}
-                      title="Auditoria"
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                        isAuditoriaActive
-                          ? 'bg-blue-50 text-blue-700 font-semibold shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                      }`}
-                    >
-                      <ShieldAlert
-                        className={`w-5 h-5 shrink-0 ${isAuditoriaActive ? 'text-blue-700' : 'text-slate-500'}`}
-                      />
-                      <span>Auditoria</span>
-                    </NavLink>
                   ))}
               </nav>
             </div>
@@ -1123,45 +1121,50 @@ export default function Layout() {
               {isPainelActive && (
                 <span className="text-slate-900 font-semibold">Painel de Início</span>
               )}
-              {isMestresActive && (
-                <>
-                  <span className="text-slate-600">Cadastros Mestres</span>
-                  <span className="mx-2 text-slate-300">/</span>
-                  <span className="text-blue-700 font-semibold">
-                    {isPorteEscolaActive
-                      ? 'Porte da Escola por Ano Letivo'
-                      : isProfissionaisActive
-                        ? 'Profissionais'
-                        : isTurmasActive
-                          ? 'Turmas'
-                          : 'Unidades escolares'}
-                  </span>
-                </>
-              )}
               {isApoioActive && (
                 <>
                   <span className="text-slate-600">Cadastros de Apoio</span>
                   <span className="mx-2 text-slate-300">/</span>
                   <span className="text-blue-700 font-semibold">
-                    {isConfigRhActive
-                      ? 'Configuração de Vagas por Nível'
-                      : isAnosSeriesActive
-                        ? 'Ano/Série'
-                        : isEtapasActive
-                          ? 'Etapas'
-                          : isFuncoesActive
-                            ? 'Funções'
-                            : 'Cargos'}
+                    {isAnosSeriesActive
+                      ? 'Ano/Série'
+                      : isEtapasActive
+                        ? 'Etapas'
+                        : isFuncoesActive
+                          ? 'Funções'
+                          : 'Cargos'}
                   </span>{' '}
                 </>
               )}
-              {isAuditoriaActive && <span className="text-blue-700 font-semibold">Auditoria</span>}
+              {isMestresActive && (
+                <>
+                  <span className="text-slate-600">Cadastros Mestres</span>
+                  <span className="mx-2 text-slate-300">/</span>
+                  <span className="text-blue-700 font-semibold">
+                    {isVagasActive
+                      ? 'Cadastro de Vagas'
+                      : isConfigRhActive
+                        ? 'Configuração de Vagas por Nível'
+                        : isPorteEscolaActive
+                          ? 'Porte da Escola por Ano Letivo'
+                          : isProfissionaisActive
+                            ? 'Profissionais'
+                            : isTurmasActive
+                              ? 'Turmas'
+                              : 'Unidades escolares'}
+                  </span>
+                </>
+              )}
               {isAdministracaoActive && (
                 <>
                   <span className="text-slate-600">Administração do sistema</span>
                   <span className="mx-2 text-slate-300">/</span>
                   <span className="text-blue-700 font-semibold">
-                    {isContasEmailActive ? 'Contas de Email' : 'Usuários'}
+                    {isAuditoriaActive
+                      ? 'Auditoria'
+                      : isContasEmailActive
+                        ? 'Contas de Email'
+                        : 'Usuários'}
                   </span>
                 </>
               )}{' '}

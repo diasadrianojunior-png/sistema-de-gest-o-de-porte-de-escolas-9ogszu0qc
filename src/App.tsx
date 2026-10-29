@@ -77,6 +77,52 @@ const App = () => (
                 </RouteGuard>
               }
             />
+            {/* ETAPA 1: Configuração de Vagas por Nível (movido para Cadastros Mestres) */}
+            <Route
+              path="/cadastros-mestres/configuracao-rh"
+              element={
+                <RouteGuard menuKey="configuracao_rh">
+                  <ConfigRhNivelPage />
+                </RouteGuard>
+              }
+            />
+            {/* ETAPA 2: Cadastro de Vagas (movido para Cadastros Mestres) */}
+            <Route
+              path="/cadastros-mestres/vagas"
+              element={
+                <RouteGuard menuKey="vagas">
+                  <VagasPage />
+                </RouteGuard>
+              }
+            />
+            <Route
+              path="/cadastros-mestres/vagas/unidade/:unidadeId"
+              element={
+                <RouteGuard menuKey="vagas">
+                  <VagasPage />
+                </RouteGuard>
+              }
+            />
+
+            {/* Redirecionamentos de compatibilidade para os caminhos antigos de vagas */}
+            <Route
+              path="/cadastros-apoio/configuracao-rh"
+              element={<Navigate to="/cadastros-mestres/configuracao-rh" replace />}
+            />
+            <Route
+              path="/cadastros-apoio/vagas"
+              element={<Navigate to="/cadastros-mestres/vagas" replace />}
+            />
+            <Route
+              path="/cadastros-apoio/crh"
+              element={<Navigate to="/cadastros-mestres/configuracao-rh" replace />}
+            />
+            <Route
+              path="/cadastros-apoio/care"
+              element={<Navigate to="/cadastros-mestres/configuracao-rh" replace />}
+            />
+
+            {/* Cadastros de Apoio */}
             <Route path="/cadastros-apoio" element={<CadastrosApoio />} />
             <Route
               path="/cadastros-apoio/cargos"
@@ -110,41 +156,7 @@ const App = () => (
                 </RouteGuard>
               }
             />
-            {/* Redirecionamentos para rotas legadas removidas */}
-            <Route
-              path="/cadastros-apoio/crh"
-              element={<Navigate to="/cadastros-apoio/configuracao-rh" replace />}
-            />
-            <Route
-              path="/cadastros-apoio/care"
-              element={<Navigate to="/cadastros-apoio/configuracao-rh" replace />}
-            />
-            {/* ETAPA 1: Configuração de Vagas por Nível (Configuração de RH por Nível) */}
-            <Route
-              path="/cadastros-apoio/configuracao-rh"
-              element={
-                <RouteGuard menuKey="configuracao_rh">
-                  <ConfigRhNivelPage />
-                </RouteGuard>
-              }
-            />
-            {/* ETAPA 2: Cadastro de Vagas (geração por Unidade Escolar e Ano Letivo) */}
-            <Route
-              path="/cadastros-apoio/vagas"
-              element={
-                <RouteGuard menuKey="vagas">
-                  <VagasPage />
-                </RouteGuard>
-              }
-            />
-            <Route
-              path="/cadastros-apoio/vagas/unidade/:unidadeId"
-              element={
-                <RouteGuard menuKey="vagas">
-                  <VagasPage />
-                </RouteGuard>
-              }
-            />
+
             {/* Submenus da Administração do Sistema */}
             <Route
               path="/administracao/usuarios"
@@ -162,6 +174,16 @@ const App = () => (
                 </RouteGuard>
               }
             />
+            <Route
+              path="/administracao/auditoria"
+              element={
+                <RouteGuard menuKey="auditoria">
+                  <Auditoria />
+                </RouteGuard>
+              }
+            />
+            {/* Rota legada /auditoria redirecionando para /administracao/auditoria */}
+            <Route path="/auditoria" element={<Navigate to="/administracao/auditoria" replace />} />
             {/* Rota legada/atalho redirecionando para /administracao/usuarios */}
             <Route
               path="/administracao"
@@ -170,14 +192,6 @@ const App = () => (
             <Route
               path="/administracao/permissoes"
               element={<Navigate to="/administracao/usuarios" replace />}
-            />
-            <Route
-              path="/auditoria"
-              element={
-                <RouteGuard menuKey="auditoria">
-                  <Auditoria />
-                </RouteGuard>
-              }
             />
           </Route>
 

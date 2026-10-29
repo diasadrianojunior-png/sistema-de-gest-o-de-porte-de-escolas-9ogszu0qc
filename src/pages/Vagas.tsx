@@ -716,7 +716,7 @@ export const VagasPage: React.FC = () => {
                     </p>
                     <p className="mt-0.5 text-amber-800">
                       Não foi encontrado registro para esta unidade escolar no cadastro{' '}
-                      <strong>"Cadastros de Apoio &gt; Porte da Escola por Ano Letivo"</strong>.{' '}
+                      <strong>"Cadastros Mestres &gt; Porte da Escola por Ano Letivo"</strong>.{' '}
                       Cadastre o porte (quantidade de alunos e nível) antes de gerar as vagas.
                     </p>
                   </div>
