@@ -1,13 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   AlertTriangle,
   Trash2,
@@ -44,9 +38,9 @@ export default function LimpezaBancoPage() {
   const [executando, setExecutando] = useState(false)
   const [stats, setStats] = useState<EstatisticasBancoLimpeza | null>(null)
 
-  // Combobox com opções exatas "Sim" e "Não"
-  const [preservarAuditoria, setPreservarAuditoria] = useState<'Sim' | 'Não'>('Sim')
-  const [preservarCargosFuncoes, setPreservarCargosFuncoes] = useState<'Sim' | 'Não'>('Sim')
+  // Opções em checkbox: marcado = preservar (iniciam como true)
+  const [preservarAuditoria, setPreservarAuditoria] = useState<boolean>(true)
+  const [preservarCargosFuncoes, setPreservarCargosFuncoes] = useState<boolean>(true)
 
   // Modais
   const [openAjuda, setOpenAjuda] = useState(false)
@@ -75,14 +69,14 @@ export default function LimpezaBancoPage() {
     carregarDados()
   }, [])
 
-  // Filtra as tabelas operacionais considerando as escolhas Sim/Não dos comboboxes
+  // Filtra as tabelas operacionais considerando as escolhas dos checkboxes
   const tabelasParaExibicao = useMemo(() => {
     if (!stats) return []
     return stats.tabelasOperacionais.filter((item) => {
-      if (item.condicional === 'cargos_funcoes' && preservarCargosFuncoes === 'Sim') {
+      if (item.condicional === 'cargos_funcoes' && preservarCargosFuncoes) {
         return false
       }
-      if (item.condicional === 'auditoria' && preservarAuditoria === 'Sim') {
+      if (item.condicional === 'auditoria' && preservarAuditoria) {
         return false
       }
       return true
@@ -98,8 +92,8 @@ export default function LimpezaBancoPage() {
     try {
       setExecutando(true)
       const res = await executarLimpezaBanco({
-        preservarAuditoria: preservarAuditoria === 'Sim',
-        preservarCargosFuncoes: preservarCargosFuncoes === 'Sim',
+        preservarAuditoria,
+        preservarCargosFuncoes,
       })
 
       if (res.sucesso) {
@@ -286,7 +280,7 @@ export default function LimpezaBancoPage() {
             </CardContent>
           </Card>
 
-          {/* 2. OPÇÕES ADICIONAIS DE EXCEÇÃO (Perguntas com combobox Sim / Não) */}
+          {/* 2. OPÇÕES ADICIONAIS DE EXCEÇÃO (Perguntas com checkbox) */}
           <Card className="shadow-sm border-slate-200">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-700">
@@ -301,60 +295,65 @@ export default function LimpezaBancoPage() {
             <CardContent className="pt-2">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Pergunta 1: Auditoria */}
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <label className="text-xs font-bold text-slate-800 block">
-                        Deseja preservar os registros de auditoria?
-                      </label>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        Mantém todo o histórico prévio de logs de auditoria do sistema. Se "Não", o
-                        histórico anterior será limpo e apenas o registro DESTA limpeza será
-                        gravado.
-                      </p>
-                    </div>
+                <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between space-y-3">
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="checkbox-preservar-auditoria"
+                      className="text-xs font-bold text-slate-800 block cursor-pointer"
+                    >
+                      Deseja preservar os registros de auditoria?
+                    </label>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Mantém todo o histórico prévio de logs de auditoria do sistema. Se desmarcado,
+                      o histórico anterior será limpo e apenas o registro DESTA limpeza será
+                      gravado.
+                    </p>
                   </div>
 
-                  <Select
-                    value={preservarAuditoria}
-                    onValueChange={(val: 'Sim' | 'Não') => setPreservarAuditoria(val)}
+                  <label
+                    htmlFor="checkbox-preservar-auditoria"
+                    className="flex items-center gap-2.5 p-2.5 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-slate-100/70 cursor-pointer transition-colors"
                   >
-                    <SelectTrigger className="w-full bg-white h-9 text-xs font-semibold">
-                      <SelectValue placeholder="Selecione Sim ou Não" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Sim">Sim — Preservar registros de auditoria</SelectItem>
-                      <SelectItem value="Não">Não — Excluir auditoria anterior</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <Checkbox
+                      id="checkbox-preservar-auditoria"
+                      checked={preservarAuditoria}
+                      onCheckedChange={(checked) => setPreservarAuditoria(checked === true)}
+                    />
+                    <span className="text-xs font-semibold text-slate-700 select-none">
+                      Preservar registros de auditoria
+                    </span>
+                  </label>
                 </div>
 
                 {/* Pergunta 2: Cargos e Funções */}
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <label className="text-xs font-bold text-slate-800 block">
-                        Deseja preservar os cargos e as funções?
-                      </label>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        Quando "Sim", os cadastros de Cargos, Funções e seus vínculos são
-                        preservados. Se "Não", serão excluídos respeitando a integridade do banco.
-                      </p>
-                    </div>
+                <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between space-y-3">
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="checkbox-preservar-cargos-funcoes"
+                      className="text-xs font-bold text-slate-800 block cursor-pointer"
+                    >
+                      Deseja preservar os cargos e as funções?
+                    </label>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Quando marcado, os cadastros de Cargos, Funções e seus vínculos são
+                      preservados. Se desmarcado, serão excluídos respeitando a integridade do
+                      banco.
+                    </p>
                   </div>
 
-                  <Select
-                    value={preservarCargosFuncoes}
-                    onValueChange={(val: 'Sim' | 'Não') => setPreservarCargosFuncoes(val)}
+                  <label
+                    htmlFor="checkbox-preservar-cargos-funcoes"
+                    className="flex items-center gap-2.5 p-2.5 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-slate-100/70 cursor-pointer transition-colors"
                   >
-                    <SelectTrigger className="w-full bg-white h-9 text-xs font-semibold">
-                      <SelectValue placeholder="Selecione Sim ou Não" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Sim">Sim — Preservar cargos e funções</SelectItem>
-                      <SelectItem value="Não">Não — Excluir cargos e funções</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <Checkbox
+                      id="checkbox-preservar-cargos-funcoes"
+                      checked={preservarCargosFuncoes}
+                      onCheckedChange={(checked) => setPreservarCargosFuncoes(checked === true)}
+                    />
+                    <span className="text-xs font-semibold text-slate-700 select-none">
+                      Preservar cargos e funções
+                    </span>
+                  </label>
                 </div>
               </div>
             </CardContent>
@@ -515,8 +514,8 @@ export default function LimpezaBancoPage() {
         open={openConfirmacao}
         onOpenChange={setOpenConfirmacao}
         totalRegistrosParaExcluir={totalRegistrosParaExcluir}
-        preservarAuditoria={preservarAuditoria === 'Sim'}
-        preservarCargosFuncoes={preservarCargosFuncoes === 'Sim'}
+        preservarAuditoria={preservarAuditoria}
+        preservarCargosFuncoes={preservarCargosFuncoes}
         onConfirmar={handleConfirmarLimpeza}
         loading={executando}
       />

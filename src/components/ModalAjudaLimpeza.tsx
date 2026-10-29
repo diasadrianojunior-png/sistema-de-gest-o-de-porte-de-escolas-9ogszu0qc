@@ -85,21 +85,23 @@ export function ModalAjudaLimpeza({ open, onOpenChange }: ModalAjudaLimpezaProps
           <div className="space-y-2">
             <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
               <ListFilter className="w-4 h-4 text-blue-600" />
-              2. Opções Condicionais (Sim / Não)
+              2. Opções Condicionais (Checkboxes)
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div className="p-2.5 bg-slate-50 border rounded-lg">
                 <p className="font-semibold text-slate-800">Preservar Registros de Auditoria?</p>
                 <p className="text-[11px] text-slate-600 mt-1">
-                  Se <strong>Não</strong>, o histórico antigo é limpo. Mesmo assim, o registro
-                  institucional DESTA limpeza será gravado para rastreabilidade.
+                  Quando <strong>marcado</strong>, mantém todo o histórico prévio. Se desmarcado, o
+                  histórico antigo é limpo. Mesmo assim, o registro institucional DESTA limpeza será
+                  gravado para rastreabilidade.
                 </p>
               </div>
               <div className="p-2.5 bg-slate-50 border rounded-lg">
                 <p className="font-semibold text-slate-800">Preservar Cargos e Funções?</p>
                 <p className="text-[11px] text-slate-600 mt-1">
-                  Se <strong>Não</strong>, o plano de cargos e catálogo de funções são excluídos
-                  junto com seus vínculos. Se <strong>Sim</strong>, permanecem intactos.
+                  Quando <strong>marcado</strong>, o plano de cargos e catálogo de funções
+                  permanecem intactos. Se desmarcado, são excluídos junto com seus vínculos
+                  respeitando a integridade do banco.
                 </p>
               </div>
             </div>
