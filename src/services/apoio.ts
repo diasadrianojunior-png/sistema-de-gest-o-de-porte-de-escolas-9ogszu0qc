@@ -673,6 +673,8 @@ export const updateEtapa = async (id: string, input: UpdateEtapaInput): Promise<
     throw new Error('Ano letivo inválido. O ano deve estar entre 2020 e 2040.')
   }
 
+  const { data: anterior } = await db.from('etapas').select('*').eq('id', id).maybeSingle()
+
   const { data, error } = await db
     .from('etapas')
     .update({
@@ -696,7 +698,13 @@ export const updateEtapa = async (id: string, input: UpdateEtapaInput): Promise<
     acao: 'Edição',
     registro_codigo: updated.codigo || null,
     descricao: `Edição da etapa "${updated.nome}" (Ano Letivo: ${updated.ano_letivo}).`,
-    detalhes: { id, alteracoes: input },
+    detalhes: {
+      id,
+      alteracoes: input,
+      valores_antigos: anterior,
+      valores_novos: updated,
+      registro_anterior: anterior,
+    },
   })
 
   return updated

@@ -29,7 +29,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Edit2, Trash2, Loader2, Search, GraduationCap, Eye, Calendar } from 'lucide-react'
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  Loader2,
+  Search,
+  GraduationCap,
+  Eye,
+  Calendar,
+  HelpCircle,
+  CheckCircle2,
+  AlertTriangle,
+  Info,
+} from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
 import { getEtapas, createEtapa, updateEtapa, deleteEtapa } from '@/services/apoio'
@@ -61,6 +74,9 @@ export default function Etapas() {
 
   // Modal de Exclusão
   const [deletingEtapa, setDeletingEtapa] = useState<Etapa | null>(null)
+
+  // Modal de Ajuda e Regras
+  const [openHelpDialog, setOpenHelpDialog] = useState(false)
 
   const fetchEtapas = async () => {
     try {
@@ -221,15 +237,26 @@ export default function Etapas() {
               Total de {etapas.length} etapa(s) cadastrada(s) na tabela de apoio
             </CardDescription>
           </div>
-          {canEditEtapas && (
+          <div className="flex items-center gap-2">
             <Button
-              onClick={handleOpenCreate}
-              className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+              type="button"
+              variant="outline"
+              onClick={() => setOpenHelpDialog(true)}
+              className="gap-1.5 text-slate-700 border-slate-300 hover:bg-slate-50"
             >
-              <Plus className="w-4 h-4" />
-              Nova Etapa
+              <HelpCircle className="w-4 h-4 text-blue-600" />
+              Ajuda e Regras
             </Button>
-          )}
+            {canEditEtapas && (
+              <Button
+                onClick={handleOpenCreate}
+                className="gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
+              >
+                <Plus className="w-4 h-4" />
+                Nova Etapa
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Barra de Filtros / Busca */}
@@ -393,7 +420,7 @@ export default function Etapas() {
           </DialogHeader>
 
           <form onSubmit={handleSave} className="space-y-4 py-2">
-            {/* Campo 1: Identificador (Automático / Informativo / Não editável) */}
+            {/* Campo 1: Identificador (Automático / Informativo / Não editável) — permanece no topo */}
             <div className="space-y-1.5">
               <Label
                 htmlFor="e-codigo"
@@ -416,30 +443,13 @@ export default function Etapas() {
               </p>
             </div>
 
-            {/* Campo 2: Nome da Etapa (Obrigatório) */}
-            <div className="space-y-1.5">
-              <Label
-                htmlFor="e-nome"
-                className="text-xs font-semibold uppercase tracking-wider text-slate-700"
-              >
-                Nome da Etapa <span className="text-rose-500">*</span>
-              </Label>
-              <Input
-                id="e-nome"
-                placeholder="Ex: Ensino Fundamental I (1º ao 5º ano)"
-                value={formNome}
-                onChange={(e) => setFormNome(e.target.value)}
-                required
-                className="text-sm"
-              />
-            </div>
-
-            {/* Campo 3: Ano Letivo (Combobox de 2020 a 2040) */}
-            <div className="space-y-1.5">
+            {/* Campo 2: Ano Letivo (Combobox de 2020 a 2040) — primeiro campo de preenchimento */}
+            <div className="space-y-1.5 border-t pt-3">
               <Label
                 htmlFor="e-ano"
-                className="text-xs font-semibold uppercase tracking-wider text-slate-700"
+                className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"
               >
+                <Calendar className="w-3.5 h-3.5 text-blue-600" />
                 Ano Letivo <span className="text-rose-500">*</span>
               </Label>
               <Select
@@ -457,12 +467,32 @@ export default function Etapas() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                 Selecione o ano letivo de vigência desta etapa escolar (faixa 2020 a 2040).
               </p>
             </div>
 
-            <DialogFooter className="pt-4">
+            {/* Campo 3: Nome da Etapa (Obrigatório) — vem após o Ano Letivo */}
+            <div className="space-y-1.5 border-t pt-3">
+              <Label
+                htmlFor="e-nome"
+                className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"
+              >
+                <GraduationCap className="w-3.5 h-3.5 text-blue-600" />
+                Nome da Etapa <span className="text-rose-500">*</span>
+              </Label>
+              <Input
+                id="e-nome"
+                placeholder="Ex: Ensino Fundamental I (1º ao 5º ano)"
+                value={formNome}
+                onChange={(e) => setFormNome(e.target.value)}
+                required
+                className="text-sm"
+              />
+            </div>
+
+            <DialogFooter className="pt-4 border-t">
               <Button
                 type="button"
                 onClick={() => setOpenDialog(false)}
@@ -573,6 +603,105 @@ export default function Etapas() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* DIÁLOGO: AJUDA E REGRAS DE ETAPAS */}
+      <Dialog open={openHelpDialog} onOpenChange={setOpenHelpDialog}>
+        <DialogContent className="p-6 rounded-2xl sm:max-w-[620px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="space-y-1.5 text-left">
+            <div className="flex items-center gap-2 text-[#0B2545]">
+              <div className="p-2 rounded-lg bg-blue-50">
+                <HelpCircle className="w-5 h-5 text-blue-600" />
+              </div>
+              <DialogTitle className="text-xl font-bold text-slate-900">
+                Ajuda e Regras — Cadastro de Etapas
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-slate-600">
+              Orientações sobre a ordem de preenchimento, dependências dinâmicas com outros
+              cadastros e auditoria do sistema.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2 text-sm text-slate-700 leading-relaxed">
+            {/* Bloco 1: Ordem obrigatória de preenchimento */}
+            <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/70 space-y-2">
+              <h4 className="font-semibold text-blue-950 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-700" /> Ordem Correta de Preenchimento
+              </h4>
+              <p className="text-xs text-blue-900 font-medium">
+                Para garantir a integridade do cadastro e das dependências dinâmicas no sistema, o
+                formulário segue a ordem:
+              </p>
+              <ol className="text-xs list-decimal list-inside space-y-1.5 text-slate-700 pl-1">
+                <li>
+                  <strong>Identificador (Automático):</strong> Código sequencial gerado
+                  automaticamente pelo sistema (ex: <code>ETA-0001</code>), somente leitura,
+                  permanecendo no topo do modal.
+                </li>
+                <li>
+                  <strong>Ano Letivo:</strong> Primeiro campo de preenchimento. Define o exercício
+                  escolar (de 2020 a 2040) ao qual a etapa educacional pertence.
+                </li>
+                <li>
+                  <strong>Nome da Etapa:</strong> Segundo campo de preenchimento (após o Ano
+                  Letivo). Denominação oficial da etapa educacional atendida pela rede (ex:{' '}
+                  <em>"Ensino Fundamental I (1º ao 5º ano)"</em>, <em>"Educação Infantil"</em>).
+                </li>
+              </ol>
+            </div>
+
+            {/* Bloco 2: Regra de Consistência e Dependência Dinâmica */}
+            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/70 space-y-2">
+              <h4 className="font-semibold text-amber-950 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-700" /> Dependência Dinâmica entre
+                Cadastros
+              </h4>
+              <p className="text-xs text-amber-900 font-medium">
+                A etapa pertence estritamente a um ano letivo específico e serve de base dinâmica
+                para outros módulos:
+              </p>
+              <ul className="text-xs list-disc list-inside space-y-1 text-slate-700 pl-1">
+                <li>
+                  Cadastros dependentes, como o <strong>Ano/Série</strong> e as{' '}
+                  <strong>Turmas</strong>, filtram dinamicamente as etapas disponíveis com base no
+                  ano letivo selecionado no formulário.
+                </li>
+                <li>
+                  Cada etapa cadastrada só fica disponível para seleção em turmas e anos/séries que
+                  pertençam exatamente ao mesmo ano de vigência.
+                </li>
+                <li>
+                  Ao alterar ou excluir uma etapa, os vínculos dependentes são validados para evitar
+                  dados órfãos ou inconsistências na rede municipal.
+                </li>
+              </ul>
+            </div>
+
+            {/* Bloco 3: Rastreabilidade e Auditoria */}
+            <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/50 space-y-2">
+              <h4 className="font-semibold text-emerald-950 flex items-center gap-2">
+                <Info className="w-4 h-4 text-emerald-600" /> Auditoria e Rastreabilidade
+              </h4>
+              <p className="text-xs text-slate-700">
+                Todas as operações de criação, atualização e exclusão de etapas são registradas de
+                forma permanente na <strong>Auditoria</strong> do sistema, contendo o usuário
+                responsável, data, hora, código identificador, valores antigos e novos dados
+                gravados.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4 border-t border-slate-100 mt-2">
+            <Button
+              type="button"
+              onClick={() => setOpenHelpDialog(false)}
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white"
+            >
+              Entendido
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
