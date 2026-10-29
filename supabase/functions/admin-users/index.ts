@@ -5,37 +5,56 @@ import { corsHeaders } from '../_shared/cors.ts'
 
 const DEFAULT_PROD_URL = 'https://sistema-de-gestao-de-porte-de-escolas-bf76d.goskip.app'
 
-function sanitizeRedirectUrl(rawUrl?: string): string {
-  if (!rawUrl || rawUrl.includes('localhost') || rawUrl.includes('127.0.0.1')) {
-    return `${DEFAULT_PROD_URL}/login`
+function getBaseAppUrl(requestOrigin?: string | null): string {
+  const envUrl = Deno.env.get('SITE_URL') || Deno.env.get('PUBLIC_APP_URL')
+  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    return envUrl.replace(/\/+$/, '')
   }
-  return rawUrl
+  if (
+    requestOrigin &&
+    !requestOrigin.includes('localhost') &&
+    !requestOrigin.includes('127.0.0.1')
+  ) {
+    return requestOrigin.replace(/\/+$/, '')
+  }
+  return DEFAULT_PROD_URL
 }
 
-function normalizeActionLink(actionLink: string, targetRedirect: string): string {
-  if (!actionLink) return actionLink
-  let fixedLink = actionLink
+/**
+ * Constrói o link oficial direto para a aplicação no fluxo token_hash:
+ * https://sistema-de-gestao-de-porte-de-escolas-bf76d.goskip.app/login?token_hash={{token_hash}}&type=invite (ou signup/recovery)
+ *
+ * Elimina qualquer redirecionamento intermediário pelo GoTrue e evita erros de ERR_CONNECTION_REFUSED.
+ */
+function buildDirectTokenLink(
+  properties: any,
+  actionLink: string,
+  type: string,
+  baseAppUrl: string,
+): string {
+  let tokenHash = properties?.hashed_token || properties?.token_hash || properties?.token || ''
 
-  // Se o GoTrue gerou o link apontando para localhost, substituir pelo domínio de produção
-  if (fixedLink.includes('http://localhost:3000') || fixedLink.includes('http://localhost:5173')) {
-    fixedLink = fixedLink
-      .replace('http://localhost:3000', DEFAULT_PROD_URL)
-      .replace('http://localhost:5173', DEFAULT_PROD_URL)
-  }
-
-  // Assegurar que o parâmetro redirect_to na query string do link também aponte para a URL de produção
-  try {
-    const urlObj = new URL(fixedLink)
-    const currentRedirect = urlObj.searchParams.get('redirect_to')
-    if (!currentRedirect || currentRedirect.includes('localhost')) {
-      urlObj.searchParams.set('redirect_to', targetRedirect)
-      fixedLink = urlObj.toString()
+  if (!tokenHash && actionLink) {
+    try {
+      const parsed = new URL(actionLink)
+      tokenHash =
+        parsed.searchParams.get('token') ||
+        parsed.searchParams.get('token_hash') ||
+        parsed.searchParams.get('hashed_token') ||
+        ''
+    } catch (_e) {
+      const match = actionLink.match(/[?&](?:token|token_hash|hashed_token)=([^&#]+)/)
+      if (match && match[1]) {
+        tokenHash = match[1]
+      }
     }
-  } catch (_e) {
-    // Caso a URL seja formatada de forma não-padrão, segue a substituição por string
   }
 
-  return fixedLink
+  if (tokenHash) {
+    return `${baseAppUrl}/login?token_hash=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(type)}`
+  }
+
+  return `${baseAppUrl}/login`
 }
 
 Deno.serve(async (req: Request) => {
@@ -78,8 +97,8 @@ Deno.serve(async (req: Request) => {
       const nomeCompleto = (body.nome_completo || '').trim()
       const perfil = body.perfil || 'Operador'
       const estado = body.estado || 'Ativo'
-      const requestRedirect = body.redirect_to || `${DEFAULT_PROD_URL}/login`
-      const redirectUrl = sanitizeRedirectUrl(requestRedirect)
+      const baseAppUrl = getBaseAppUrl(req.headers.get('origin'))
+      const redirectUrl = `${baseAppUrl}/login`
 
       if (!email || !email.includes('@')) {
         return new Response(JSON.stringify({ error: 'Um e-mail válido é obrigatório.' }), {
@@ -104,6 +123,9 @@ Deno.serve(async (req: Request) => {
 
       // 2. Gerar link de convite/confirmação via Auth Admin generateLink
       // generateLink cria o usuário no auth se ainda não existir, sem disparar pelo remetente default do Supabase
+      let linkProperties: any = null
+      let linkType = 'invite'
+
       const linkResult = await adminClient.auth.admin.generateLink({
         type: 'invite',
         email,
@@ -116,22 +138,25 @@ Deno.serve(async (req: Request) => {
         },
       })
 
-      if (linkResult.data?.properties?.action_link) {
-        actionLink = linkResult.data.properties.action_link
+      if (linkResult.data?.properties) {
+        actionLink = linkResult.data.properties.action_link || ''
+        linkProperties = linkResult.data.properties
         userId = linkResult.data.user?.id || null
       } else {
-        // Fallback para tipo 'magiclink' ou busca do usuário existente
+        // Fallback para usuário já existente: gerar link de recuperação/ativação
         const { data: existingUsers } = await adminClient.auth.admin.listUsers()
         const existing = existingUsers?.users?.find((u) => u.email?.toLowerCase() === email)
         if (existing) {
           userId = existing.id
+          linkType = 'recovery'
           const recoveryLink = await adminClient.auth.admin.generateLink({
             type: 'recovery',
             email,
             options: { redirectTo: redirectUrl },
           })
-          if (recoveryLink.data?.properties?.action_link) {
-            actionLink = recoveryLink.data.properties.action_link
+          if (recoveryLink.data?.properties) {
+            actionLink = recoveryLink.data.properties.action_link || ''
+            linkProperties = recoveryLink.data.properties
           }
         } else {
           // Tentar criar com admin.createUser sem autoConfirm para gerar link
@@ -148,12 +173,13 @@ Deno.serve(async (req: Request) => {
               options: { redirectTo: redirectUrl },
             })
             actionLink = inv.data?.properties?.action_link || ''
+            linkProperties = inv.data?.properties
           }
         }
       }
 
-      // Normaliza o action link para garantir que NUNCA aponte para localhost
-      const finalActionLink = normalizeActionLink(actionLink, redirectUrl)
+      // Constrói o link oficial direto token_hash para a aplicação
+      const finalActionLink = buildDirectTokenLink(linkProperties, actionLink, linkType, baseAppUrl)
 
       // 3. Disparar e-mail institucional via SMTP configurado (mesmo remetente do esqueci minha senha)
       let smtpSent = false

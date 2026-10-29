@@ -98,10 +98,76 @@ export default function Login() {
           return
         }
 
-        // Token de PKCE / Auth Code (?code=...)
+        // 1. Fluxo de token_hash direto (?token_hash=...&type=recovery|invite|signup|email)
+        const tokenHash = searchParams.get('token_hash')
+        const rawType = searchParams.get('type')
+
+        if (tokenHash) {
+          const validTypes = ['recovery', 'invite', 'signup', 'email_change', 'email']
+          const otpType = (validTypes.includes(rawType || '') ? rawType : 'recovery') as any
+
+          const { data: otpData, error: otpError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: otpType,
+          })
+
+          if (otpError) {
+            console.warn('Erro ao verificar OTP com token_hash:', otpError)
+            setErrorMessage(
+              otpError.message ||
+                'O link de verificação/redefinição é inválido ou já expirou. Solicite um novo link.',
+            )
+          } else {
+            // Limpa os parâmetros sensíveis da barra de endereço
+            window.history.replaceState({}, document.title, window.location.pathname)
+
+            if (otpType === 'recovery' || otpType === 'invite') {
+              setIsResetPasswordModalOpen(true)
+              setResetModalError(null)
+              if (otpType === 'invite') {
+                setBannerSuccess(
+                  'Conta ativada com sucesso! Cadastre sua senha abaixo para continuar.',
+                )
+              }
+            } else if (otpType === 'signup') {
+              setBannerSuccess(
+                'E-mail confirmado com sucesso no sistema! Você já pode realizar seu login.',
+              )
+            } else {
+              setBannerSuccess('Autenticação confirmada com sucesso!')
+            }
+
+            // Registrar auditoria se houver usuário
+            if (otpData?.user?.email) {
+              const uEmail = otpData.user.email
+              import('@/services/auditoria')
+                .then(({ registrarAuditoria }) => {
+                  registrarAuditoria({
+                    entidade: 'Autenticação',
+                    acao: otpType === 'invite' ? 'Ativação de Conta' : 'Verificação de Token',
+                    registro_codigo: null,
+                    descricao: `Validação de link oficial (${otpType}) realizada com sucesso para o usuário ${uEmail}.`,
+                    usuario_id: otpData.user?.id || null,
+                    usuario_nome: otpData.user?.user_metadata?.full_name || 'Usuário',
+                    usuario_email: uEmail,
+                    detalhes: {
+                      email: uEmail,
+                      type: otpType,
+                      timestamp: new Date().toISOString(),
+                    },
+                  }).catch((err) => console.warn('Erro ao auditar verificação OTP:', err))
+                })
+                .catch((err) => console.warn('Erro ao importar auditoria:', err))
+            }
+            return
+          }
+        }
+
+        // 2. Token de PKCE / Auth Code (?code=...)
         const code = searchParams.get('code')
         if (code) {
-          const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code)
+          const { data: exchangeData, error: exchangeErr } =
+            await supabase.auth.exchangeCodeForSession(code)
           if (!exchangeErr) {
             setBannerSuccess('Autenticação/confirmação via link concluída com sucesso!')
             // Limpa query params da barra de endereço para segurança
@@ -110,11 +176,33 @@ export default function Login() {
             if (type === 'recovery' || type === 'invite') {
               setIsResetPasswordModalOpen(true)
             }
+
+            // Auditoria
+            if (exchangeData?.user?.email) {
+              const uEmail = exchangeData.user.email
+              import('@/services/auditoria')
+                .then(({ registrarAuditoria }) => {
+                  registrarAuditoria({
+                    entidade: 'Autenticação',
+                    acao: 'Código PKCE Validado',
+                    registro_codigo: null,
+                    descricao: `Código PKCE validado com sucesso para o usuário ${uEmail}.`,
+                    usuario_id: exchangeData.user?.id || null,
+                    usuario_nome: exchangeData.user?.user_metadata?.full_name || 'Usuário',
+                    usuario_email: uEmail,
+                    detalhes: {
+                      email: uEmail,
+                      timestamp: new Date().toISOString(),
+                    },
+                  }).catch((err) => console.warn('Erro ao auditar PKCE:', err))
+                })
+                .catch((err) => console.warn('Erro ao importar auditoria:', err))
+            }
             return
           }
         }
 
-        // Token de hash fragment (#access_token=...&type=recovery|invite|signup)
+        // 3. Token de hash fragment (#access_token=...&type=recovery|invite|signup)
         if (hash) {
           const hashParams = new URLSearchParams(hash.replace(/^#/, ''))
           const type = hashParams.get('type')
@@ -122,7 +210,7 @@ export default function Login() {
           const refreshToken = hashParams.get('refresh_token')
 
           if (accessToken && refreshToken) {
-            const { error: setSessionErr } = await supabase.auth.setSession({
+            const { data: sessionData, error: setSessionErr } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken,
             })
@@ -135,6 +223,29 @@ export default function Login() {
                 setBannerSuccess(
                   'E-mail confirmado com sucesso no sistema! Você já pode realizar seu login.',
                 )
+              }
+
+              // Auditoria
+              if (sessionData?.user?.email) {
+                const uEmail = sessionData.user.email
+                import('@/services/auditoria')
+                  .then(({ registrarAuditoria }) => {
+                    registrarAuditoria({
+                      entidade: 'Autenticação',
+                      acao: 'Sessão por Fragmento Validada',
+                      registro_codigo: null,
+                      descricao: `Sessão por token fragmento (${type || 'autenticação'}) validada para ${uEmail}.`,
+                      usuario_id: sessionData.user?.id || null,
+                      usuario_nome: sessionData.user?.user_metadata?.full_name || 'Usuário',
+                      usuario_email: uEmail,
+                      detalhes: {
+                        email: uEmail,
+                        type,
+                        timestamp: new Date().toISOString(),
+                      },
+                    }).catch((err) => console.warn('Erro ao auditar sessão:', err))
+                  })
+                  .catch((err) => console.warn('Erro ao importar auditoria:', err))
               }
             }
           }

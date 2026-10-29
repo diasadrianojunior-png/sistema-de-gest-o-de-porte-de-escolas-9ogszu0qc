@@ -20,6 +20,8 @@ export interface EsqueciSenhaResponse {
  * na tabela 'contas_email' (descriptografando as credenciais de forma segura no servidor)
  * e dispara o e-mail institucional com o link oficial de redefinição de senha.
  */
+const DEFAULT_PROD_URL = 'https://sistema-de-gestao-de-porte-de-escolas-bf76d.goskip.app'
+
 export async function solicitarRedefinicaoSenha(
   email: string,
   redirectTo?: string,
@@ -27,7 +29,10 @@ export async function solicitarRedefinicaoSenha(
   const emailLimpo = email.trim().toLowerCase()
 
   try {
-    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    const origin =
+      typeof window !== 'undefined' && window.location.origin
+        ? window.location.origin
+        : DEFAULT_PROD_URL
     const defaultRedirect = `${origin}/login`
 
     const { data, error } = await supabase.functions.invoke('reset-password-email', {

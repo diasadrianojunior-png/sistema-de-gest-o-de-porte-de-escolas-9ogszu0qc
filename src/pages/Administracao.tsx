@@ -1041,12 +1041,13 @@ export default function Administracao() {
                   oficial do sistema).
                 </li>
                 <li>
-                  O link do e-mail abre diretamente na tela de cadastro da primeira senha da
-                  plataforma, sem mensagens de{' '}
+                  O link do e-mail utiliza autenticação direta via <code>token_hash</code> da
+                  plataforma e abre imediatamente a tela de cadastro da primeira senha no domínio
+                  oficial do sistema, eliminando redirecionamentos intermediários ou erros de{' '}
                   <code className="bg-white px-1 py-0.5 rounded border text-[11px]">
                     ERR_CONNECTION_REFUSED
-                  </code>{' '}
-                  ou redirecionamentos para localhost.
+                  </code>
+                  .
                 </li>
                 <li>
                   Caso o usuário não tenha recebido a mensagem, você pode usar o botão com ícone de{' '}
@@ -1068,12 +1069,13 @@ export default function Administracao() {
               </p>
               <ul className="text-xs list-disc list-inside space-y-1 text-slate-700 pl-1">
                 <li>
-                  O sistema gera um link de redefinição com segurança e dispara a mensagem pela
-                  conta SMTP institucional ativa.
+                  O sistema gera um link com <code>token_hash</code> de redefinição e dispara a
+                  mensagem pela conta SMTP institucional ativa.
                 </li>
                 <li>
-                  O link de redefinição abre o modal <em>"Cadastrar Nova Senha"</em> diretamente no
-                  domínio oficial do sistema.
+                  O link abre diretamente no domínio oficial do sistema (sem passar por localhost
+                  nem endpoints intermediários com risco de bloqueio) e abre o modal{' '}
+                  <em>"Cadastrar Nova Senha"</em>.
                 </li>
                 <li>
                   Após informar e confirmar a nova senha (mínimo de 6 caracteres), o acesso é

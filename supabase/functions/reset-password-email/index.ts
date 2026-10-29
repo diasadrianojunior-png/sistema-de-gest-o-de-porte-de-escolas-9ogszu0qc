@@ -5,37 +5,61 @@ import { corsHeaders } from '../_shared/cors.ts'
 
 const DEFAULT_PROD_URL = 'https://sistema-de-gestao-de-porte-de-escolas-bf76d.goskip.app'
 
-function sanitizeRedirectUrl(rawUrl?: string): string {
-  if (!rawUrl || rawUrl.includes('localhost') || rawUrl.includes('127.0.0.1')) {
-    return `${DEFAULT_PROD_URL}/login`
+function getBaseAppUrl(requestOrigin?: string | null): string {
+  const envUrl = Deno.env.get('SITE_URL') || Deno.env.get('PUBLIC_APP_URL')
+  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    return envUrl.replace(/\/+$/, '')
   }
-  return rawUrl
+  if (
+    requestOrigin &&
+    !requestOrigin.includes('localhost') &&
+    !requestOrigin.includes('127.0.0.1')
+  ) {
+    return requestOrigin.replace(/\/+$/, '')
+  }
+  return DEFAULT_PROD_URL
 }
 
-function normalizeActionLink(actionLink: string, targetRedirect: string): string {
-  if (!actionLink) return actionLink
-  let fixedLink = actionLink
+/**
+ * Constrói o link oficial direto para a aplicação no fluxo token_hash:
+ * https://sistema-de-gestao-de-porte-de-escolas-bf76d.goskip.app/login?token_hash={{token_hash}}&type=recovery
+ *
+ * Isso evita qualquer redirecionamento intermediário pelo endpoint /auth/v1/verify do GoTrue,
+ * eliminando definitivamente erros de ERR_CONNECTION_REFUSED causados por Site URL localhost
+ * ou ausência do domínio na allowlist de redirecionamentos.
+ */
+function buildDirectTokenLink(
+  properties: any,
+  actionLink: string,
+  type: string,
+  baseAppUrl: string,
+): string {
+  // 1. Tentar obter o token_hash retornado pelo GoTrue
+  let tokenHash = properties?.hashed_token || properties?.token_hash || properties?.token || ''
 
-  // Se o GoTrue gerou o link apontando para localhost, substituir pelo domínio de produção
-  if (fixedLink.includes('http://localhost:3000') || fixedLink.includes('http://localhost:5173')) {
-    fixedLink = fixedLink
-      .replace('http://localhost:3000', DEFAULT_PROD_URL)
-      .replace('http://localhost:5173', DEFAULT_PROD_URL)
-  }
-
-  // Assegurar que o parâmetro redirect_to na query string do link também aponte para a URL de produção
-  try {
-    const urlObj = new URL(fixedLink)
-    const currentRedirect = urlObj.searchParams.get('redirect_to')
-    if (!currentRedirect || currentRedirect.includes('localhost')) {
-      urlObj.searchParams.set('redirect_to', targetRedirect)
-      fixedLink = urlObj.toString()
+  // 2. Se não veio diretamente nas properties, extrair da query string do action_link retornado
+  if (!tokenHash && actionLink) {
+    try {
+      const parsed = new URL(actionLink)
+      tokenHash =
+        parsed.searchParams.get('token') ||
+        parsed.searchParams.get('token_hash') ||
+        parsed.searchParams.get('hashed_token') ||
+        ''
+    } catch (_e) {
+      const match = actionLink.match(/[?&](?:token|token_hash|hashed_token)=([^&#]+)/)
+      if (match && match[1]) {
+        tokenHash = match[1]
+      }
     }
-  } catch (_e) {
-    // Continua com substituição de string
   }
 
-  return fixedLink
+  if (tokenHash) {
+    return `${baseAppUrl}/login?token_hash=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(type)}`
+  }
+
+  // Fallback seguro caso nenhum token seja encontrado
+  return `${baseAppUrl}/login`
 }
 
 Deno.serve(async (req: Request) => {
@@ -69,8 +93,8 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => ({}))
     const rawEmail = (body.email || '').trim().toLowerCase()
-    const requestRedirect = body.redirect_to || `${req.headers.get('origin') || ''}/login`
-    const redirectUrl = sanitizeRedirectUrl(requestRedirect)
+    const baseAppUrl = getBaseAppUrl(req.headers.get('origin'))
+    const redirectUrl = `${baseAppUrl}/login`
 
     if (!rawEmail || !rawEmail.includes('@')) {
       return new Response(
@@ -143,7 +167,7 @@ Deno.serve(async (req: Request) => {
       },
     })
 
-    if (linkError || !linkData?.properties?.action_link) {
+    if (linkError || !linkData?.properties) {
       return new Response(
         JSON.stringify({
           success: false,
@@ -156,8 +180,13 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const rawActionLink = linkData.properties.action_link
-    const resetActionLink = normalizeActionLink(rawActionLink, redirectUrl)
+    const rawActionLink = linkData.properties.action_link || ''
+    const resetActionLink = buildDirectTokenLink(
+      linkData.properties,
+      rawActionLink,
+      'recovery',
+      baseAppUrl,
+    )
 
     // 4. Preparar e-mail institucional
     const senderName = contaAtiva.nome_from || 'Sistema de Gestão de Porte de Escolas'
@@ -296,7 +325,7 @@ Deno.serve(async (req: Request) => {
         entidade: 'Autenticação',
         acao: 'Esqueci Senha',
         registro_codigo: contaAtiva.codigo,
-        descricao: `Solicitação de redefinição de senha para o e-mail ${rawEmail} processada através da conta ${contaAtiva.codigo} (${contaAtiva.descricao}). Link gerado para ${redirectUrl}.`,
+        descricao: `Solicitação de redefinição de senha para o e-mail ${rawEmail} processada através da conta ${contaAtiva.codigo} (${contaAtiva.descricao}). Link direto gerado: ${resetActionLink}.`,
         usuario_nome: 'Sistema / Recuperação de Senha',
         usuario_email: rawEmail,
         detalhes: {
@@ -312,6 +341,7 @@ Deno.serve(async (req: Request) => {
           smtp_erro: smtpErrorDetails || null,
           auth_fallback: authResetTriggered,
           action_link_gerado: Boolean(resetActionLink),
+          final_reset_link: resetActionLink,
           redirect_to: redirectUrl,
           timestamp: new Date().toISOString(),
         },
