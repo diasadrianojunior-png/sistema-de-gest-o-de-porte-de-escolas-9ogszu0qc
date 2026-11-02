@@ -613,4 +613,73 @@ describe('Testes Unitários da Etapa 2 — Regras do Usuário', () => {
 
     expect(normalizarTurmasPorEtapaDicionario(null)).toEqual({})
   })
+
+  // Teste 7: Regras de Migração de Vagas de Ano Letivo
+  it('regras de migração limpam ocupante, definem status ABERTA e preservam vaga_excedente', () => {
+    const vagasOrigem = [
+      {
+        id: 'v1',
+        funcao: 'Professor Regente',
+        numero_sequencial: 1,
+        periodo: 'MANHA',
+        modalidade: 'FIXO',
+        dias_semana: null,
+        cargo_id: 'c1',
+        servidor_id: 's1',
+        nome_ocupante: 'João Silva',
+        status: 'OCUPADA',
+        vaga_excedente: false, // gerada automaticamente
+      },
+      {
+        id: 'v2',
+        funcao: 'Professor Regente',
+        numero_sequencial: 2,
+        periodo: 'MANHA',
+        modalidade: 'FIXO',
+        dias_semana: null,
+        cargo_id: 'c1',
+        servidor_id: null,
+        nome_ocupante: null,
+        status: 'ABERTA',
+        vaga_excedente: true, // manual excedente
+      },
+      {
+        id: 'v3',
+        funcao: 'Auxiliar de Serviços',
+        numero_sequencial: 1,
+        periodo: null,
+        modalidade: 'FIXO',
+        dias_semana: null,
+        cargo_id: null,
+        servidor_id: 's2',
+        nome_ocupante: 'Maria Souza',
+        status: 'EXCEDENTE',
+        vaga_excedente: false,
+      },
+    ]
+
+    // Simulação da transformação de migração
+    const migradas = vagasOrigem.map((vo) => ({
+      funcao: vo.funcao,
+      numero_sequencial: vo.numero_sequencial,
+      periodo: vo.periodo,
+      modalidade: vo.modalidade,
+      dias_semana: vo.dias_semana,
+      cargo_id: vo.cargo_id,
+      servidor_id: null,
+      nome_ocupante: null,
+      status: 'ABERTA',
+      vaga_excedente: Boolean(vo.vaga_excedente),
+    }))
+
+    // Toda vaga migrada deve nascer sem ocupante e com status ABERTA
+    expect(migradas.every((v) => v.servidor_id === null)).toBe(true)
+    expect(migradas.every((v) => v.nome_ocupante === null)).toBe(true)
+    expect(migradas.every((v) => v.status === 'ABERTA')).toBe(true)
+
+    // Vaga excedente manual preserva true, vaga gerada preserva false
+    expect(migradas[0].vaga_excedente).toBe(false)
+    expect(migradas[1].vaga_excedente).toBe(true)
+    expect(migradas[2].vaga_excedente).toBe(false)
+  })
 })

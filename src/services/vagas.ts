@@ -1505,3 +1505,350 @@ export async function liberarVaga(vagaId: string): Promise<VagaReal> {
 
   return liberada
 }
+
+// ==========================================
+// MIGRAÇÃO DE VAGAS DE UM ANO LETIVO PARA OUTRO
+// ==========================================
+
+export interface ResumoVagasAnoOrigem {
+  anoOrigem: number
+  unidadeEscolarId: string
+  total: number
+  ocupadas: number
+  abertas: number
+  excedentes: number
+  porFuncao: Array<{
+    funcao: string
+    total: number
+    ocupadas: number
+    abertas: number
+    excedentes: number
+  }>
+  vagas: VagaReal[]
+}
+
+/**
+ * Consulta o resumo das vagas da unidade em um ano letivo de origem
+ */
+export async function obterResumoVagasAnoOrigem(
+  unidadeEscolarId: string,
+  anoOrigem: number,
+): Promise<ResumoVagasAnoOrigem> {
+  const { data, error } = await db
+    .from('vaga')
+    .select(`
+      *,
+      unidade_escolar:unidades_escolares(*),
+      cargo:cargos(*),
+      turma:turmas(*)
+    `)
+    .eq('unidade_escolar_id', unidadeEscolarId)
+    .eq('ano_letivo', anoOrigem)
+    .order('funcao', { ascending: true })
+    .order('numero_sequencial', { ascending: true })
+
+  if (error) {
+    console.error('Erro ao buscar vagas do ano de origem:', error)
+    throw error
+  }
+
+  const vagas = (data as VagaReal[]) || []
+  const total = vagas.length
+  const ocupadas = vagas.filter((v) => v.status === 'OCUPADA').length
+  const abertas = vagas.filter((v) => v.status === 'ABERTA').length
+  const excedentes = vagas.filter((v) => v.vaga_excedente || v.status === 'EXCEDENTE').length
+
+  // Agrupamento por função
+  const grupos: Record<
+    string,
+    { total: number; ocupadas: number; abertas: number; excedentes: number }
+  > = {}
+
+  for (const v of vagas) {
+    const fn = v.funcao || 'Sem Função'
+    if (!grupos[fn]) {
+      grupos[fn] = { total: 0, ocupadas: 0, abertas: 0, excedentes: 0 }
+    }
+    grupos[fn].total += 1
+    if (v.status === 'OCUPADA') grupos[fn].ocupadas += 1
+    if (v.status === 'ABERTA') grupos[fn].abertas += 1
+    if (v.vaga_excedente || v.status === 'EXCEDENTE') grupos[fn].excedentes += 1
+  }
+
+  const porFuncao = Object.entries(grupos).map(([funcao, contagens]) => ({
+    funcao,
+    ...contagens,
+  }))
+
+  return {
+    anoOrigem,
+    unidadeEscolarId,
+    total,
+    ocupadas,
+    abertas,
+    excedentes,
+    porFuncao,
+    vagas,
+  }
+}
+
+export interface MigrarVagasParams {
+  unidadeEscolarId: string
+  anoOrigem: number
+  anoDestino: number
+  usuarioNome?: string
+  usuarioEmail?: string
+}
+
+export interface MigrarVagasResultado {
+  sucesso: boolean
+  escolaNome: string
+  anoOrigem: number
+  anoDestino: number
+  totalOrigem: number
+  migradasCriadas: number
+  jaExistentesIgnoradas: number
+  totalDestinoFinal: number
+}
+
+/**
+ * Executa a migração de vagas do ano de origem para o ano destino:
+ * - Toda vaga migrada nasce SEM ocupante (status ABERTA, servidor_id=null, nome_ocupante=null)
+ * - Vaga Excedente: se a origem for vaga_excedente=true (manual), mantém true; senão false (gerada)
+ * - Não apaga vagas existentes no destino
+ * - Evita duplicidade exata (mesma função + período + número sequencial já existente no destino não é duplicada;
+ *   renumera sequenciais se necessário para manter sequência limpa por função)
+ * - Turmas vinculadas: tenta mapear turma pelo nome no ano destino; se não encontrar, deixa null
+ * - Registra auditoria completa
+ */
+export async function migrarVagasAnoLetivo(
+  params: MigrarVagasParams,
+): Promise<MigrarVagasResultado> {
+  const { unidadeEscolarId, anoOrigem, anoDestino, usuarioNome, usuarioEmail } = params
+
+  if (!unidadeEscolarId) {
+    throw new Error('Unidade escolar não informada.')
+  }
+  if (!anoOrigem || !anoDestino) {
+    throw new Error('Ano letivo de origem e ano destino são obrigatórios.')
+  }
+  if (anoOrigem === anoDestino) {
+    throw new Error('O ano letivo de origem não pode ser igual ao ano destino.')
+  }
+
+  // 1. Carregar escola
+  const { data: escolaData, error: errEscola } = await db
+    .from('unidades_escolares')
+    .select('*')
+    .eq('id', unidadeEscolarId)
+    .single()
+
+  if (errEscola || !escolaData) {
+    throw new Error('Unidade escolar não encontrada.')
+  }
+  const escola = escolaData as UnidadeEscolar
+
+  // 2. Carregar vagas de origem
+  const { data: vagasOrigemData, error: errOrigem } = await db
+    .from('vaga')
+    .select('*')
+    .eq('unidade_escolar_id', unidadeEscolarId)
+    .eq('ano_letivo', anoOrigem)
+    .order('numero_sequencial', { ascending: true })
+
+  if (errOrigem) {
+    console.error('Erro ao buscar vagas de origem:', errOrigem)
+    throw errOrigem
+  }
+
+  const vagasOrigem = (vagasOrigemData as any[]) || []
+  if (vagasOrigem.length === 0) {
+    throw new Error(
+      `Não existem vagas cadastradas na unidade "${escola.nome}" para o ano letivo ${anoOrigem}.`,
+    )
+  }
+
+  // 3. Carregar vagas já existentes no destino
+  const { data: vagasDestinoData, error: errDestino } = await db
+    .from('vaga')
+    .select('*')
+    .eq('unidade_escolar_id', unidadeEscolarId)
+    .eq('ano_letivo', anoDestino)
+
+  if (errDestino) {
+    console.error('Erro ao buscar vagas do destino:', errDestino)
+    throw errDestino
+  }
+
+  const vagasDestinoExistentes = (vagasDestinoData as any[]) || []
+
+  // 4. Carregar turmas do destino para mapeamento opcional de turma_id por nome
+  const { data: turmasDestinoData } = await db
+    .from('turmas')
+    .select('id, nome')
+    .eq('unidade_escolar_id', unidadeEscolarId)
+    .eq('ano_letivo', anoDestino)
+
+  const mapaTurmasDestinoPorNome = new Map<string, string>()
+  for (const t of turmasDestinoData || []) {
+    if (t.nome) {
+      mapaTurmasDestinoPorNome.set(t.nome.trim().toLowerCase(), t.id)
+    }
+  }
+
+  // Se alguma vaga de origem referencia turma, resgatar os nomes das turmas de origem
+  const turmaIdsOrigem = Array.from(new Set(vagasOrigem.map((v) => v.turma_id).filter(Boolean)))
+  const mapaNomeTurmaOrigemPorId = new Map<string, string>()
+  if (turmaIdsOrigem.length > 0) {
+    const { data: turmasOrigemData } = await db
+      .from('turmas')
+      .select('id, nome')
+      .in('id', turmaIdsOrigem)
+
+    for (const to of turmasOrigemData || []) {
+      if (to.nome) {
+        mapaNomeTurmaOrigemPorId.set(to.id, to.nome.trim().toLowerCase())
+      }
+    }
+  }
+
+  // 5. Mapeamento de chaves existentes no destino para evitar duplicidade exata
+  // Chave: funcao + periodo + numero_sequencial
+  const chavesDestinoExistentes = new Set<string>()
+  // Também manter o maior sequencial existente por função no destino
+  const maxSequencialPorFuncao = new Map<string, number>()
+
+  for (const vd of vagasDestinoExistentes) {
+    const chave = `${vd.funcao}__${vd.periodo || 'SEM'}__${vd.numero_sequencial}`
+    chavesDestinoExistentes.add(chave)
+
+    const atualMax = maxSequencialPorFuncao.get(vd.funcao) || 0
+    if (vd.numero_sequencial > atualMax) {
+      maxSequencialPorFuncao.set(vd.funcao, vd.numero_sequencial)
+    }
+  }
+
+  // 6. Montar linhas a inserir
+  const linhasInserir: any[] = []
+  let jaExistentesIgnoradas = 0
+
+  for (const vo of vagasOrigem) {
+    const chaveExata = `${vo.funcao}__${vo.periodo || 'SEM'}__${vo.numero_sequencial}`
+
+    // Se já existe exatamente essa função, período e número sequencial no destino, ignorar para evitar duplicidade
+    if (chavesDestinoExistentes.has(chaveExata)) {
+      jaExistentesIgnoradas++
+      continue
+    }
+
+    // Determinar número sequencial da nova vaga:
+    // Se o número de origem já estiver em uso no destino para a mesma função, pegar o próximo disponível
+    let seq = vo.numero_sequencial || 1
+    const sequenciaisUsadosNaFuncao = new Set(
+      vagasDestinoExistentes
+        .filter((vd) => vd.funcao === vo.funcao)
+        .map((vd) => vd.numero_sequencial)
+        .concat(
+          linhasInserir.filter((li) => li.funcao === vo.funcao).map((li) => li.numero_sequencial),
+        ),
+    )
+
+    if (sequenciaisUsadosNaFuncao.has(seq)) {
+      const maior = Math.max(
+        maxSequencialPorFuncao.get(vo.funcao) || 0,
+        ...Array.from(sequenciaisUsadosNaFuncao),
+      )
+      seq = maior + 1
+      maxSequencialPorFuncao.set(vo.funcao, seq)
+    }
+
+    // Resolver turma destino
+    let turmaDestinoId: string | null = null
+    if (vo.turma_id) {
+      const nomeTurmaOrigem = mapaNomeTurmaOrigemPorId.get(vo.turma_id)
+      if (nomeTurmaOrigem && mapaTurmasDestinoPorNome.has(nomeTurmaOrigem)) {
+        turmaDestinoId = mapaTurmasDestinoPorNome.get(nomeTurmaOrigem) || null
+      }
+    }
+
+    // Regra Vaga Excedente:
+    // "vagas vindas de migração são cópia de vagas geradas no ano anterior, então devem nascer com Não
+    //  - exceto se a vaga de origem for excedente manual (Sim), nesse caso copia Sim para preservar a origem."
+    const vagaExcedente = Boolean(vo.vaga_excedente)
+
+    linhasInserir.push({
+      unidade_escolar_id: unidadeEscolarId,
+      ano_letivo: anoDestino,
+      configuracao_rh_id: vo.configuracao_rh_id,
+      configuracao_rh_linha_id: vo.configuracao_rh_linha_id,
+      funcao: vo.funcao,
+      numero_sequencial: seq,
+      periodo: vo.periodo || null,
+      turma_id: turmaDestinoId,
+      modalidade: vo.modalidade || 'FIXO',
+      dias_semana: vo.modalidade === 'ITINERANTE' ? vo.dias_semana || 2 : null,
+      cargo_id: vo.cargo_id || null,
+      // NUNCA COPIAR OCUPAÇÃO:
+      servidor_id: null,
+      nome_ocupante: null,
+      status: 'ABERTA' as StatusVagaReal,
+      vaga_excedente: vagaExcedente,
+      observacao: vo.observacao
+        ? `[Migrada de ${anoOrigem}] ${vo.observacao}`
+        : `Migrada do Ano Letivo ${anoOrigem}`,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+
+    // Registrar chave adicionada para evitar colisões dentro do próprio lote
+    chavesDestinoExistentes.add(`${vo.funcao}__${vo.periodo || 'SEM'}__${seq}`)
+  }
+
+  // 7. Inserir no banco
+  if (linhasInserir.length > 0) {
+    const { error: errIns } = await db.from('vaga').insert(linhasInserir)
+    if (errIns) {
+      console.error('Erro ao inserir vagas migradas:', errIns)
+      throw errIns
+    }
+  }
+
+  // 8. Contar total final de vagas no destino
+  const { count: totalFinal } = await db
+    .from('vaga')
+    .select('id', { count: 'exact', head: true })
+    .eq('unidade_escolar_id', unidadeEscolarId)
+    .eq('ano_letivo', anoDestino)
+
+  // 9. Registrar Auditoria
+  await registrarAuditoria({
+    entidade: 'Cadastro de Vagas',
+    acao: 'Migração de Ano Letivo',
+    registro_codigo: escola.codigo || null,
+    descricao: `Migração de vagas para a unidade "${escola.nome}" (Origem: Ano Letivo ${anoOrigem} → Destino: Ano Letivo ${anoDestino}). Vagas de origem: ${vagasOrigem.length}. Vagas migradas criadas: ${linhasInserir.length} (todas ABERTAS e sem ocupante). Vagas existentes preservadas no destino: ${vagasDestinoExistentes.length}. Total final no destino: ${totalFinal || 0}.`,
+    detalhes: {
+      escola_id: unidadeEscolarId,
+      escola_nome: escola.nome,
+      ano_origem: anoOrigem,
+      ano_destino: anoDestino,
+      vagas_origem_total: vagasOrigem.length,
+      migradas_criadas: linhasInserir.length,
+      ja_existentes_ignoradas: jaExistentesIgnoradas,
+      existentes_destino_preservadas: vagasDestinoExistentes.length,
+      total_destino_final: totalFinal || 0,
+      usuario_solicitante: usuarioNome || 'Sistema',
+      email_solicitante: usuarioEmail || 'sistema@local',
+    },
+  })
+
+  return {
+    sucesso: true,
+    escolaNome: escola.nome,
+    anoOrigem,
+    anoDestino,
+    totalOrigem: vagasOrigem.length,
+    migradasCriadas: linhasInserir.length,
+    jaExistentesIgnoradas,
+    totalDestinoFinal: totalFinal || 0,
+  }
+}

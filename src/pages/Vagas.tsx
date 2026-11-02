@@ -17,7 +17,11 @@ import {
   calcularPreviaGeracao,
   confirmarGeracaoVagas,
   PreviaGeracaoResultado,
+  obterResumoVagasAnoOrigem,
+  migrarVagasAnoLetivo,
+  ResumoVagasAnoOrigem,
 } from '@/services/vagas'
+import { ANOS_LETIVOS } from './Etapas'
 import { getUnidadesEscolares } from '@/services/unidades-escolares'
 import { getCargos } from '@/services/apoio'
 import { exportarVagasExcel, exportarVagasPDF } from '@/services/vagas-export'
@@ -114,7 +118,20 @@ export const VagasPage: React.FC = () => {
   const [carregandoResumo, setCarregandoResumo] = useState<boolean>(false)
   const [dadosResumo, setDadosResumo] = useState<PreviaGeracaoResultado | null>(null)
 
-  // Modais de Geração / Regeneração
+  // Modal de Escolha / Fluxo Gerar Vagas (Simples vs Migração)
+  const [modalEscolhaModoGerarAberto, setModalEscolhaModoGerarAberto] = useState<boolean>(false)
+  const [modoGeracaoSelecionado, setModoGeracaoSelecionado] = useState<'SIMPLES' | 'MIGRACAO'>(
+    'SIMPLES',
+  )
+
+  // Estado da Migração de Ano Letivo
+  const [anoOrigemMigracao, setAnoOrigemMigracao] = useState<number | null>(null)
+  const [carregandoResumoMigracao, setCarregandoResumoMigracao] = useState<boolean>(false)
+  const [resumoMigracao, setResumoMigracao] = useState<ResumoVagasAnoOrigem | null>(null)
+  const [modalConfirmarMigracaoAberto, setModalConfirmarMigracaoAberto] = useState<boolean>(false)
+  const [executandoMigracao, setExecutandoMigracao] = useState<boolean>(false)
+
+  // Modais de Geração / Regeneração Simples
   const [modalPerguntaGerarAberto, setModalPerguntaGerarAberto] = useState<boolean>(false)
   const [modalPreviaGeracaoAberto, setModalPreviaGeracaoAberto] = useState<boolean>(false)
   const [confirmandoGeracao, setConfirmandoGeracao] = useState<boolean>(false)
@@ -300,21 +317,111 @@ export const VagasPage: React.FC = () => {
     }))
   }, [vagaEmEdicao, cargosGerais])
 
-  // Disparar pergunta de geração
+  // Carregar anos letivos que podem ser origem de migração (excluindo ano letivo destino atual)
+  const anosOrigemDisponiveis = useMemo(() => {
+    return ANOS_LETIVOS.filter((ano) => ano !== anoLetivo)
+  }, [anoLetivo])
+
+  // Abrir fluxo de Gerar Vagas (com escolha de modalidade)
   const handleClicarGerarVagas = () => {
+    if (!unidadeSelecionadaId) return
+    setModoGeracaoSelecionado('SIMPLES')
+    // Resetar estado de migração
+    const sugestaoOrigem = anoLetivo > 2020 ? anoLetivo - 1 : 2025
+    setAnoOrigemMigracao(sugestaoOrigem)
+    setResumoMigracao(null)
+    setModalEscolhaModoGerarAberto(true)
+  }
+
+  // Ao mudar ano de origem na migração, buscar resumo
+  useEffect(() => {
+    if (!modalEscolhaModoGerarAberto || modoGeracaoSelecionado !== 'MIGRACAO') return
+    if (!unidadeSelecionadaId || !anoOrigemMigracao) return
+
+    let cancelado = false
+    async function carregarResumoOrigem() {
+      setCarregandoResumoMigracao(true)
+      try {
+        const resumo = await obterResumoVagasAnoOrigem(unidadeSelecionadaId, anoOrigemMigracao!)
+        if (!cancelado) {
+          setResumoMigracao(resumo)
+        }
+      } catch (err: any) {
+        if (!cancelado) {
+          console.error('Erro ao obter resumo do ano de origem:', err)
+          toast({
+            title: 'Erro ao carregar dados de origem',
+            description: err.message || 'Falha ao buscar vagas do ano de origem.',
+            variant: 'destructive',
+          })
+        }
+      } finally {
+        if (!cancelado) {
+          setCarregandoResumoMigracao(false)
+        }
+      }
+    }
+
+    carregarResumoOrigem()
+    return () => {
+      cancelado = true
+    }
+  }, [modalEscolhaModoGerarAberto, modoGeracaoSelecionado, unidadeSelecionadaId, anoOrigemMigracao])
+
+  // Confirmar que deseja prosseguir no modo Simples para a pergunta/prévia
+  const handleProsseguirModoSimples = () => {
+    setModalEscolhaModoGerarAberto(false)
     if (!dadosResumo) return
 
-    // Se faltam dados obrigatórios, abrir prévia diretamente mostrando a mensagem de bloqueio
     if (dadosResumo.bloqueadoPorFaltaDados) {
       setModalPreviaGeracaoAberto(true)
       return
     }
 
-    // Se já existirem vagas geradas, perguntar / alertar
     setModalPerguntaGerarAberto(true)
   }
 
-  // Confirmar que deseja prosseguir para a geração (seja primeira vez ou regeração)
+  // Prosseguir no modo Migração para confirmação
+  const handleProsseguirModoMigracao = () => {
+    if (!resumoMigracao || resumoMigracao.total === 0) return
+    setModalEscolhaModoGerarAberto(false)
+    setModalConfirmarMigracaoAberto(true)
+  }
+
+  // Executar migração real
+  const handleConfirmarMigracaoReal = async () => {
+    if (!unidadeSelecionadaId || !anoOrigemMigracao) return
+    setExecutandoMigracao(true)
+
+    try {
+      const res = await migrarVagasAnoLetivo({
+        unidadeEscolarId: unidadeSelecionadaId,
+        anoOrigem: anoOrigemMigracao,
+        anoDestino: anoLetivo,
+        usuarioNome: user?.email || 'Operador',
+        usuarioEmail: user?.email || 'operador@local',
+      })
+
+      toast({
+        title: 'Migração concluída com sucesso!',
+        description: `${res.escolaNome}: ${res.migradasCriadas} vagas copiadas de ${res.anoOrigem} para ${res.anoDestino} (todas ABERTAS, sem ocupante). Total final: ${res.totalDestinoFinal} vagas.`,
+      })
+
+      setModalConfirmarMigracaoAberto(false)
+      recarregarTudo()
+    } catch (err: any) {
+      console.error('Erro ao migrar vagas:', err)
+      toast({
+        title: 'Erro ao migrar vagas',
+        description: err.message || 'Falha durante o processo de migração de vagas.',
+        variant: 'destructive',
+      })
+    } finally {
+      setExecutandoMigracao(false)
+    }
+  }
+
+  // Confirmar que deseja prosseguir para a geração (seja primeira vez ou regeração simples)
   const handleProsseguirParaGeracao = () => {
     setModalPerguntaGerarAberto(false)
     setModalPreviaGeracaoAberto(true)
@@ -637,7 +744,7 @@ export const VagasPage: React.FC = () => {
                   <SelectValue placeholder="Selecione o ano" />
                 </SelectTrigger>
                 <SelectContent>
-                  {ANOS_DISPONIVEIS.map((ano) => (
+                  {ANOS_LETIVOS.map((ano) => (
                     <SelectItem key={ano} value={String(ano)}>
                       Ano Letivo {ano}
                     </SelectItem>
@@ -1292,6 +1399,396 @@ export const VagasPage: React.FC = () => {
           rotuloItens="vagas dimensionadas"
         />
       </Card>
+
+      {/* ==================================================================== */}
+      {/* MODAL 3.0: ESCOLHA DA MODALIDADE DE GERAÇÃO (SIMPLES OU MIGRAÇÃO)    */}
+      {/* ==================================================================== */}
+      <Dialog open={modalEscolhaModoGerarAberto} onOpenChange={setModalEscolhaModoGerarAberto}>
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-slate-900">
+              <PlayCircle className="w-5 h-5 text-blue-600" />
+              Gerar Vagas — {unidadeAtual?.nome}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Ano Letivo de Destino: <strong>{anoLetivo}</strong> · Selecione a modalidade de
+              dimensionamento.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Seletor de Modalidade */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setModoGeracaoSelecionado('SIMPLES')}
+                className={`p-3.5 rounded-lg border text-left transition-all flex flex-col justify-between ${
+                  modoGeracaoSelecionado === 'SIMPLES'
+                    ? 'border-blue-600 bg-blue-50/70 ring-2 ring-blue-500/20 shadow-xs'
+                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-blue-600" />
+                      Geração Simples
+                    </span>
+                    <Badge
+                      variant={modoGeracaoSelecionado === 'SIMPLES' ? 'default' : 'secondary'}
+                      className="text-[10px]"
+                    >
+                      Padrão Atual
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Calcula e dimensiona as vagas a partir da Configuração Vigente, Porte do Ano e
+                    Turmas vinculadas.
+                  </p>
+                </div>
+                <span className="text-[11px] font-semibold text-blue-700 mt-2 block">
+                  Regras de matriz, níveis e turmas
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setModoGeracaoSelecionado('MIGRACAO')}
+                className={`p-3.5 rounded-lg border text-left transition-all flex flex-col justify-between ${
+                  modoGeracaoSelecionado === 'MIGRACAO'
+                    ? 'border-blue-600 bg-blue-50/70 ring-2 ring-blue-500/20 shadow-xs'
+                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                      <Layers className="w-4 h-4 text-blue-600" />
+                      Migração de Ano Letivo
+                    </span>
+                    <Badge
+                      variant={modoGeracaoSelecionado === 'MIGRACAO' ? 'default' : 'secondary'}
+                      className="text-[10px]"
+                    >
+                      Nova Opção
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Copia a estrutura de vagas de um ano letivo anterior diretamente para o ano
+                    destino {anoLetivo}.
+                  </p>
+                </div>
+                <span className="text-[11px] font-semibold text-blue-700 mt-2 block">
+                  Cópia sem ocupante (todas ABERTAS)
+                </span>
+              </button>
+            </div>
+
+            {/* Conteúdo específico da modalidade selecionada */}
+            {modoGeracaoSelecionado === 'SIMPLES' ? (
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 space-y-2">
+                <div className="flex items-center gap-2 font-semibold text-slate-900">
+                  <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                  Fluxo de Geração Simples Calculada:
+                </div>
+                <ul className="list-disc pl-5 space-y-1 text-slate-600">
+                  <li>
+                    Utiliza a configuração vigente para{' '}
+                    <strong>{dadosResumo?.escola.tipo_atendimento || 'a unidade'}</strong>
+                  </li>
+                  <li>
+                    Base de cálculo: {dadosResumo?.unidadeAno.qtd_alunos || 0} alunos ·{' '}
+                    {dadosResumo?.unidadeAno.qtd_turmas || 0} turmas
+                  </li>
+                  <li>
+                    Nível calculado sugerido:{' '}
+                    <strong>Nível {dadosResumo?.nivelEncontradoCodigo || '—'}</strong>
+                  </li>
+                  <li>Exibe pergunta de confirmação e prévia com impacto antes de gravar</li>
+                </ul>
+              </div>
+            ) : (
+              <div className="space-y-3.5 pt-1">
+                {/* Combobox de Ano Letivo de Origem */}
+                <div>
+                  <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                    Ano Letivo de Origem (fonte para cópia) *
+                  </Label>
+                  <Select
+                    value={anoOrigemMigracao ? String(anoOrigemMigracao) : ''}
+                    onValueChange={(val) => setAnoOrigemMigracao(Number(val))}
+                  >
+                    <SelectTrigger className="mt-1 h-9 text-xs bg-white border-slate-300">
+                      <SelectValue placeholder="Selecione o ano de origem" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {anosOrigemDisponiveis.map((ano) => (
+                        <SelectItem key={ano} value={String(ano)}>
+                          Ano Letivo {ano}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">
+                    O ano destino atual ({anoLetivo}) foi excluído da lista de origens.
+                  </span>
+                </div>
+
+                {/* Resumo do que será copiado */}
+                {carregandoResumoMigracao ? (
+                  <div className="p-6 text-center text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg">
+                    <RefreshCw className="w-5 h-5 animate-spin mx-auto text-blue-600 mb-1.5" />
+                    Consultando vagas do ano {anoOrigemMigracao}...
+                  </div>
+                ) : resumoMigracao ? (
+                  resumoMigracao.total === 0 ? (
+                    <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2.5">
+                      <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="text-xs text-amber-900">
+                        <p className="font-bold">
+                          Nenhuma vaga encontrada no ano letivo {anoOrigemMigracao}
+                        </p>
+                        <p className="mt-0.5 text-amber-800">
+                          A unidade escolar <strong>{unidadeAtual?.nome}</strong> não possui vagas
+                          cadastradas no ano {anoOrigemMigracao}. Selecione outro ano de origem para
+                          prosseguir com a migração.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Cartões de totais do ano de origem */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                          <span className="text-[10px] font-semibold uppercase text-slate-500 block">
+                            Total Origem
+                          </span>
+                          <span className="text-lg font-bold text-slate-900">
+                            {resumoMigracao.total}
+                          </span>
+                        </div>
+                        <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
+                          <span className="text-[10px] font-semibold uppercase text-emerald-700 block">
+                            Ocupadas
+                          </span>
+                          <span className="text-lg font-bold text-emerald-800">
+                            {resumoMigracao.ocupadas}
+                          </span>
+                        </div>
+                        <div className="p-2.5 bg-blue-50 rounded-lg border border-blue-200">
+                          <span className="text-[10px] font-semibold uppercase text-blue-700 block">
+                            Abertas
+                          </span>
+                          <span className="text-lg font-bold text-blue-800">
+                            {resumoMigracao.abertas}
+                          </span>
+                        </div>
+                        <div className="p-2.5 bg-amber-50 rounded-lg border border-amber-200">
+                          <span className="text-[10px] font-semibold uppercase text-amber-700 block">
+                            Excedentes
+                          </span>
+                          <span className="text-lg font-bold text-amber-800">
+                            {resumoMigracao.excedentes}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Regra de Ocupação em Destaque */}
+                      <div className="p-3 bg-blue-50/90 border border-blue-200 rounded-lg text-xs text-blue-950 space-y-1">
+                        <p className="font-bold flex items-center gap-1.5 text-blue-900">
+                          <ShieldCheck className="w-4 h-4 text-blue-600" />
+                          Regras de Migração e Integridade:
+                        </p>
+                        <p className="text-[11px] leading-relaxed text-blue-900">
+                          • <strong>Ocupação NÃO é copiada:</strong> todas as {resumoMigracao.total}{' '}
+                          vagas migradas nascerão no ano {anoLetivo}{' '}
+                          <strong>SEM ocupante (status ABERTA)</strong>.
+                        </p>
+                        <p className="text-[11px] leading-relaxed text-blue-900">
+                          • <strong>Vaga Excedente:</strong> vagas de geração anterior nascem como
+                          "Não"; vagas manuais de origem preservam "Sim".
+                        </p>
+                        <p className="text-[11px] leading-relaxed text-blue-900">
+                          • <strong>Vagas do Destino:</strong> se o ano {anoLetivo} já possuir
+                          vagas, elas serão preservadas e as novas serão adicionadas sem duplicar
+                          sequenciais.
+                        </p>
+                      </div>
+
+                      {/* Tabela resumida por Função */}
+                      <div className="border border-slate-200 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                        <Table>
+                          <TableHeader className="bg-slate-50 sticky top-0">
+                            <TableRow className="text-xs">
+                              <TableHead className="py-1.5 px-3 font-semibold text-slate-700">
+                                Função
+                              </TableHead>
+                              <TableHead className="py-1.5 px-3 font-semibold text-slate-700 text-center w-20">
+                                Total
+                              </TableHead>
+                              <TableHead className="py-1.5 px-3 font-semibold text-slate-700 text-center w-24">
+                                Ocupadas (Origem)
+                              </TableHead>
+                              <TableHead className="py-1.5 px-3 font-semibold text-slate-700 text-center w-24">
+                                Abertas (Origem)
+                              </TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {resumoMigracao.porFuncao.map((pf) => (
+                              <TableRow key={pf.funcao} className="text-xs">
+                                <TableCell className="py-1 px-3 font-medium text-slate-900">
+                                  {pf.funcao}
+                                </TableCell>
+                                <TableCell className="py-1 px-3 text-center font-bold text-blue-700">
+                                  {pf.total}
+                                </TableCell>
+                                <TableCell className="py-1 px-3 text-center text-slate-600">
+                                  {pf.ocupadas}
+                                </TableCell>
+                                <TableCell className="py-1 px-3 text-center text-slate-600">
+                                  {pf.abertas}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0 pt-3 border-t border-slate-200">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setModalEscolhaModoGerarAberto(false)}
+              className="text-xs"
+            >
+              Cancelar
+            </Button>
+            {modoGeracaoSelecionado === 'SIMPLES' ? (
+              <Button
+                size="sm"
+                onClick={handleProsseguirModoSimples}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold"
+              >
+                Prosseguir com Geração Simples
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={handleProsseguirModoMigracao}
+                disabled={!resumoMigracao || resumoMigracao.total === 0 || carregandoResumoMigracao}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold"
+              >
+                Prosseguir para Confirmação da Migração
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ==================================================================== */}
+      {/* MODAL 3.M: CONFIRMAÇÃO DA MIGRAÇÃO (ALERTA DE DESTINO + EXECUÇÃO)    */}
+      {/* ==================================================================== */}
+      <Dialog open={modalConfirmarMigracaoAberto} onOpenChange={setModalConfirmarMigracaoAberto}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-slate-900">
+              <Layers className="w-5 h-5 text-blue-600" />
+              Confirmar Migração de Vagas
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Unidade: {unidadeAtual?.nome} · De {anoOrigemMigracao} para {anoLetivo}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3.5 py-2">
+            {/* Alerta se o destino já possui vagas */}
+            {vagas.length > 0 ? (
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-xs font-bold text-amber-900">
+                      Atenção: A unidade já possui {vagas.length} vagas em {anoLetivo}!
+                    </h4>
+                    <p className="text-[11px] text-amber-800 mt-1 leading-relaxed">
+                      Atualmente existem{' '}
+                      <strong>{resumoEstatistico.ocupadas} vagas ocupadas</strong> e{' '}
+                      <strong>{resumoEstatistico.abertas} abertas</strong> no ano destino. A
+                      migração <strong>NÃO apagará</strong> nenhuma vaga já existente — as{' '}
+                      {resumoMigracao?.total || 0} vagas do ano {anoOrigemMigracao} serão{' '}
+                      <strong>adicionadas</strong>, mantendo as sequências livres.
+                    </p>
+                    <p className="text-[11px] text-amber-900 mt-1 font-semibold">
+                      Deseja continuar e adicionar as vagas migradas mesmo assim?
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900">
+                A unidade não possui nenhuma vaga cadastrada no ano letivo {anoLetivo}. Serão
+                criadas <strong>{resumoMigracao?.total || 0} vagas</strong> copiadas de{' '}
+                {anoOrigemMigracao}, todas ABERTAS e sem ocupante.
+              </div>
+            )}
+
+            {/* Checklist de segurança da cópia */}
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1.5 text-slate-700">
+              <span className="font-bold text-slate-900 block">Resumo da Operação:</span>
+              <div className="flex items-center justify-between">
+                <span>Vagas a migrar do ano {anoOrigemMigracao}:</span>
+                <strong className="text-slate-900">{resumoMigracao?.total || 0} vagas</strong>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Status ao nascer no ano {anoLetivo}:</span>
+                <strong className="text-blue-700">ABERTA (sem ocupante)</strong>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Atributos preservados:</span>
+                <span className="text-slate-600">Função, Cargo, Período, Modalidade</span>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0 pt-3 border-t border-slate-200">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setModalConfirmarMigracaoAberto(false)}
+              disabled={executandoMigracao}
+              className="text-xs"
+            >
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleConfirmarMigracaoReal}
+              disabled={executandoMigracao}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold"
+            >
+              {executandoMigracao ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  Migrando Vagas...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                  Confirmar Migração de Vagas
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ==================================================================== */}
       {/* MODAL 3.A: PERGUNTA SE DESEJA GERAR AS VAGAS + ALERTA SE JÁ EXISTEM */}
@@ -2001,28 +2498,72 @@ export const VagasPage: React.FC = () => {
 
             <div>
               <h4 className="font-bold text-slate-900 text-sm mb-1">
-                3. Pergunta de Geração e Regeneração Idempotente
+                3. Modalidades de Geração: Simples e Migração de Ano Letivo
               </h4>
               <p>
-                Ao clicar em <strong>"Gerar Vagas"</strong>, o sistema pergunta se você deseja gerar
-                as vagas. Se a escola já possui vagas geradas no ano letivo, é exibido um alerta
-                informando as quantidades atuais, mas possibilitando a regeração com segurança:
+                Ao clicar em <strong>"Gerar Vagas"</strong>, o sistema disponibiliza duas
+                modalidades para atender tanto ao dimensionamento inicial quanto à transição de anos
+                letivos:
               </p>
-              <ul className="list-disc pl-5 space-y-1 mt-1">
-                <li>
-                  <strong>Vagas OCUPADAS nunca são apagadas:</strong> se o novo porte diminuir o
-                  total, a vaga ocupada excedente passa para o status <strong>EXCEDENTE</strong>{' '}
-                  para servir de base de remanejamento.
-                </li>
-                <li>
-                  <strong>Vagas ABERTAS em excesso:</strong> são removidas somente após exibição na
-                  prévia detalhada.
-                </li>
-                <li>
-                  <strong>Vagas faltantes:</strong> são criadas com sequenciais contínuos
-                  preservando o histórico.
-                </li>
-              </ul>
+              <div className="space-y-2 mt-2">
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded">
+                  <strong className="text-blue-900 block mb-0.5">
+                    Modalidade 1: Geração Simples (Cálculo Oficial)
+                  </strong>
+                  <p>
+                    Calcula e dimensiona as vagas a partir da Configuração Vigente, Porte do Ano e
+                    Turmas. Se a escola já possuir vagas no ano destino, o sistema alerta e permite
+                    regerar com segurança:
+                  </p>
+                  <ul className="list-disc pl-5 space-y-0.5 mt-1 text-[11px] text-slate-600">
+                    <li>
+                      <strong>Vagas OCUPADAS nunca são apagadas:</strong> se o porte diminuir,
+                      passam a <strong>EXCEDENTE</strong> para remanejamento.
+                    </li>
+                    <li>
+                      <strong>Vagas ABERTAS em excesso:</strong> são ajustadas conforme a prévia.
+                    </li>
+                    <li>
+                      <strong>Vagas faltantes:</strong> são adicionadas na sequência livre.
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded">
+                  <strong className="text-blue-900 block mb-0.5">
+                    Modalidade 2: Migração de Ano Letivo (Cópia Direta)
+                  </strong>
+                  <p>
+                    Copia a estrutura de vagas de um <strong>Ano Letivo de Origem</strong>{' '}
+                    selecionado via combobox (excluindo o ano destino atual) para a unidade escolar
+                    no ano letivo em exibição:
+                  </p>
+                  <ul className="list-disc pl-5 space-y-0.5 mt-1 text-[11px] text-slate-600">
+                    <li>
+                      <strong>O que é copiado:</strong> Função, Cargo vinculado, Período, Modalidade
+                      (Fixo/Itinerante com dias de semana), Turma equivalente (se existir turma de
+                      mesmo nome no ano destino).
+                    </li>
+                    <li>
+                      <strong>O que NÃO é copiado:</strong> Ocupante, cargo do ocupante e status de
+                      ocupada. Toda vaga migrada nasce estritamente <strong>SEM ocupante</strong> e
+                      com status <strong>ABERTA</strong>.
+                    </li>
+                    <li>
+                      <strong>Regra de Vaga Excedente na migração:</strong> vagas migradas
+                      originárias de geração anterior nascem como <em>Não</em>; se a vaga de origem
+                      tiver sido inserida manualmente (<em>Sim</em>), preserva <em>Sim</em> para
+                      manter sua rastreabilidade.
+                    </li>
+                    <li>
+                      <strong>Integridade e sem duplicidade:</strong> se o destino já possuir vagas,
+                      o sistema avisa e não apaga nenhuma existente; as vagas migradas são
+                      adicionadas renumerando sequenciais caso necessário para não haver duplicidade
+                      exata.
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
 
             <div>
