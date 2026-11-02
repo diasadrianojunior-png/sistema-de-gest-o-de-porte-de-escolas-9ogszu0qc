@@ -241,23 +241,94 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
       console.error('Erro ao inserir vínculos de vagas do profissional:', errIns)
       throw errIns
     }
+  }
 
-    // Atualizar cada vaga vinculada com o profissional como ocupante -> status OCUPADA
-    for (const nv of novosVinculos) {
-      const { error: errVaga } = await db
-        .from('vaga')
-        .update({
-          servidor_id: profissionalId,
-          nome_ocupante: nomeProfissional,
-          cargo_id: nv.cargo_id || null,
-          status: 'OCUPADA',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', nv.vaga_id)
+  // Detectar se alguma das novas vagas estava ocupada por outro profissional e limpar vínculos anteriores
+  const substituicoesOcupantes: Array<{
+    vaga_id: string
+    vaga_codigo?: string | null
+    vaga_funcao?: string | null
+    ocupante_anterior_id: string
+    ocupante_anterior_nome: string
+  }> = []
 
-      if (errVaga) {
-        console.error(`Erro ao atualizar status da vaga ${nv.vaga_id} para OCUPADA:`, errVaga)
+  for (const nv of novosVinculos) {
+    // Buscar dados atuais da vaga
+    const { data: vagaAtual } = await db
+      .from('vaga')
+      .select('id, codigo, funcao, status, servidor_id, nome_ocupante')
+      .eq('id', nv.vaga_id)
+      .maybeSingle()
+
+    if (vagaAtual && vagaAtual.servidor_id && vagaAtual.servidor_id !== profissionalId) {
+      const ocupanteAnteriorId = vagaAtual.servidor_id
+      const ocupanteAnteriorNome = vagaAtual.nome_ocupante || 'Ocupante anterior'
+
+      substituicoesOcupantes.push({
+        vaga_id: nv.vaga_id,
+        vaga_codigo: vagaAtual.codigo,
+        vaga_funcao: vagaAtual.funcao,
+        ocupante_anterior_id: ocupanteAnteriorId,
+        ocupante_anterior_nome: ocupanteAnteriorNome,
+      })
+
+      // Remover o vínculo do profissional anterior com esta vaga na tabela profissional_vagas
+      // para não deixar vínculo órfão
+      const { error: errDelAnterior } = await db
+        .from('profissional_vagas')
+        .delete()
+        .eq('profissional_id', ocupanteAnteriorId)
+        .eq('vaga_id', nv.vaga_id)
+
+      if (errDelAnterior) {
+        console.error(
+          `Erro ao remover vínculo da vaga ${nv.vaga_id} do profissional anterior ${ocupanteAnteriorId}:`,
+          errDelAnterior,
+        )
       }
+
+      // Buscar dados do profissional anterior para auditoria
+      const { data: profAnteriorData } = await db
+        .from('profissionais')
+        .select('codigo, nome')
+        .eq('id', ocupanteAnteriorId)
+        .maybeSingle()
+
+      // Registrar auditoria específica da remoção do vínculo do profissional anterior
+      await registrarAuditoria({
+        entidade: 'Profissionais',
+        acao: 'Substituição de Vínculo',
+        registro_codigo: profAnteriorData?.codigo || null,
+        descricao: `Vínculo com a vaga "${vagaAtual.codigo || vagaAtual.funcao || nv.vaga_id}" removido do profissional "${profAnteriorData?.nome || ocupanteAnteriorNome}". A vaga foi transferida para "${nomeProfissional}" (${profissionalSalvo.codigo || 'sem código'}).`,
+        detalhes: {
+          tipo_evento: 'substituicao_ocupante_vaga',
+          vaga_id: nv.vaga_id,
+          vaga_codigo: vagaAtual.codigo,
+          vaga_funcao: vagaAtual.funcao,
+          profissional_anterior_id: ocupanteAnteriorId,
+          profissional_anterior_nome: profAnteriorData?.nome || ocupanteAnteriorNome,
+          profissional_anterior_codigo: profAnteriorData?.codigo || null,
+          novo_profissional_id: profissionalId,
+          novo_profissional_nome: nomeProfissional,
+          novo_profissional_codigo: profissionalSalvo.codigo || null,
+        },
+      })
+    }
+
+    // Atualizar a vaga para o novo profissional -> status OCUPADA
+    const { error: errVaga } = await db
+      .from('vaga')
+      .update({
+        servidor_id: profissionalId,
+        nome_ocupante: nomeProfissional,
+        cargo_id: nv.cargo_id || null,
+        status: 'OCUPADA',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', nv.vaga_id)
+
+    if (errVaga) {
+      console.error(`Erro ao atualizar status da vaga ${nv.vaga_id} para OCUPADA:`, errVaga)
     }
   }
 
@@ -329,6 +400,7 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
       valores_novos: valoresNovos,
       vagas_vinculadas: novosVinculos,
       vagas_liberadas: vagasParaLiberar,
+      substituicoes_ocupantes: substituicoesOcupantes,
     },
   })
 

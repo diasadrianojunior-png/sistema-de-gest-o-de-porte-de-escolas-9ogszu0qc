@@ -46,6 +46,7 @@ import {
   Calendar,
   Sparkles,
   Info,
+  AlertTriangle,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
@@ -113,6 +114,17 @@ export default function Profissionais() {
 
   // Modal de Exclusão
   const [deletingProfissional, setDeletingProfissional] = useState<Profissional | null>(null)
+
+  // Modal de Confirmação de Substituição de Vaga Ocupada
+  const [modalSubstituicaoOpen, setModalSubstituicaoOpen] = useState(false)
+  const [conflitosSubstituicao, setConflitosSubstituicao] = useState<
+    Array<{
+      vagaId: string
+      vagaCodigo: string
+      vagaFuncao: string
+      ocupanteAtualNome: string
+    }>
+  >([])
 
   const carregarDadosIniciais = async () => {
     try {
@@ -278,6 +290,21 @@ export default function Profissionais() {
           cargoPadrao = cargosLinha[0].cargo_id
         }
       }
+
+      // Verificação real de ocupação: se a vaga estiver OCUPADA por outro profissional
+      const estaOcupadaPorOutro =
+        vagaSel.status === 'OCUPADA' &&
+        Boolean(vagaSel.servidor_id) &&
+        vagaSel.servidor_id !== editingProfissional?.id
+
+      if (estaOcupadaPorOutro) {
+        const ocupante = vagaSel.nome_ocupante || 'Outro profissional'
+        toast({
+          title: 'Atenção: Vaga já Ocupada!',
+          description: `A vaga "${vagaSel.codigo ? `${vagaSel.codigo} - ` : ''}${vagaSel.funcao}" já está ocupada por "${ocupante}". Ao salvar, será necessária a sua confirmação para substituir o ocupante.`,
+          variant: 'destructive',
+        })
+      }
     }
 
     setFormVinculos((prev) =>
@@ -306,7 +333,45 @@ export default function Profissionais() {
     )
   }
 
-  // Salvar formulário
+  // Executar a gravação final do profissional e seus vínculos
+  const executarGravacaoProfissional = async (vinculosFinal: VinculoVagaInput[]) => {
+    try {
+      setSaving(true)
+      await salvarProfissional({
+        id: editingProfissional?.id,
+        nome: formNome.trim(),
+        unidade_escolar_id: formUnidadeId,
+        ativo: formAtivo,
+        data_admissao: formDataAdmissao,
+        data_nascimento: formDataNascimento,
+        classe: formClasse,
+        vagas: vinculosFinal,
+      })
+
+      toast({
+        title: 'Sucesso',
+        description: editingProfissional
+          ? 'Profissional atualizado com sucesso!'
+          : 'Profissional cadastrado com sucesso!',
+      })
+
+      setModalSubstituicaoOpen(false)
+      setConflitosSubstituicao([])
+      setOpenDialog(false)
+      await carregarDadosIniciais()
+    } catch (err: any) {
+      console.error(err)
+      toast({
+        title: 'Erro ao salvar',
+        description: err.message || 'Não foi possível salvar o cadastro do profissional.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Submeter formulário: valida e checa se há vagas ocupadas por outros profissionais
   const handleSaveProfissional = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -379,38 +444,53 @@ export default function Profissionais() {
         cargo_id: v.cargo_id && v.cargo_id.trim() ? v.cargo_id : null,
       }))
 
-    try {
-      setSaving(true)
-      await salvarProfissional({
-        id: editingProfissional?.id,
-        nome: formNome.trim(),
-        unidade_escolar_id: formUnidadeId,
-        ativo: formAtivo,
-        data_admissao: formDataAdmissao,
-        data_nascimento: formDataNascimento,
-        classe: formClasse,
-        vagas: vinculosFinal,
-      })
+    // Checar se há conflito de vagas ocupadas por outro profissional
+    const conflitos: Array<{
+      vagaId: string
+      vagaCodigo: string
+      vagaFuncao: string
+      ocupanteAtualNome: string
+    }> = []
 
-      toast({
-        title: 'Sucesso',
-        description: editingProfissional
-          ? 'Profissional atualizado com sucesso!'
-          : 'Profissional cadastrado com sucesso!',
-      })
-
-      setOpenDialog(false)
-      await carregarDadosIniciais()
-    } catch (err: any) {
-      console.error(err)
-      toast({
-        title: 'Erro ao salvar',
-        description: err.message || 'Não foi possível salvar o cadastro do profissional.',
-        variant: 'destructive',
-      })
-    } finally {
-      setSaving(false)
+    for (const vinc of vinculosFinal) {
+      const vagaObj = vagasDaUnidade.find((v) => v.id === vinc.vaga_id)
+      if (
+        vagaObj &&
+        vagaObj.status === 'OCUPADA' &&
+        vagaObj.servidor_id &&
+        vagaObj.servidor_id !== editingProfissional?.id
+      ) {
+        conflitos.push({
+          vagaId: vagaObj.id,
+          vagaCodigo: vagaObj.codigo || '',
+          vagaFuncao: vagaObj.funcao,
+          ocupanteAtualNome: vagaObj.nome_ocupante || 'Outro Profissional',
+        })
+      }
     }
+
+    if (conflitos.length > 0) {
+      // Exigir confirmação explícita do usuário
+      setConflitosSubstituicao(conflitos)
+      setModalSubstituicaoOpen(true)
+      return
+    }
+
+    // Sem conflito: grava diretamente
+    await executarGravacaoProfissional(vinculosFinal)
+  }
+
+  // Usuário confirmou a substituição no modal de alerta/confirmação
+  const handleConfirmarSubstituicao = async () => {
+    const vinculosFinal: VinculoVagaInput[] = formVinculos
+      .filter((v) => Boolean(v.vaga_id && v.vaga_id.trim()))
+      .map((v) => ({
+        vaga_id: v.vaga_id,
+        titular: Boolean(v.titular),
+        cargo_id: v.cargo_id && v.cargo_id.trim() ? v.cargo_id : null,
+      }))
+
+    await executarGravacaoProfissional(vinculosFinal)
   }
 
   // Confirmar exclusão
@@ -1023,6 +1103,38 @@ export default function Profissionais() {
                                   })}
                                 </SelectContent>
                               </Select>
+
+                              {/* Alerta contextual quando a vaga selecionada nesta linha já estiver ocupada por outro profissional */}
+                              {(() => {
+                                if (!item.vaga_id) return null
+                                const vagaSel = vagasDaUnidade.find((v) => v.id === item.vaga_id)
+                                if (
+                                  vagaSel &&
+                                  vagaSel.status === 'OCUPADA' &&
+                                  Boolean(vagaSel.servidor_id) &&
+                                  vagaSel.servidor_id !== editingProfissional?.id
+                                ) {
+                                  return (
+                                    <div className="mt-2 p-2.5 bg-amber-50 border border-amber-300 rounded-md flex items-start gap-2 text-xs text-amber-900">
+                                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                      <div className="space-y-0.5">
+                                        <p className="font-semibold text-amber-950">
+                                          Vaga atualmente ocupada por:{' '}
+                                          <span className="underline font-bold">
+                                            {vagaSel.nome_ocupante || 'Outro profissional'}
+                                          </span>
+                                        </p>
+                                        <p className="text-[11px] text-amber-800 leading-snug">
+                                          A substituição exigirá sua confirmação ao salvar. O
+                                          vínculo do ocupante anterior será removido e registrado na
+                                          auditoria.
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )
+                                }
+                                return null
+                              })()}
                             </div>
 
                             {/* Pergunta: É titular da vaga? */}
@@ -1362,7 +1474,35 @@ export default function Profissionais() {
               </ul>
             </div>
 
-            {/* Bloco 3: Vínculos com Vagas e Rastreabilidade */}
+            {/* Bloco 3: Vagas Já Ocupadas e Confirmação de Substituição */}
+            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/80 space-y-2">
+              <h4 className="font-semibold text-amber-950 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-700" /> Tratamento de Vagas Já Ocupadas
+              </h4>
+              <p className="text-xs text-amber-900 font-medium">
+                O sistema impede substituições silenciosas e protege a integridade dos vínculos:
+              </p>
+              <ul className="text-xs list-disc list-inside space-y-1.5 text-slate-700 pl-1">
+                <li>
+                  <strong>Alerta imediato:</strong> Ao selecionar uma vaga que já esteja ocupada por
+                  outro profissional, o sistema emite um alerta claro informando o nome do ocupante
+                  atual.
+                </li>
+                <li>
+                  <strong>Confirmação explícita:</strong> Ao salvar o cadastro, é exibido um modal
+                  de confirmação nomeando o ocupante anterior e o novo profissional. A substituição
+                  só ocorre se confirmada expressamente pelo usuário; caso cancele, nada é alterado.
+                </li>
+                <li>
+                  <strong>Limpeza de vínculo e integridade:</strong> Após confirmada a substituição,
+                  o vínculo anterior é removido para que não fique órfão, a vaga recebe o novo
+                  profissional como ocupante oficial (status <em>OCUPADA</em>) e a operação é
+                  detalhada na Auditoria.
+                </li>
+              </ul>
+            </div>
+
+            {/* Bloco 4: Vínculos com Vagas e Rastreabilidade */}
             <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/50 space-y-2">
               <h4 className="font-semibold text-emerald-950 flex items-center gap-2">
                 <Info className="w-4 h-4 text-emerald-600" /> Vínculo de Vagas e Auditoria
@@ -1373,9 +1513,18 @@ export default function Profissionais() {
                   definição de titularidade (Titular/Suplente) e cargo ocupado.
                 </li>
                 <li>
-                  Todas as operações de criação, edição e exclusão registram na{' '}
-                  <strong>Auditoria</strong> os valores antigos e novos dos campos, incluindo data
-                  de admissão, data de nascimento e classe do profissional.
+                  Ao salvar a alocação, a vaga fica com o status <strong>OCUPADA</strong>, nome do
+                  ocupante preenchido e cargo gravado.
+                </li>
+                <li>
+                  Ao desvincular uma vaga ou excluir o profissional, a vaga retorna automaticamente
+                  ao status <strong>ABERTA</strong>, com o nome do ocupante limpo e cargo
+                  desmarcado.
+                </li>
+                <li>
+                  Todas as operações de criação, edição, substituição e exclusão registram na{' '}
+                  <strong>Auditoria</strong> os valores completos, garantindo rastreabilidade
+                  histórica.
                 </li>
               </ul>
             </div>
@@ -1392,6 +1541,94 @@ export default function Profissionais() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Confirmação Explícita de Substituição de Ocupante de Vaga */}
+      <AlertDialog
+        open={modalSubstituicaoOpen}
+        onOpenChange={(open) => {
+          if (!open && !saving) {
+            setModalSubstituicaoOpen(false)
+          }
+        }}
+      >
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-amber-800 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+              Confirmação de Substituição de Ocupante
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="text-xs text-slate-700 space-y-3 pt-2">
+                <p>
+                  A alocação de <strong>"{formNome.trim()}"</strong> inclui vaga(s) que já se
+                  encontram <strong>ocupadas por outro profissional</strong>:
+                </p>
+
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {conflitosSubstituicao.map((conf, idx) => (
+                    <div
+                      key={conf.vagaId || idx}
+                      className="p-3 bg-amber-50/80 rounded-lg border border-amber-300 text-xs space-y-1"
+                    >
+                      <div className="font-semibold text-amber-950">
+                        {conf.vagaCodigo ? `${conf.vagaCodigo} - ` : ''}
+                        {conf.vagaFuncao}
+                      </div>
+                      <div className="text-slate-700 flex items-center justify-between">
+                        <span>Ocupante anterior:</span>
+                        <span className="font-bold text-rose-700">{conf.ocupanteAtualNome}</span>
+                      </div>
+                      <div className="text-slate-700 flex items-center justify-between">
+                        <span>Novo ocupante:</span>
+                        <span className="font-bold text-emerald-700">{formNome.trim()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-2.5 bg-slate-100 rounded-md border border-slate-200 text-[11px] text-slate-600 space-y-1">
+                  <p className="font-semibold text-slate-800">O que acontecerá ao confirmar:</p>
+                  <ul className="list-disc list-inside space-y-0.5 pl-1">
+                    <li>O vínculo do profissional anterior com esta vaga será removido.</li>
+                    <li>
+                      A vaga passará a ter o nome de <strong>"{formNome.trim()}"</strong> como
+                      ocupante oficial.
+                    </li>
+                    <li>A substituição será registrada no histórico da Auditoria.</li>
+                  </ul>
+                  <p className="text-slate-500 italic pt-1">
+                    Se você cancelar, nenhuma alteração será salva no sistema.
+                  </p>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={saving}
+              onClick={() => {
+                setModalSubstituicaoOpen(false)
+              }}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmarSubstituicao}
+              disabled={saving}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Substituindo...
+                </>
+              ) : (
+                'Confirmar e Substituir'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Confirmação de Exclusão */}
       <AlertDialog
