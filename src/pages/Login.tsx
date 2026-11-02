@@ -423,13 +423,20 @@ export default function Login() {
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center px-4 py-12">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 text-primary mb-3 shadow-sm border border-primary/20">
-            <School className="w-8 h-8 text-primary" />
+          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-white mb-4 shadow-sm border border-slate-200">
+            <img
+              src="/logo-cambe.png"
+              alt="Brasão Oficial de Cambé"
+              className="w-16 h-16 object-contain"
+            />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Sistema de Gestão de Porte de Escolas
           </h1>
-          <p className="text-sm text-slate-600 mt-1">
+          <p className="text-xs font-semibold text-primary uppercase tracking-wider mt-1">
+            Município de Cambé · Paraná
+          </p>
+          <p className="text-sm text-slate-600 mt-0.5">
             Plataforma administrativa para secretarias e redes de ensino
           </p>
         </div>
@@ -477,7 +484,7 @@ export default function Login() {
                   <button
                     type="button"
                     onClick={handleOpenForgotModal}
-                    className="text-xs text-[#0B2545] hover:text-[#133A68] hover:underline font-medium cursor-pointer"
+                    className="text-xs text-primary hover:text-primary/80 hover:underline font-medium cursor-pointer"
                   >
                     Esqueci minha senha
                   </button>
@@ -495,11 +502,7 @@ export default function Login() {
             </CardContent>
 
             <CardFooter className="pt-2">
-              <Button
-                type="submit"
-                className="w-full gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white"
-                disabled={isSubmitting}
-              >
+              <Button type="submit" className="w-full gap-2" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -521,9 +524,9 @@ export default function Login() {
       <Dialog open={isResetPasswordModalOpen} onOpenChange={setIsResetPasswordModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <div className="flex items-center gap-2 text-[#0B2545]">
-              <div className="p-2 rounded-lg bg-blue-50">
-                <KeyRound className="w-5 h-5 text-[#0B2545]" />
+            <div className="flex items-center gap-2 text-primary">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <KeyRound className="w-5 h-5 text-primary" />
               </div>
               <DialogTitle className="text-lg">Cadastrar Nova Senha</DialogTitle>
             </div>
@@ -597,11 +600,7 @@ export default function Login() {
               )}
 
               {!resetModalSuccess && (
-                <Button
-                  type="submit"
-                  className="bg-[#0B2545] hover:bg-[#133A68] text-white gap-2"
-                  disabled={isResetSubmitting}
-                >
+                <Button type="submit" className="gap-2" disabled={isResetSubmitting}>
                   {isResetSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -624,9 +623,9 @@ export default function Login() {
       <Dialog open={isForgotModalOpen} onOpenChange={setIsForgotModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <div className="flex items-center gap-2 text-[#0B2545]">
-              <div className="p-2 rounded-lg bg-blue-50">
-                <KeyRound className="w-5 h-5 text-[#0B2545]" />
+            <div className="flex items-center gap-2 text-primary">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <KeyRound className="w-5 h-5 text-primary" />
               </div>
               <DialogTitle className="text-lg">Recuperar Senha</DialogTitle>
             </div>
@@ -698,11 +697,7 @@ export default function Login() {
               </Button>
 
               {!forgotSuccess && (
-                <Button
-                  type="submit"
-                  className="bg-[#0B2545] hover:bg-[#133A68] text-white gap-2"
-                  disabled={isForgotSubmitting}
-                >
+                <Button type="submit" className="gap-2" disabled={isForgotSubmitting}>
                   {isForgotSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />

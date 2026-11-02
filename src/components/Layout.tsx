@@ -154,15 +154,19 @@ export default function Layout() {
                   <NavLink
                     to="/painel"
                     className="flex items-center justify-center"
-                    aria-label="Painel de Início - Gestão Escolar"
+                    aria-label="Painel de Início - Gestão Escolar Cambé"
                   >
-                    <div className="w-10 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold shadow-sm hover:bg-blue-700 transition-colors">
-                      <School className="w-5 h-5 text-white" />
+                    <div className="w-10 h-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center shadow-xs p-1 hover:border-primary transition-colors">
+                      <img
+                        src="/logo-cambe.png"
+                        alt="Brasão Oficial de Cambé"
+                        className="w-full h-full object-contain"
+                      />
                     </div>
                   </NavLink>
                 </TooltipTrigger>
                 <TooltipContent side="right" className="font-semibold text-xs">
-                  Gestão Escolar · Porte & Redes
+                  Gestão Escolar · Município de Cambé
                 </TooltipContent>
               </Tooltip>
             ) : (
@@ -170,17 +174,21 @@ export default function Layout() {
                 <NavLink
                   to="/painel"
                   onClick={() => isMobile && setMobileSidebarOpen(false)}
-                  className="flex items-center gap-3 overflow-hidden min-w-0"
+                  className="flex items-center gap-2.5 overflow-hidden min-w-0 group"
                 >
-                  <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
-                    <School className="w-5 h-5 text-white" />
+                  <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-xs p-1 group-hover:border-primary transition-colors">
+                    <img
+                      src="/logo-cambe.png"
+                      alt="Brasão Oficial de Cambé"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
                   <div className="flex flex-col min-w-0">
-                    <span className="font-bold text-slate-900 leading-tight tracking-tight text-base truncate">
+                    <span className="font-bold text-slate-900 leading-tight tracking-tight text-sm truncate">
                       Gestão Escolar
                     </span>
-                    <span className="text-[11px] text-slate-500 font-medium truncate">
-                      Porte & Redes
+                    <span className="text-[11px] text-primary font-semibold truncate tracking-tight">
+                      Município de Cambé
                     </span>
                   </div>
                 </NavLink>
@@ -234,12 +242,12 @@ export default function Layout() {
                           aria-label="Painel de Início"
                           className={`flex items-center justify-center w-11 h-11 mx-auto rounded-lg transition-colors ${
                             isPainelActive
-                              ? 'bg-blue-50 text-blue-700 shadow-xs ring-1 ring-blue-200'
+                              ? 'bg-primary/10 text-primary shadow-xs ring-1 ring-primary/25'
                               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                           }`}
                         >
                           <LayoutDashboard
-                            className={`w-5 h-5 ${isPainelActive ? 'text-blue-700' : 'text-slate-600'}`}
+                            className={`w-5 h-5 ${isPainelActive ? 'text-primary' : 'text-slate-600'}`}
                           />
                         </NavLink>
                       </TooltipTrigger>
@@ -254,12 +262,12 @@ export default function Layout() {
                       title="Painel de Início"
                       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                         isPainelActive
-                          ? 'bg-blue-50 text-blue-700 font-semibold shadow-xs'
+                          ? 'bg-primary/10 text-primary font-semibold shadow-xs'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                       }`}
                     >
                       <LayoutDashboard
-                        className={`w-5 h-5 shrink-0 ${isPainelActive ? 'text-blue-700' : 'text-slate-500'}`}
+                        className={`w-5 h-5 shrink-0 ${isPainelActive ? 'text-primary' : 'text-slate-500'}`}
                       />
                       <span>Painel de Início</span>
                     </NavLink>
@@ -277,14 +285,14 @@ export default function Layout() {
                               aria-label="Cadastros de Apoio"
                               className={`flex items-center justify-center w-11 h-11 mx-auto rounded-lg transition-colors cursor-pointer outline-none ${
                                 isApoioActive
-                                  ? 'bg-blue-50 text-blue-700 shadow-xs ring-1 ring-blue-200'
+                                  ? 'bg-primary/10 text-primary shadow-xs ring-1 ring-primary/25'
                                   : apoioPopoverOpen
                                     ? 'bg-slate-100 text-slate-900'
                                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
                               <Database
-                                className={`w-5 h-5 ${isApoioActive ? 'text-blue-700' : 'text-slate-600'}`}
+                                className={`w-5 h-5 ${isApoioActive ? 'text-primary' : 'text-slate-600'}`}
                               />
                             </button>
                           </PopoverTrigger>
@@ -301,7 +309,7 @@ export default function Layout() {
                       >
                         <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1 flex items-center justify-between">
                           <span className="text-xs font-bold text-slate-800 tracking-tight flex items-center gap-1.5">
-                            <Database className="w-3.5 h-3.5 text-blue-600" />
+                            <Database className="w-3.5 h-3.5 text-primary" />
                             Cadastros de Apoio
                           </span>
                           <span className="text-[10px] text-slate-400 font-semibold uppercase">
@@ -315,7 +323,7 @@ export default function Layout() {
                               onClick={() => setApoioPopoverOpen(false)}
                               className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                                 isCargosActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -332,7 +340,7 @@ export default function Layout() {
                               onClick={() => setApoioPopoverOpen(false)}
                               className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                                 isFuncoesActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -349,7 +357,7 @@ export default function Layout() {
                               onClick={() => setApoioPopoverOpen(false)}
                               className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                                 isEtapasActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -366,7 +374,7 @@ export default function Layout() {
                               onClick={() => setApoioPopoverOpen(false)}
                               className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                                 isAnosSeriesActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -389,13 +397,13 @@ export default function Layout() {
                         title="Cadastros de Apoio"
                         className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                           isApoioActive
-                            ? 'text-blue-700 font-semibold bg-blue-50/70'
+                            ? 'text-primary font-semibold bg-primary/10'
                             : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <Database
-                            className={`w-5 h-5 shrink-0 ${isApoioActive ? 'text-blue-700' : 'text-slate-500'}`}
+                            className={`w-5 h-5 shrink-0 ${isApoioActive ? 'text-primary' : 'text-slate-500'}`}
                           />
                           <span className="truncate">Cadastros de Apoio</span>
                         </div>
@@ -415,7 +423,7 @@ export default function Layout() {
                               title="Cargos"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                                 isCargosActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -433,7 +441,7 @@ export default function Layout() {
                               title="Funções"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                                 isFuncoesActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -451,7 +459,7 @@ export default function Layout() {
                               title="Etapas"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                                 isEtapasActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -469,7 +477,7 @@ export default function Layout() {
                               title="Ano/Série"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                                 isAnosSeriesActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -496,14 +504,14 @@ export default function Layout() {
                               aria-label="Cadastros Mestres"
                               className={`flex items-center justify-center w-11 h-11 mx-auto rounded-lg transition-colors cursor-pointer outline-none ${
                                 isMestresActive
-                                  ? 'bg-blue-50 text-blue-700 shadow-xs ring-1 ring-blue-200'
+                                  ? 'bg-primary/10 text-primary shadow-xs ring-1 ring-primary/25'
                                   : mestresPopoverOpen
                                     ? 'bg-slate-100 text-slate-900'
                                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
                               <School
-                                className={`w-5 h-5 ${isMestresActive ? 'text-blue-700' : 'text-slate-600'}`}
+                                className={`w-5 h-5 ${isMestresActive ? 'text-primary' : 'text-slate-600'}`}
                               />
                             </button>
                           </PopoverTrigger>
@@ -520,7 +528,7 @@ export default function Layout() {
                       >
                         <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1 flex items-center justify-between">
                           <span className="text-xs font-bold text-slate-800 tracking-tight flex items-center gap-1.5">
-                            <School className="w-3.5 h-3.5 text-blue-600" />
+                            <School className="w-3.5 h-3.5 text-primary" />
                             Cadastros Mestres
                           </span>
                           <span className="text-[10px] text-slate-400 font-semibold uppercase">
@@ -534,7 +542,7 @@ export default function Layout() {
                               onClick={() => setMestresPopoverOpen(false)}
                               className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                                 isUnidadesActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -550,7 +558,7 @@ export default function Layout() {
                               onClick={() => setMestresPopoverOpen(false)}
                               className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                                 isTurmasActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -566,7 +574,7 @@ export default function Layout() {
                               onClick={() => setMestresPopoverOpen(false)}
                               className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                                 isProfissionaisActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -582,7 +590,7 @@ export default function Layout() {
                               onClick={() => setMestresPopoverOpen(false)}
                               className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                                 isPorteEscolaActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -598,7 +606,7 @@ export default function Layout() {
                               onClick={() => setMestresPopoverOpen(false)}
                               className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                                 isConfigRhActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -614,7 +622,7 @@ export default function Layout() {
                               onClick={() => setMestresPopoverOpen(false)}
                               className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                                 isVagasActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -637,13 +645,13 @@ export default function Layout() {
                         title="Cadastros Mestres"
                         className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                           isMestresActive
-                            ? 'text-blue-700 font-semibold bg-blue-50/70'
+                            ? 'text-primary font-semibold bg-primary/10'
                             : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <School
-                            className={`w-5 h-5 shrink-0 ${isMestresActive ? 'text-blue-700' : 'text-slate-500'}`}
+                            className={`w-5 h-5 shrink-0 ${isMestresActive ? 'text-primary' : 'text-slate-500'}`}
                           />
                           <span className="truncate">Cadastros Mestres</span>
                         </div>
@@ -664,7 +672,7 @@ export default function Layout() {
                               title="Unidades escolares"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                                 isUnidadesActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -681,7 +689,7 @@ export default function Layout() {
                               title="Turmas"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                                 isTurmasActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -698,7 +706,7 @@ export default function Layout() {
                               title="Profissionais"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                                 isProfissionaisActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -715,7 +723,7 @@ export default function Layout() {
                               title="Porte da Escola por Ano Letivo"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                                 isPorteEscolaActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -732,7 +740,7 @@ export default function Layout() {
                               title="Configuração de Vagas por Nível"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                                 isConfigRhActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -749,7 +757,7 @@ export default function Layout() {
                               title="Cadastro de Vagas"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                                 isVagasActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -779,14 +787,14 @@ export default function Layout() {
                               aria-label="Administração do sistema"
                               className={`flex items-center justify-center w-11 h-11 mx-auto rounded-lg transition-colors cursor-pointer outline-none ${
                                 isAdministracaoActive
-                                  ? 'bg-blue-50 text-blue-700 shadow-xs ring-1 ring-blue-200'
+                                  ? 'bg-primary/10 text-primary shadow-xs ring-1 ring-primary/25'
                                   : administracaoPopoverOpen
                                     ? 'bg-slate-100 text-slate-900'
                                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
                               <UserCog
-                                className={`w-5 h-5 ${isAdministracaoActive ? 'text-blue-700' : 'text-slate-600'}`}
+                                className={`w-5 h-5 ${isAdministracaoActive ? 'text-primary' : 'text-slate-600'}`}
                               />
                             </button>
                           </PopoverTrigger>
@@ -803,7 +811,7 @@ export default function Layout() {
                       >
                         <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1 flex items-center justify-between">
                           <span className="text-xs font-bold text-slate-800 tracking-tight flex items-center gap-1.5">
-                            <UserCog className="w-3.5 h-3.5 text-blue-600" />
+                            <UserCog className="w-3.5 h-3.5 text-primary" />
                             Administração
                           </span>
                           <span className="text-[10px] text-slate-400 font-semibold uppercase">
@@ -817,7 +825,7 @@ export default function Layout() {
                               onClick={() => setAdministracaoPopoverOpen(false)}
                               className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                                 isUsuariosActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -834,7 +842,7 @@ export default function Layout() {
                               onClick={() => setAdministracaoPopoverOpen(false)}
                               className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                                 isContasEmailActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -851,7 +859,7 @@ export default function Layout() {
                               onClick={() => setAdministracaoPopoverOpen(false)}
                               className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                                 isAuditoriaActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -868,7 +876,7 @@ export default function Layout() {
                               onClick={() => setAdministracaoPopoverOpen(false)}
                               className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                                 isLimpezaBancoActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -891,13 +899,13 @@ export default function Layout() {
                         title="Administração do sistema"
                         className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                           isAdministracaoActive
-                            ? 'text-blue-700 font-semibold bg-blue-50/70'
+                            ? 'text-primary font-semibold bg-primary/10'
                             : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <UserCog
-                            className={`w-5 h-5 shrink-0 ${isAdministracaoActive ? 'text-blue-700' : 'text-slate-500'}`}
+                            className={`w-5 h-5 shrink-0 ${isAdministracaoActive ? 'text-primary' : 'text-slate-500'}`}
                           />
                           <span className="truncate">Administração do sistema</span>
                         </div>
@@ -918,7 +926,7 @@ export default function Layout() {
                               title="Usuários"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                                 isUsuariosActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -936,7 +944,7 @@ export default function Layout() {
                               title="Contas de Email"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                                 isContasEmailActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -954,7 +962,7 @@ export default function Layout() {
                               title="Auditoria"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                                 isAuditoriaActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -972,7 +980,7 @@ export default function Layout() {
                               title="Rotina de Limpeza do Banco de Dados"
                               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                                 isLimpezaBancoActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                               }`}
                             >
@@ -1031,7 +1039,7 @@ export default function Layout() {
                         size="icon"
                         onClick={() => setIsSidebarCollapsed(false)}
                         aria-label="Expandir menu lateral"
-                        className="w-9 h-9 text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                        className="w-9 h-9 text-slate-400 hover:text-primary hover:bg-primary/10"
                       >
                         <ChevronRight className="w-4 h-4" />
                       </Button>
@@ -1047,13 +1055,13 @@ export default function Layout() {
                 <div className="flex items-center gap-2.5 px-2 py-1">
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                      isAdmin ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                      isAdmin ? 'bg-purple-100 text-purple-700' : 'bg-primary/10 text-primary'
                     }`}
                   >
                     {isAdmin ? (
                       <ShieldCheck className="w-4 h-4" />
                     ) : (
-                      <UserCog className="w-4 h-4" />
+                      <UserCog className="w-4 h-4 text-primary" />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -1062,7 +1070,7 @@ export default function Layout() {
                     </p>
                     <p className="text-[11px] font-medium text-slate-500 truncate flex items-center gap-1">
                       <span>Perfil:</span>
-                      <strong className={isAdmin ? 'text-purple-700' : 'text-blue-700'}>
+                      <strong className={isAdmin ? 'text-purple-700' : 'text-primary'}>
                         {perfil || 'Operador'}
                       </strong>
                     </p>
@@ -1073,7 +1081,7 @@ export default function Layout() {
                   <Button
                     size="sm"
                     onClick={handleSignOut}
-                    className="flex-1 justify-center gap-2 bg-[#0B2545] hover:bg-[#133A68] text-white text-xs"
+                    className="flex-1 justify-center gap-2 text-xs"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     Encerrar Sessão
@@ -1165,7 +1173,7 @@ export default function Layout() {
                 <>
                   <span className="text-slate-600">Cadastros de Apoio</span>
                   <span className="mx-2 text-slate-300">/</span>
-                  <span className="text-blue-700 font-semibold">
+                  <span className="text-primary font-semibold">
                     {isAnosSeriesActive
                       ? 'Ano/Série'
                       : isEtapasActive
@@ -1180,7 +1188,7 @@ export default function Layout() {
                 <>
                   <span className="text-slate-600">Cadastros Mestres</span>
                   <span className="mx-2 text-slate-300">/</span>
-                  <span className="text-blue-700 font-semibold">
+                  <span className="text-primary font-semibold">
                     {isVagasActive
                       ? 'Cadastro de Vagas'
                       : isConfigRhActive
@@ -1199,7 +1207,7 @@ export default function Layout() {
                 <>
                   <span className="text-slate-600">Administração do sistema</span>
                   <span className="mx-2 text-slate-300">/</span>
-                  <span className="text-blue-700 font-semibold">
+                  <span className="text-primary font-semibold">
                     {isLimpezaBancoActive
                       ? 'Rotina de Limpeza do Banco de Dados'
                       : isAuditoriaActive
@@ -1220,11 +1228,7 @@ export default function Layout() {
               <span className="font-medium text-slate-700">{user.email}</span>
             </div>
 
-            <Button
-              size="sm"
-              onClick={handleSignOut}
-              className="text-xs bg-[#0B2545] hover:bg-[#133A68] text-white gap-1.5"
-            >
+            <Button size="sm" onClick={handleSignOut} className="text-xs gap-1.5">
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Sair</span>
             </Button>
