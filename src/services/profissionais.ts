@@ -1,5 +1,10 @@
 import { supabase } from '@/lib/supabase/client'
-import { Profissional, ProfissionalVaga, VagaReal } from '@/types/gestao-escolar'
+import {
+  Profissional,
+  ProfissionalVaga,
+  VagaReal,
+  ClasseProfissional,
+} from '@/types/gestao-escolar'
 import { registrarAuditoria } from './auditoria'
 
 const db = supabase as any
@@ -15,7 +20,39 @@ export interface SalvarProfissionalInput {
   nome: string
   unidade_escolar_id: string
   ativo?: boolean
+  data_admissao?: string | null
+  data_nascimento?: string | null
+  classe?: ClasseProfissional | string | null
   vagas?: VinculoVagaInput[]
+}
+
+/**
+ * Calcula a Classe do Profissional com base no ano da Data de Admissão comparado ao ano vigente:
+ * - Ano de admissão < ano vigente => "Antigos na Rede"
+ * - Ano de admissão = ano vigente => "Novos na Rede"
+ * - Sem data de admissão (legado/fallback) => "Antigos na Rede"
+ */
+export function calcularClasseProfissional(
+  dataAdmissao?: string | null,
+  anoVigente: number = new Date().getFullYear(),
+): ClasseProfissional {
+  if (!dataAdmissao || !dataAdmissao.trim()) {
+    return 'Antigos na Rede'
+  }
+
+  // dataAdmissao geralmente está no formato YYYY-MM-DD
+  const partes = dataAdmissao.trim().split('-')
+  const ano = parseInt(partes[0], 10)
+
+  if (isNaN(ano)) {
+    return 'Antigos na Rede'
+  }
+
+  if (ano < anoVigente) {
+    return 'Antigos na Rede'
+  }
+
+  return 'Novos na Rede'
 }
 
 /**
@@ -105,6 +142,11 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
     profissionalAnterior = await getProfissionalPorId(input.id)
   }
 
+  // Regra automática de classificação da rede pela data de admissão
+  const classeCalculada = calcularClasseProfissional(input.data_admissao)
+  const dataAdmissaoNormalizada = input.data_admissao ? input.data_admissao.trim() : null
+  const dataNascimentoNormalizada = input.data_nascimento ? input.data_nascimento.trim() : null
+
   // 1. Inserir ou atualizar na tabela 'profissionais'
   let profissionalSalvo: Profissional
 
@@ -115,6 +157,9 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
         nome: input.nome.trim(),
         unidade_escolar_id: input.unidade_escolar_id,
         ativo: input.ativo !== undefined ? input.ativo : true,
+        data_admissao: dataAdmissaoNormalizada,
+        data_nascimento: dataNascimentoNormalizada,
+        classe: classeCalculada,
         updated_at: new Date().toISOString(),
       })
       .eq('id', input.id)
@@ -133,6 +178,9 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
         nome: input.nome.trim(),
         unidade_escolar_id: input.unidade_escolar_id,
         ativo: input.ativo !== undefined ? input.ativo : true,
+        data_admissao: dataAdmissaoNormalizada,
+        data_nascimento: dataNascimentoNormalizada,
+        classe: classeCalculada,
       })
       .select('*, unidade_escolar:unidades_escolares(*)')
       .single()
@@ -231,19 +279,54 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
     }
   }
 
-  // 3. Registrar auditoria
+  // 3. Registrar auditoria com rastreabilidade completa de valores antigos e novos
+  const valoresAntigos = profissionalAnterior
+    ? {
+        id: profissionalAnterior.id,
+        codigo: profissionalAnterior.codigo,
+        nome: profissionalAnterior.nome,
+        unidade_escolar_id: profissionalAnterior.unidade_escolar_id,
+        ativo: profissionalAnterior.ativo,
+        data_admissao: profissionalAnterior.data_admissao || null,
+        data_nascimento: profissionalAnterior.data_nascimento || null,
+        classe: profissionalAnterior.classe || null,
+        vagas_vinculadas: (profissionalAnterior.vagas_vinculadas || []).map((v) => ({
+          vaga_id: v.vaga_id,
+          titular: v.titular,
+          cargo_id: v.cargo_id,
+        })),
+      }
+    : null
+
+  const valoresNovos = {
+    id: profissionalSalvo.id,
+    codigo: profissionalSalvo.codigo,
+    nome: profissionalSalvo.nome,
+    unidade_escolar_id: profissionalSalvo.unidade_escolar_id,
+    ativo: profissionalSalvo.ativo,
+    data_admissao: profissionalSalvo.data_admissao || null,
+    data_nascimento: profissionalSalvo.data_nascimento || null,
+    classe: profissionalSalvo.classe || null,
+    vagas_vinculadas: novosVinculos,
+  }
+
   await registrarAuditoria({
     entidade: 'Profissionais',
     acao: isEdicao ? 'Edição' : 'Criação',
     registro_codigo: profissionalSalvo.codigo || null,
     descricao: isEdicao
-      ? `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) atualizado. Vagas vinculadas: ${novosVinculos.length}.`
-      : `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) cadastrado com sucesso. Vagas vinculadas: ${novosVinculos.length}.`,
+      ? `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) atualizado. Classe: "${profissionalSalvo.classe}". Vagas vinculadas: ${novosVinculos.length}.`
+      : `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) cadastrado com sucesso. Classe: "${profissionalSalvo.classe}". Vagas vinculadas: ${novosVinculos.length}.`,
     detalhes: {
       profissional_id: profissionalId,
       nome: profissionalSalvo.nome,
       codigo: profissionalSalvo.codigo,
       unidade_escolar_id: profissionalSalvo.unidade_escolar_id,
+      data_admissao: profissionalSalvo.data_admissao,
+      data_nascimento: profissionalSalvo.data_nascimento,
+      classe: profissionalSalvo.classe,
+      valores_antigos: valoresAntigos,
+      valores_novos: valoresNovos,
       vagas_vinculadas: novosVinculos,
       vagas_liberadas: vagasParaLiberar,
     },

@@ -572,12 +572,17 @@ export interface ProfissionalVaga {
   cargo?: Cargo | null
 }
 
+export type ClasseProfissional = 'Antigos na Rede' | 'Novos na Rede'
+
 export interface Profissional {
   id: string
   codigo?: string // PRO-0001
   nome: string
   unidade_escolar_id: string
   ativo: boolean
+  data_admissao?: string | null
+  data_nascimento?: string | null
+  classe?: ClasseProfissional | string | null
   created_at?: string
   updated_at?: string
   // Relações expandidas

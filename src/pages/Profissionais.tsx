@@ -42,8 +42,10 @@ import {
   Briefcase,
   Eye,
   CheckCircle2,
-  XCircle,
   HelpCircle,
+  Calendar,
+  Sparkles,
+  Info,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
@@ -52,11 +54,18 @@ import {
   salvarProfissional,
   deleteProfissional,
   getVagasPorUnidade,
+  calcularClasseProfissional,
   VinculoVagaInput,
 } from '@/services/profissionais'
 import { getUnidadesEscolares } from '@/services/unidades-escolares'
 import { getCargos } from '@/services/apoio'
-import { Profissional, UnidadeEscolar, Cargo, VagaReal } from '@/types/gestao-escolar'
+import {
+  Profissional,
+  UnidadeEscolar,
+  Cargo,
+  VagaReal,
+  ClasseProfissional,
+} from '@/types/gestao-escolar'
 
 interface LinhaVinculoForm {
   idTemp: string
@@ -75,6 +84,7 @@ export default function Profissionais() {
 
   const [search, setSearch] = useState('')
   const [filtroUnidade, setFiltroUnidade] = useState<string>('todas')
+  const [filtroClasse, setFiltroClasse] = useState<string>('todas')
   const [paginaAtual, setPaginaAtual] = useState<number>(1)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -83,9 +93,15 @@ export default function Profissionais() {
   const [openDialog, setOpenDialog] = useState(false)
   const [editingProfissional, setEditingProfissional] = useState<Profissional | null>(null)
   const [formNome, setFormNome] = useState('')
+  const [formDataAdmissao, setFormDataAdmissao] = useState('')
+  const [formDataNascimento, setFormDataNascimento] = useState('')
+  const [formClasse, setFormClasse] = useState<ClasseProfissional>('Antigos na Rede')
   const [formUnidadeId, setFormUnidadeId] = useState<string>('')
   const [formAtivo, setFormAtivo] = useState(true)
   const [formVinculos, setFormVinculos] = useState<LinhaVinculoForm[]>([])
+
+  // Modal de Ajuda e Regras
+  const [openAjuda, setOpenAjuda] = useState(false)
 
   // Vagas carregadas para a unidade escolar atualmente selecionada no formulário
   const [vagasDaUnidade, setVagasDaUnidade] = useState<VagaReal[]>([])
@@ -168,10 +184,20 @@ export default function Profissionais() {
     setFormVinculos([])
   }
 
+  // Atualizar a classe automaticamente sempre que a Data de Admissão mudar
+  const handleDataAdmissaoChange = (novaData: string) => {
+    setFormDataAdmissao(novaData)
+    const classeDerivada = calcularClasseProfissional(novaData)
+    setFormClasse(classeDerivada)
+  }
+
   // Abrir modal de criação
   const handleOpenCreate = () => {
     setEditingProfissional(null)
     setFormNome('')
+    setFormDataAdmissao('')
+    setFormDataNascimento('')
+    setFormClasse('Antigos na Rede')
     setFormUnidadeId('')
     setFormAtivo(true)
     setFormVinculos([])
@@ -183,6 +209,12 @@ export default function Profissionais() {
   const handleOpenEdit = async (prof: Profissional) => {
     setEditingProfissional(prof)
     setFormNome(prof.nome)
+    const dataAdm = prof.data_admissao || ''
+    setFormDataAdmissao(dataAdm)
+    setFormDataNascimento(prof.data_nascimento || '')
+    const classeDerivada =
+      (prof.classe as ClasseProfissional) || calcularClasseProfissional(dataAdm)
+    setFormClasse(classeDerivada)
     setFormUnidadeId(prof.unidade_escolar_id)
     setFormAtivo(prof.ativo)
 
@@ -287,6 +319,33 @@ export default function Profissionais() {
       return
     }
 
+    if (!formDataAdmissao.trim()) {
+      toast({
+        title: 'Data de Admissão obrigatória',
+        description: 'Informe a Data de Admissão do profissional.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!formDataNascimento.trim()) {
+      toast({
+        title: 'Data de Nascimento obrigatória',
+        description: 'Informe a Data de Nascimento do profissional.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!formClasse) {
+      toast({
+        title: 'Classe do Profissional obrigatória',
+        description: 'Selecione a Classe do Profissional.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     if (!formUnidadeId) {
       toast({
         title: 'Unidade Escolar obrigatória',
@@ -327,6 +386,9 @@ export default function Profissionais() {
         nome: formNome.trim(),
         unidade_escolar_id: formUnidadeId,
         ativo: formAtivo,
+        data_admissao: formDataAdmissao,
+        data_nascimento: formDataNascimento,
+        classe: formClasse,
         vagas: vinculosFinal,
       })
 
@@ -383,18 +445,31 @@ export default function Profissionais() {
       lista = lista.filter((p) => p.unidade_escolar_id === filtroUnidade)
     }
 
+    if (filtroClasse && filtroClasse !== 'todas') {
+      lista = lista.filter((p) => {
+        const classeEfetiva = p.classe || 'Antigos na Rede'
+        return classeEfetiva === filtroClasse
+      })
+    }
+
     if (search.trim()) {
       const term = search.toLowerCase()
       lista = lista.filter((p) => {
         const codigo = (p.codigo || '').toLowerCase()
         const nome = (p.nome || '').toLowerCase()
         const unidadeNome = (p.unidade_escolar?.nome || '').toLowerCase()
-        return codigo.includes(term) || nome.includes(term) || unidadeNome.includes(term)
+        const classe = (p.classe || 'antigos na rede').toLowerCase()
+        return (
+          codigo.includes(term) ||
+          nome.includes(term) ||
+          unidadeNome.includes(term) ||
+          classe.includes(term)
+        )
       })
     }
 
     return lista
-  }, [profissionais, filtroUnidade, search])
+  }, [profissionais, filtroUnidade, filtroClasse, search])
 
   // Paginação 10 registros por página (padrão PaginacaoTabela)
   const itensPorPagina = ITENS_POR_PAGINA_PADRAO
@@ -409,7 +484,7 @@ export default function Profissionais() {
   // Resetar página quando filtros mudarem
   useEffect(() => {
     setPaginaAtual(1)
-  }, [search, filtroUnidade])
+  }, [search, filtroUnidade, filtroClasse])
 
   // Obter cargos permitidos para uma vaga específica (baseado na configuracao_rh_linha_cargo)
   const getCargosPermitidosParaVaga = (vagaId: string): Cargo[] => {
@@ -445,32 +520,43 @@ export default function Profissionais() {
           </p>
         </div>
 
-        {canEditProfissionais && (
+        <div className="flex items-center gap-2">
           <Button
-            onClick={handleOpenCreate}
-            className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center gap-2"
+            variant="outline"
+            onClick={() => setOpenAjuda(true)}
+            className="border-slate-300 text-slate-700 hover:bg-slate-50 flex items-center gap-2"
           >
-            <Plus className="w-4 h-4" />
-            Novo Profissional
+            <HelpCircle className="w-4 h-4 text-blue-600" />
+            Ajuda e Regras
           </Button>
-        )}
+
+          {canEditProfissionais && (
+            <Button
+              onClick={handleOpenCreate}
+              className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Novo Profissional
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Cartão de Filtros e Busca */}
       <Card className="border-slate-200 shadow-xs">
         <CardContent className="p-4 sm:p-5">
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-            <div className="relative flex-1">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+            <div className="relative md:col-span-6">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <Input
-                placeholder="Buscar por identificador (PRO-0001), nome ou escola..."
+                placeholder="Buscar por identificador (PRO-0001), nome, escola ou classe..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 bg-white"
               />
             </div>
 
-            <div className="w-full sm:w-72">
+            <div className="md:col-span-3">
               <Select value={filtroUnidade} onValueChange={setFiltroUnidade}>
                 <SelectTrigger className="bg-white">
                   <SelectValue placeholder="Todas as unidades escolares" />
@@ -482,6 +568,19 @@ export default function Profissionais() {
                       {u.nome}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="md:col-span-3">
+              <Select value={filtroClasse} onValueChange={setFiltroClasse}>
+                <SelectTrigger className="bg-white">
+                  <SelectValue placeholder="Todas as classes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as Classes</SelectItem>
+                  <SelectItem value="Antigos na Rede">Antigos na Rede</SelectItem>
+                  <SelectItem value="Novos na Rede">Novos na Rede</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -524,15 +623,19 @@ export default function Profissionais() {
                   <tr className="bg-slate-100/60 border-b border-slate-200 text-slate-600 font-semibold">
                     <th className="py-3 px-4 w-28">Identificador</th>
                     <th className="py-3 px-4">Nome do Profissional</th>
+                    <th className="py-3 px-4 w-36">Classe</th>
                     <th className="py-3 px-4">Unidade Escolar</th>
                     <th className="py-3 px-4">Vagas Vinculadas</th>
-                    <th className="py-3 px-4 w-24 text-center">Status</th>
+                    <th className="py-3 px-4 w-20 text-center">Status</th>
                     <th className="py-3 px-4 w-28 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {profissionaisPaginados.map((p) => {
                     const qtdVagas = p.vagas_vinculadas?.length || 0
+                    const classeEfetiva = p.classe || 'Antigos na Rede'
+                    const ehNovoNaRede = classeEfetiva === 'Novos na Rede'
+
                     return (
                       <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3 px-4 font-mono font-bold text-blue-700">
@@ -543,6 +646,18 @@ export default function Profissionais() {
                             <UserCheck className="w-4 h-4 text-slate-400 shrink-0" />
                             <span>{p.nome}</span>
                           </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge
+                            className={
+                              ehNovoNaRede
+                                ? 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100 font-semibold text-xs'
+                                : 'bg-sky-100 text-sky-800 border-sky-300 hover:bg-sky-100 font-semibold text-xs'
+                            }
+                            variant="outline"
+                          >
+                            {classeEfetiva}
+                          </Badge>
                         </td>
                         <td className="py-3 px-4 text-slate-700">
                           <div className="flex items-center gap-1.5">
@@ -686,6 +801,81 @@ export default function Profissionais() {
                   className="mt-1"
                   required
                 />
+              </div>
+
+              {/* Novos campos exigidos posicionados LOGO ABAIXO do Nome do Profissional, nesta ordem exata: */}
+              {/* 1. Data de Admissão */}
+              <div>
+                <Label
+                  htmlFor="data_admissao"
+                  className="text-xs font-semibold text-slate-700 flex items-center gap-1.5"
+                >
+                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                  Data de Admissão <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  id="data_admissao"
+                  type="date"
+                  value={formDataAdmissao}
+                  onChange={(e) => handleDataAdmissaoChange(e.target.value)}
+                  className="mt-1 bg-white"
+                  required
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  A data de admissão determina automaticamente a classe do profissional no sistema.
+                </p>
+              </div>
+
+              {/* 2. Data de Nascimento */}
+              <div>
+                <Label
+                  htmlFor="data_nascimento"
+                  className="text-xs font-semibold text-slate-700 flex items-center gap-1.5"
+                >
+                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                  Data de Nascimento <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  id="data_nascimento"
+                  type="date"
+                  value={formDataNascimento}
+                  onChange={(e) => setFormDataNascimento(e.target.value)}
+                  className="mt-1 bg-white"
+                  required
+                />
+              </div>
+
+              {/* 3. Classe do Profissional (logo após Data de Nascimento) */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label
+                    htmlFor="classe"
+                    className="text-xs font-semibold text-slate-700 flex items-center gap-1.5"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    Classe do Profissional <span className="text-rose-500">*</span>
+                  </Label>
+                  <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                    Classificação Automática
+                  </span>
+                </div>
+                <Select
+                  value={formClasse}
+                  onValueChange={(val: ClasseProfissional) => setFormClasse(val)}
+                >
+                  <SelectTrigger id="classe" className="mt-1 bg-white">
+                    <SelectValue placeholder="Selecione a classe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Antigos na Rede">Antigos na Rede</SelectItem>
+                    <SelectItem value="Novos na Rede">Novos na Rede</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {formDataAdmissao
+                    ? `Calculada automaticamente: ano de admissão (${formDataAdmissao.split('-')[0] || '-'}) comparado ao ano vigente (${new Date().getFullYear()}).`
+                    : 'Preenchida automaticamente ao selecionar a Data de Admissão.'}
+                </p>
               </div>
 
               {/* Unidade Escolar do Profissional */}
@@ -961,6 +1151,45 @@ export default function Profissionais() {
                     {viewingProfissional.nome}
                   </span>
                 </div>
+                <div>
+                  <span className="text-slate-400 uppercase font-semibold text-[10px] block">
+                    Data de Admissão
+                  </span>
+                  <span className="font-medium text-slate-800 text-sm">
+                    {viewingProfissional.data_admissao
+                      ? new Date(
+                          `${viewingProfissional.data_admissao}T00:00:00`,
+                        ).toLocaleDateString('pt-BR')
+                      : 'Não informada'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 uppercase font-semibold text-[10px] block">
+                    Data de Nascimento
+                  </span>
+                  <span className="font-medium text-slate-800 text-sm">
+                    {viewingProfissional.data_nascimento
+                      ? new Date(
+                          `${viewingProfissional.data_nascimento}T00:00:00`,
+                        ).toLocaleDateString('pt-BR')
+                      : 'Não informada'}
+                  </span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-slate-400 uppercase font-semibold text-[10px] block">
+                    Classe do Profissional
+                  </span>
+                  <Badge
+                    className={
+                      (viewingProfissional.classe || 'Antigos na Rede') === 'Novos na Rede'
+                        ? 'bg-amber-100 text-amber-800 border-amber-300 font-semibold text-xs mt-1'
+                        : 'bg-sky-100 text-sky-800 border-sky-300 font-semibold text-xs mt-1'
+                    }
+                    variant="outline"
+                  >
+                    {viewingProfissional.classe || 'Antigos na Rede'}
+                  </Badge>
+                </div>
                 <div className="col-span-2">
                   <span className="text-slate-400 uppercase font-semibold text-[10px] block">
                     Unidade Escolar
@@ -1038,6 +1267,129 @@ export default function Profissionais() {
               Fechar
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Ajuda e Regras */}
+      <Dialog open={openAjuda} onOpenChange={setOpenAjuda}>
+        <DialogContent className="p-6 rounded-2xl sm:max-w-[620px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="space-y-1.5 text-left">
+            <div className="flex items-center gap-2 text-[#0B2545]">
+              <div className="p-2 rounded-lg bg-blue-50">
+                <HelpCircle className="w-5 h-5 text-blue-600" />
+              </div>
+              <DialogTitle className="text-xl font-bold text-slate-900">
+                Ajuda e Regras — Cadastro de Profissionais
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-slate-600">
+              Orientações sobre os atributos do profissional, a regra de classificação automática da
+              rede e o vínculo com vagas.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2 text-sm text-slate-700 leading-relaxed">
+            {/* Bloco 1: Novos Atributos e Obrigatoriedade */}
+            <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/70 space-y-2">
+              <h4 className="font-semibold text-blue-950 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-700" /> Atributos Cadastrais Obrigatórios
+              </h4>
+              <p className="text-xs text-blue-900 font-medium">
+                O formulário de cadastro contempla os seguintes campos no bloco superior de
+                identificação:
+              </p>
+              <ol className="text-xs list-decimal list-inside space-y-1.5 text-slate-700 pl-1">
+                <li>
+                  <strong>Identificador do Profissional (Automático):</strong> Código sequencial
+                  gerado automaticamente pelo sistema (ex: <code>PRO-0001</code>), somente leitura.
+                </li>
+                <li>
+                  <strong>Nome do Profissional:</strong> Nome completo do servidor/profissional
+                  (obrigatório).
+                </li>
+                <li>
+                  <strong>Data de Admissão:</strong> Data de ingresso do profissional na rede
+                  municipal de ensino (obrigatório).
+                </li>
+                <li>
+                  <strong>Data de Nascimento:</strong> Data de nascimento do profissional
+                  (obrigatório).
+                </li>
+                <li>
+                  <strong>Classe do Profissional:</strong> Opção entre <em>"Antigos na Rede"</em> e{' '}
+                  <em>"Novos na Rede"</em> (obrigatório), posicionada logo após a Data de
+                  Nascimento.
+                </li>
+                <li>
+                  <strong>Unidade Escolar:</strong> Escola ou CMEI de lotação do profissional
+                  (obrigatório).
+                </li>
+              </ol>
+            </div>
+
+            {/* Bloco 2: Regra de Classificação Automática pela Data de Admissão */}
+            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/70 space-y-2">
+              <h4 className="font-semibold text-amber-950 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-700" /> Regra de Classificação Automática da
+                Classe
+              </h4>
+              <p className="text-xs text-amber-900 font-medium">
+                A classe do profissional é determinada automaticamente a partir do ano da{' '}
+                <strong>Data de Admissão</strong> em comparação ao ano vigente (
+                {new Date().getFullYear()}):
+              </p>
+              <ul className="text-xs list-disc list-inside space-y-1.5 text-slate-700 pl-1">
+                <li>
+                  <strong>Antigos na Rede:</strong> Profissionais admitidos em anos{' '}
+                  <strong>ANTERIORES</strong> ao ano vigente (ano da admissão &lt;{' '}
+                  {new Date().getFullYear()}).
+                </li>
+                <li>
+                  <strong>Novos na Rede:</strong> Profissionais admitidos{' '}
+                  <strong>NO ANO VIGENTE</strong> (ano da admissão = {new Date().getFullYear()}).
+                </li>
+                <li>
+                  <strong>Registros antigos sem data de admissão:</strong> Profissionais previamente
+                  cadastrados sem data de admissão são classificados por padrão como{' '}
+                  <em>"Antigos na Rede"</em>, garantindo que nada quebre e preservando a
+                  continuidade operacional.
+                </li>
+                <li>
+                  <strong>Derivação ao salvar:</strong> Ao preencher a data de admissão no
+                  formulário, a classe é atualizada automaticamente, sendo revalidada e gravada de
+                  forma consistente no salvamento.
+                </li>
+              </ul>
+            </div>
+
+            {/* Bloco 3: Vínculos com Vagas e Rastreabilidade */}
+            <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/50 space-y-2">
+              <h4 className="font-semibold text-emerald-950 flex items-center gap-2">
+                <Info className="w-4 h-4 text-emerald-600" /> Vínculo de Vagas e Auditoria
+              </h4>
+              <ul className="text-xs list-disc list-inside space-y-1 text-slate-700 pl-1">
+                <li>
+                  O profissional pode ser vinculado a uma ou mais vagas da sua unidade escolar, com
+                  definição de titularidade (Titular/Suplente) e cargo ocupado.
+                </li>
+                <li>
+                  Todas as operações de criação, edição e exclusão registram na{' '}
+                  <strong>Auditoria</strong> os valores antigos e novos dos campos, incluindo data
+                  de admissão, data de nascimento e classe do profissional.
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4 border-t border-slate-100 mt-2">
+            <Button
+              type="button"
+              onClick={() => setOpenAjuda(false)}
+              className="bg-[#0B2545] hover:bg-[#133A68] text-white"
+            >
+              Entendido
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
