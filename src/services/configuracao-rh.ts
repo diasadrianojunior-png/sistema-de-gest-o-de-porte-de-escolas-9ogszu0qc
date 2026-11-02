@@ -145,11 +145,15 @@ export async function salvarConfiguracaoRhCabecalho(
     acao: isEdicao ? 'Edição' : 'Criação',
     registro_codigo: data.codigo || null,
     descricao: `${isEdicao ? 'Atualizou' : 'Criou'} configuração de RH "${data.tipo_atendimento}" (${data.ano_letivo}) com status ${data.status}.`,
+    usuario_nome: usuarioNome,
+    usuario_email: usuarioEmail,
     detalhes: {
       id: data.id,
+      codigo: data.codigo,
       tipo_atendimento: data.tipo_atendimento,
       ano_letivo: data.ano_letivo,
       status: data.status,
+      observacao: data.observacao,
     },
   })
 
@@ -213,7 +217,16 @@ export async function alterarStatusConfiguracaoRh(
     acao: 'Status',
     registro_codigo: data.codigo || null,
     descricao: `Alterou status da configuração RH "${data.tipo_atendimento}" (${data.ano_letivo}) de ${cfg.status} para ${novoStatus}.`,
-    detalhes: { id: data.id, statusAnterior: cfg.status, novoStatus },
+    usuario_nome: usuarioNome,
+    usuario_email: usuarioEmail,
+    detalhes: {
+      id: data.id,
+      codigo: data.codigo,
+      tipo_atendimento: data.tipo_atendimento,
+      ano_letivo: data.ano_letivo,
+      statusAnterior: cfg.status,
+      novoStatus,
+    },
   })
 
   return data
@@ -338,9 +351,14 @@ export async function duplicarConfiguracaoRh(
     acao: 'Duplicação',
     registro_codigo: novaCfg.codigo || null,
     descricao: `Duplicou a configuração ${origem.codigo || origem.tipo_atendimento} (${origem.ano_letivo}) para o ano ${novoAnoLetivo} gerando ${novaCfg.codigo}.`,
+    usuario_nome: usuarioNome,
+    usuario_email: usuarioEmail,
     detalhes: {
       origem_id: origemId,
+      origem_codigo: origem.codigo,
+      origem_ano_letivo: origem.ano_letivo,
       novo_id: novaCfg.id,
+      novo_codigo: novaCfg.codigo,
       ano_letivo: novoAnoLetivo,
       tipo_atendimento: tipoFinal,
     },
@@ -483,6 +501,8 @@ export async function salvarEstruturaCompletaConfiguracaoRh(
     acao: 'Edição',
     registro_codigo: configuracaoId,
     descricao: `Atualizou estrutura da grade de RH: ${novosNiveisIds.length} níveis e ${novasLinhasIds.length} linhas.`,
+    usuario_nome: usuarioNome,
+    usuario_email: usuarioEmail,
     detalhes: {
       configuracao_id: configuracaoId,
       total_niveis: novosNiveisIds.length,
@@ -517,6 +537,13 @@ export async function deleteConfiguracaoRh(
     acao: 'Exclusão',
     registro_codigo: cfg.codigo || null,
     descricao: `Excluiu a configuração RH "${cfg.tipo_atendimento}" (${cfg.ano_letivo}).`,
-    detalhes: { id, tipo_atendimento: cfg.tipo_atendimento, ano_letivo: cfg.ano_letivo },
+    usuario_nome: usuarioNome,
+    usuario_email: usuarioEmail,
+    detalhes: {
+      id,
+      codigo: cfg.codigo,
+      tipo_atendimento: cfg.tipo_atendimento,
+      ano_letivo: cfg.ano_letivo,
+    },
   })
 }

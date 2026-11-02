@@ -16,6 +16,7 @@ import {
   ResultadoCalculoVagas,
 } from '@/services/configuracao-rh-calculo'
 import { getFuncoes, getCargos } from '@/services/apoio'
+import { ANOS_LETIVOS } from './Etapas'
 import {
   ConfiguracaoRh,
   ConfiguracaoRhCompleta,
@@ -168,7 +169,10 @@ export default function ConfigRhNivel() {
   // Dialogs de controle
   const [dialogNovaCfgAberto, setDialogNovaCfgAberto] = useState(false)
   const [novaCfgTipo, setNovaCfgTipo] = useState(OPCOES_TIPO_ATENDIMENTO[0])
-  const [novaCfgAno, setNovaCfgAno] = useState(new Date().getFullYear())
+  const [novaCfgAno, setNovaCfgAno] = useState<number>(() => {
+    const anoAtual = new Date().getFullYear()
+    return anoAtual >= 2020 && anoAtual <= 2040 ? anoAtual : 2026
+  })
 
   const [dialogDuplicarAberto, setDialogDuplicarAberto] = useState(false)
   const [duplicarAno, setDuplicarAno] = useState(new Date().getFullYear() + 1)
@@ -903,12 +907,22 @@ export default function ConfigRhNivel() {
 
   // Ação Criar Nova Configuração
   const handleConfirmarNovaCfg = async () => {
+    const ano = Number(novaCfgAno)
+    if (!ano || ano < 2020 || ano > 2040) {
+      toast({
+        title: 'Atenção',
+        description: 'Selecione um ano letivo válido entre 2020 e 2040.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     try {
       setSalvando(true)
       const nova = await salvarConfiguracaoRhCabecalho(
         {
           tipo_atendimento: novaCfgTipo,
-          ano_letivo: Number(novaCfgAno),
+          ano_letivo: ano,
           status: 'RASCUNHO',
           observacao: 'Nova configuração em rascunho.',
         },
@@ -1131,7 +1145,12 @@ export default function ConfigRhNivel() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setDialogNovaCfgAberto(true)}
+                onClick={() => {
+                  const anoAtual = new Date().getFullYear()
+                  setNovaCfgAno(anoAtual >= 2020 && anoAtual <= 2040 ? anoAtual : 2026)
+                  setNovaCfgTipo(OPCOES_TIPO_ATENDIMENTO[0])
+                  setDialogNovaCfgAberto(true)
+                }}
                 className="text-xs gap-1.5"
               >
                 <Plus className="w-4 h-4 text-blue-600" />
@@ -2555,11 +2574,22 @@ export default function ConfigRhNivel() {
             </div>
 
             <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-1.5">
+              <h4 className="font-bold text-slate-900">Ano Letivo no Padrão do Sistema</h4>
+              <p>
+                Na abertura e cadastro de uma nova Configuração de RH, a seleção do{' '}
+                <strong>Ano Letivo</strong> segue o padrão adotado pelos demais módulos da rede
+                (como Etapas, Anos/Séries, Porte da Escola e Turmas), através de uma lista de
+                seleção (combobox) abrangendo os anos de 2020 a 2040 (inclusive).
+              </p>
+            </div>
+
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-1.5">
               <h4 className="font-bold text-slate-900">Auditoria e Rastreabilidade</h4>
               <p>
-                Toda criação, alteração ou exclusão de níveis, linhas de função, linhas de cargo e
-                células é registrada no histórico de Auditoria do sistema com identificação do
-                usuário responsável, data/hora e valores alterados.
+                Toda criação, alteração ou exclusão de configurações de RH, níveis, linhas de
+                função, linhas de cargo e células é registrada no histórico de Auditoria do sistema
+                com identificação do usuário responsável, data/hora, tipo de atendimento e ano
+                letivo escolhido.
               </p>
             </div>
           </div>
@@ -2659,15 +2689,29 @@ export default function ConfigRhNivel() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-700">Ano Letivo</Label>
-              <Input
-                type="number"
-                min={2020}
-                max={2050}
-                value={novaCfgAno}
-                onChange={(e) => setNovaCfgAno(parseInt(e.target.value) || 2026)}
-                className="text-sm font-bold text-center"
-              />
+              <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                Ano Letivo
+              </Label>
+              <Select
+                value={String(novaCfgAno)}
+                onValueChange={(val) => setNovaCfgAno(Number(val))}
+              >
+                <SelectTrigger className="text-xs">
+                  <SelectValue placeholder="Selecione o ano letivo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ANOS_LETIVOS.map((ano) => (
+                    <SelectItem key={ano} value={String(ano)} className="text-xs">
+                      Ano {ano}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                Selecione o ano letivo de vigência desta configuração (faixa 2020 a 2040).
+              </p>
             </div>
           </div>
 
