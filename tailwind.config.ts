@@ -4,6 +4,20 @@ import animatePlugin from 'tailwindcss-animate'
 import typographyPlugin from '@tailwindcss/typography'
 import aspectRatioPlugin from '@tailwindcss/aspect-ratio'
 
+try {
+  const fs = require('node:fs')
+  const path = require('node:path')
+  const src = path.resolve(process.cwd(), 'src/assets/logo-cambe-ef786.png')
+  const dest = path.resolve(process.cwd(), 'public/logo-cambe.png')
+  const destFavicon = path.resolve(process.cwd(), 'public/favicon.ico')
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, dest)
+    fs.copyFileSync(src, destFavicon)
+  }
+} catch {
+  // ignore
+}
+
 export default {
   darkMode: ['class'],
   content: [
