@@ -544,6 +544,7 @@ export interface VagaReal {
   nome_ocupante?: string | null
   status: StatusVagaReal
   observacao?: string | null
+  vaga_excedente?: boolean
   created_at?: string
   updated_at?: string
   // Vínculos expandidos

@@ -100,6 +100,7 @@ export const VagasPage: React.FC = () => {
   const [modalidadeFiltro, setModalidadeFiltro] = useState<string>('TODAS')
   const [statusFiltro, setStatusFiltro] = useState<StatusVagaReal | 'TODAS'>('TODAS')
   const [comOcupanteFiltro, setComOcupanteFiltro] = useState<'TODAS' | 'COM' | 'SEM'>('TODAS')
+  const [vagaExcedenteFiltro, setVagaExcedenteFiltro] = useState<'TODAS' | 'SIM' | 'NAO'>('TODAS')
   const [buscaTexto, setBuscaTexto] = useState<string>('')
   const [paginaAtual, setPaginaAtual] = useState<number>(1)
 
@@ -196,6 +197,7 @@ export const VagasPage: React.FC = () => {
         modalidade: modalidadeFiltro,
         status: statusFiltro,
         comOcupante: comOcupanteFiltro,
+        vagaExcedente: vagaExcedenteFiltro,
         buscaTexto,
       })
       setVagas(listaVagas)
@@ -226,6 +228,7 @@ export const VagasPage: React.FC = () => {
     modalidadeFiltro,
     statusFiltro,
     comOcupanteFiltro,
+    vagaExcedenteFiltro,
     buscaTexto,
   ])
 
@@ -906,6 +909,7 @@ export const VagasPage: React.FC = () => {
               setModalidadeFiltro('TODAS')
               setStatusFiltro('TODAS')
               setComOcupanteFiltro('TODAS')
+              setVagaExcedenteFiltro('TODAS')
               setBuscaTexto('')
             }}
             className="text-xs text-slate-500 hover:text-slate-800 h-7 px-2"
@@ -914,7 +918,7 @@ export const VagasPage: React.FC = () => {
           </Button>
         </CardHeader>
         <CardContent className="p-4 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
             {/* Função */}
             <div>
               <Label className="text-xs text-slate-600 font-medium">Função</Label>
@@ -1005,6 +1009,24 @@ export const VagasPage: React.FC = () => {
               </Select>
             </div>
 
+            {/* Vaga Excedente */}
+            <div>
+              <Label className="text-xs text-slate-600 font-medium">Vaga Excedente</Label>
+              <Select
+                value={vagaExcedenteFiltro}
+                onValueChange={(val: any) => setVagaExcedenteFiltro(val)}
+              >
+                <SelectTrigger className="mt-1 h-9 text-xs">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TODAS">Todos</SelectItem>
+                  <SelectItem value="SIM">Sim</SelectItem>
+                  <SelectItem value="NAO">Não</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Com Ocupante */}
             <div>
               <Label className="text-xs text-slate-600 font-medium">Ocupante</Label>
@@ -1024,7 +1046,7 @@ export const VagasPage: React.FC = () => {
             </div>
 
             {/* Busca textual livre */}
-            <div className="sm:col-span-2 md:col-span-4 lg:col-span-6">
+            <div className="sm:col-span-2 md:col-span-4 lg:col-span-7">
               <Label className="text-xs text-slate-600 font-medium">
                 Busca textual (nome do ocupante, código, função, cargo)
               </Label>
@@ -1089,6 +1111,9 @@ export const VagasPage: React.FC = () => {
                 <TableHead className="w-24 text-center font-semibold text-slate-700">
                   Status
                 </TableHead>
+                <TableHead className="w-28 text-center font-semibold text-slate-700">
+                  Vaga Excedente
+                </TableHead>
                 <TableHead className="w-28 text-right font-semibold text-slate-700">
                   Ações
                 </TableHead>
@@ -1097,14 +1122,14 @@ export const VagasPage: React.FC = () => {
             <TableBody>
               {carregando ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="h-32 text-center text-slate-500">
+                  <TableCell colSpan={12} className="h-32 text-center text-slate-500">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-600 mb-2" />
                     Carregando vagas...
                   </TableCell>
                 </TableRow>
               ) : vagas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="h-36 text-center text-slate-500">
+                  <TableCell colSpan={12} className="h-36 text-center text-slate-500">
                     <p className="font-semibold text-slate-700 text-sm">
                       Nenhuma vaga cadastrada para {unidadeAtual?.nome} em {anoLetivo}
                     </p>
@@ -1204,6 +1229,18 @@ export const VagasPage: React.FC = () => {
                         }`}
                       >
                         {v.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] font-semibold tracking-wider ${
+                          v.vaga_excedente
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-slate-50 text-slate-600 border-slate-200'
+                        }`}
+                      >
+                        {v.vaga_excedente ? 'Sim' : 'Não'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -1676,6 +1713,30 @@ export const VagasPage: React.FC = () => {
           </DialogHeader>
 
           <div className="space-y-3.5 py-2">
+            {/* Vaga Excedente (Somente Leitura) */}
+            <div>
+              <Label className="text-xs font-semibold text-slate-700">
+                Vaga Excedente (Definido pelo sistema)
+              </Label>
+              <div className="mt-1 flex items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={`text-xs font-semibold py-1 px-2.5 ${
+                    vagaEmEdicao?.vaga_excedente
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-slate-50 text-slate-600 border-slate-200'
+                  }`}
+                >
+                  {vagaEmEdicao?.vaga_excedente ? 'Sim' : 'Não'}
+                </Badge>
+                <span className="text-[11px] text-slate-400">
+                  {vagaEmEdicao?.vaga_excedente
+                    ? 'Origem: Inserção manual no sistema (não editável).'
+                    : 'Origem: Geração automática pelo porte e matriz (não editável).'}
+                </span>
+              </div>
+            </div>
+
             {/* Ocupante */}
             <div>
               <Label className="text-xs font-semibold text-slate-700">Nome do Ocupante</Label>
@@ -1966,14 +2027,50 @@ export const VagasPage: React.FC = () => {
 
             <div>
               <h4 className="font-bold text-slate-900 text-sm mb-1">
-                4. Inserção, Edição e Exclusão Manual de Vagas
+                4. Atributo "Vaga Excedente" vs Status "EXCEDENTE"
+              </h4>
+              <p>
+                O sistema possui um atributo específico chamado <strong>Vaga Excedente</strong>{' '}
+                (valores <em>Sim</em> ou <em>Não</em>), preenchido de forma totalmente automática
+                pelo sistema de acordo com a origem da vaga:
+              </p>
+              <ul className="list-disc pl-5 space-y-1 mt-1">
+                <li>
+                  <strong>Vaga Excedente = Não:</strong> gravado em todas as vagas criadas pelo
+                  processo de <em>Geração Automática de Vagas</em>, dimensionadas pela matriz e
+                  porte escolar.
+                </li>
+                <li>
+                  <strong>Vaga Excedente = Sim:</strong> gravado em todas as vagas criadas por{' '}
+                  <em>Inserção Manual</em> no sistema (vagas extras inseridas pelo operador).
+                </li>
+                <li>
+                  <strong>Somente leitura:</strong> o campo é determinado exclusivamente pela origem
+                  da vaga e não pode ser alterado manualmente pelo usuário nos formulários de
+                  edição.
+                </li>
+                <li>
+                  <strong>Diferença do Status "EXCEDENTE":</strong> o <em>status EXCEDENTE</em>{' '}
+                  continua sendo utilizado na regeneração de vagas quando uma vaga anteriormente
+                  ocupada excede o novo quantitativo dimensionado pelo porte, servindo para
+                  remanejamento. O novo atributo <em>Vaga Excedente (Sim/Não)</em> refere-se
+                  unicamente à origem da criação da vaga (manual vs automática) e não interfere no
+                  fluxo de cálculo ou regeneração.
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-bold text-slate-900 text-sm mb-1">
+                5. Inserção, Edição e Exclusão Manual de Vagas
               </h4>
               <p>O sistema permite a gestão manual de vagas além da geração automática:</p>
               <ul className="list-disc pl-5 space-y-1 mt-1">
                 <li>
                   <strong>Inserir vaga manual:</strong> selecione a função (a partir das linhas da
                   configuração vigente), cargo (filtrado apenas pelos cargos permitidos da linha),
-                  período, modalidade e ocupante.
+                  período, modalidade e ocupante. Toda vaga inserida manualmente recebe
+                  automaticamente <strong>Vaga Excedente = Sim</strong>.
                 </li>
                 <li>
                   <strong>Regra de Status:</strong> com ocupante informado o status é
@@ -1989,11 +2086,11 @@ export const VagasPage: React.FC = () => {
             </div>
 
             <div>
-              <h4 className="font-bold text-slate-900 text-sm mb-1">5. Auditoria de Ações</h4>
+              <h4 className="font-bold text-slate-900 text-sm mb-1">6. Auditoria de Ações</h4>
               <p>
                 Todas as operações de geração, regeração, inserção manual, edição e exclusão de
-                vagas são registradas na Auditoria com o usuário responsável, data/hora e valores
-                antigos/novos.
+                vagas são registradas na Auditoria com o usuário responsável, data/hora, valores
+                antigos/novos e o valor do atributo <strong>Vaga Excedente</strong> correspondente.
               </p>
             </div>
           </div>

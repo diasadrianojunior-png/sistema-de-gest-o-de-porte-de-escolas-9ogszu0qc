@@ -18,6 +18,7 @@ export function exportarVagasExcel(vagas: VagaReal[], nomeArquivo = 'cadastro-va
     'Cargo',
     'Ocupante',
     'Status',
+    'Vaga Excedente',
     'Observação',
   ]
 
@@ -39,6 +40,7 @@ export function exportarVagasExcel(vagas: VagaReal[], nomeArquivo = 'cadastro-va
       `"${(v.cargo?.nome || '').replace(/"/g, '""')}"`,
       `"${(v.nome_ocupante || '').replace(/"/g, '""')}"`,
       v.status,
+      v.vaga_excedente ? 'Sim' : 'Não',
       `"${(v.observacao || '').replace(/"/g, '""')}"`,
     ].join(';')
   })
@@ -97,6 +99,16 @@ export function exportarVagasPDF(
                   : 'background: #dbeafe; color: #1d4ed8;'
             }">
             ${v.status}
+          </span>
+        </td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center;">
+          <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;
+            ${
+              v.vaga_excedente
+                ? 'background: #ffedd5; color: #c2410c;'
+                : 'background: #f1f5f9; color: #475569;'
+            }">
+            ${v.vaga_excedente ? 'Sim' : 'Não'}
           </span>
         </td>
       </tr>
@@ -158,6 +170,7 @@ export function exportarVagasPDF(
             <th>Cargo</th>
             <th>Nome do Ocupante</th>
             <th style="width: 70px; text-align: center;">Status</th>
+            <th style="width: 90px; text-align: center;">Vaga Excedente</th>
           </tr>
         </thead>
         <tbody>

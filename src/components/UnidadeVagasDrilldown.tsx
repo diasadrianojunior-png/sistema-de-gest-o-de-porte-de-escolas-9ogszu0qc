@@ -102,6 +102,7 @@ export const UnidadeVagasDrilldown: React.FC<UnidadeVagasDrilldownProps> = ({
   const [statusFiltro, setStatusFiltro] = useState<StatusVagaReal | 'TODAS'>('TODAS')
   const [periodoFiltro, setPeriodoFiltro] = useState<string>('TODOS')
   const [comOcupanteFiltro, setComOcupanteFiltro] = useState<'TODAS' | 'COM' | 'SEM'>('TODAS')
+  const [vagaExcedenteFiltro, setVagaExcedenteFiltro] = useState<'TODAS' | 'SIM' | 'NAO'>('TODAS')
   const [buscaTexto, setBuscaTexto] = useState<string>('')
   const [paginaAtual, setPaginaAtual] = useState<number>(1)
 
@@ -132,6 +133,7 @@ export const UnidadeVagasDrilldown: React.FC<UnidadeVagasDrilldownProps> = ({
           periodo: periodoFiltro,
           status: statusFiltro,
           comOcupante: comOcupanteFiltro,
+          vagaExcedente: vagaExcedenteFiltro,
           buscaTexto,
         }),
         getUnidadeEscolarAno(unidade.id, anoLetivo),
@@ -167,6 +169,7 @@ export const UnidadeVagasDrilldown: React.FC<UnidadeVagasDrilldownProps> = ({
     statusFiltro,
     periodoFiltro,
     comOcupanteFiltro,
+    vagaExcedenteFiltro,
     buscaTexto,
   ])
 
@@ -522,6 +525,7 @@ export const UnidadeVagasDrilldown: React.FC<UnidadeVagasDrilldownProps> = ({
               setFuncaoFiltro('TODAS')
               setCargoFiltro('TODOS')
               setStatusFiltro('TODAS')
+              setVagaExcedenteFiltro('TODAS')
               setPeriodoFiltro('TODOS')
               setComOcupanteFiltro('TODAS')
               setBuscaTexto('')
@@ -532,7 +536,7 @@ export const UnidadeVagasDrilldown: React.FC<UnidadeVagasDrilldownProps> = ({
           </Button>
         </CardHeader>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
             {/* Função */}
             <div>
               <Label className="text-xs text-slate-600 font-medium">Função</Label>
@@ -608,6 +612,24 @@ export const UnidadeVagasDrilldown: React.FC<UnidadeVagasDrilldownProps> = ({
               </Select>
             </div>
 
+            {/* Vaga Excedente */}
+            <div>
+              <Label className="text-xs text-slate-600 font-medium">Vaga Excedente</Label>
+              <Select
+                value={vagaExcedenteFiltro}
+                onValueChange={(val: any) => setVagaExcedenteFiltro(val)}
+              >
+                <SelectTrigger className="mt-1 h-9 text-xs">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TODAS">Todos</SelectItem>
+                  <SelectItem value="SIM">Sim</SelectItem>
+                  <SelectItem value="NAO">Não</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Com Ocupante */}
             <div>
               <Label className="text-xs text-slate-600 font-medium">Ocupante</Label>
@@ -627,7 +649,7 @@ export const UnidadeVagasDrilldown: React.FC<UnidadeVagasDrilldownProps> = ({
             </div>
 
             {/* Busca textual */}
-            <div>
+            <div className="sm:col-span-2 md:col-span-3 lg:col-span-7">
               <Label className="text-xs text-slate-600 font-medium">Busca livre</Label>
               <div className="relative mt-1">
                 <Search className="w-3.5 h-3.5 absolute left-2.5 top-3 text-slate-400" />
@@ -684,6 +706,9 @@ export const UnidadeVagasDrilldown: React.FC<UnidadeVagasDrilldownProps> = ({
                 <TableHead className="w-24 text-center font-semibold text-slate-700">
                   Status
                 </TableHead>
+                <TableHead className="w-28 text-center font-semibold text-slate-700">
+                  Vaga Excedente
+                </TableHead>
                 <TableHead className="w-28 text-right font-semibold text-slate-700">
                   Ações
                 </TableHead>
@@ -692,14 +717,14 @@ export const UnidadeVagasDrilldown: React.FC<UnidadeVagasDrilldownProps> = ({
             <TableBody>
               {carregando ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-32 text-center text-slate-500">
+                  <TableCell colSpan={10} className="h-32 text-center text-slate-500">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-600 mb-2" />
                     Carregando vagas da unidade...
                   </TableCell>
                 </TableRow>
               ) : vagas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-36 text-center text-slate-500">
+                  <TableCell colSpan={10} className="h-36 text-center text-slate-500">
                     <p className="font-semibold text-slate-700 text-sm">
                       Nenhuma vaga cadastrada para {unidade.nome} em {anoLetivo}
                     </p>
@@ -786,6 +811,18 @@ export const UnidadeVagasDrilldown: React.FC<UnidadeVagasDrilldownProps> = ({
                         }`}
                       >
                         {v.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] font-semibold tracking-wider ${
+                          v.vaga_excedente
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-slate-50 text-slate-600 border-slate-200'
+                        }`}
+                      >
+                        {v.vaga_excedente ? 'Sim' : 'Não'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right space-x-1">
@@ -1027,6 +1064,29 @@ export const UnidadeVagasDrilldown: React.FC<UnidadeVagasDrilldownProps> = ({
           </DialogHeader>
 
           <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-xs font-semibold text-slate-700">
+                Vaga Excedente (Definido pelo sistema)
+              </Label>
+              <div className="mt-1 flex items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={`text-xs font-semibold py-1 px-2.5 ${
+                    vagaEmEdicao?.vaga_excedente
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-slate-50 text-slate-600 border-slate-200'
+                  }`}
+                >
+                  {vagaEmEdicao?.vaga_excedente ? 'Sim' : 'Não'}
+                </Badge>
+                <span className="text-[11px] text-slate-400">
+                  {vagaEmEdicao?.vaga_excedente
+                    ? 'Origem: Inserção manual no sistema (não editável).'
+                    : 'Origem: Geração automática pelo porte e matriz (não editável).'}
+                </span>
+              </div>
+            </div>
+
             <div>
               <Label className="text-xs font-semibold text-slate-700">
                 Nome do Ocupante / Servidor

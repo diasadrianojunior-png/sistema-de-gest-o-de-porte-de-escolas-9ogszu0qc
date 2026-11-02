@@ -1017,7 +1017,7 @@ export async function confirmarGeracaoVagas(
     }
   }
 
-  // 3. Inserir novas vagas
+  // 3. Inserir novas vagas (Geração Automática: vaga_excedente = false / Não)
   if (previa.novasVagasCriar.length > 0) {
     const rowsInsert = previa.novasVagasCriar.map((s) => ({
       unidade_escolar_id: unidadeEscolarId,
@@ -1033,6 +1033,7 @@ export async function confirmarGeracaoVagas(
       servidor_id: null,
       nome_ocupante: null,
       status: 'ABERTA' as StatusVagaReal,
+      vaga_excedente: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }))
@@ -1068,7 +1069,7 @@ export async function confirmarGeracaoVagas(
     entidade: 'Cadastro de Vagas',
     acao: 'Geração de Vagas',
     registro_codigo: previa.escola.codigo || null,
-    descricao: `Geração de vagas para a unidade "${previa.escola.nome}" (Ano Letivo ${anoLetivo}). Nível identificado: ${previa.nivelEncontradoCodigo}. Resultado: ${previa.resumoTexto}. Configuração usada: ${previa.configuracaoUsada.codigo || previa.configuracaoUsada.id} (${previa.configuracaoUsada.tipo_atendimento}, Ano ${previa.configuracaoUsada.ano_letivo}, Status ${previa.configuracaoUsada.status}).`,
+    descricao: `Geração de vagas para a unidade "${previa.escola.nome}" (Ano Letivo ${anoLetivo}). Nível identificado: ${previa.nivelEncontradoCodigo}. Resultado: ${previa.resumoTexto}. Configuração usada: ${previa.configuracaoUsada.codigo || previa.configuracaoUsada.id} (${previa.configuracaoUsada.tipo_atendimento}, Ano ${previa.configuracaoUsada.ano_letivo}, Status ${previa.configuracaoUsada.status}). Vagas geradas nasceram com Vaga Excedente = Não (origem automática).`,
     detalhes: {
       escola_id: unidadeEscolarId,
       escola_nome: previa.escola.nome,
@@ -1076,6 +1077,8 @@ export async function confirmarGeracaoVagas(
       nivel_calculado: previa.nivelEncontradoCodigo,
       configuracao_rh_id: previa.configuracaoUsada.id,
       criterio_configuracao: previa.criterioConfiguracao,
+      vaga_excedente_padrao: false,
+      vaga_excedente_rotulo: 'Não',
       novas_criadas: previa.novasVagasCriar.length,
       abertas_removidas: previa.abertasRemover.length,
       excedentes_marcadas: previa.ocupadasExcedentes.length,
@@ -1113,6 +1116,7 @@ export interface FiltrosVagas {
   modalidade?: string
   status?: StatusVagaReal | 'TODAS'
   comOcupante?: 'TODAS' | 'COM' | 'SEM'
+  vagaExcedente?: 'TODAS' | 'SIM' | 'NAO'
   buscaTexto?: string
 }
 
@@ -1156,6 +1160,10 @@ export async function listarVagasCompletas(filtros: FiltrosVagas): Promise<VagaR
 
   if (filtros.status && filtros.status !== 'TODAS') {
     query = query.eq('status', filtros.status)
+  }
+
+  if (filtros.vagaExcedente && filtros.vagaExcedente !== 'TODAS') {
+    query = query.eq('vaga_excedente', filtros.vagaExcedente === 'SIM')
   }
 
   const { data, error } = await query.order('created_at', { ascending: true })
@@ -1279,6 +1287,7 @@ export async function inserirVagaManual(input: InserirVagaManualInput): Promise<
     nome_ocupante: temOcupante ? nomeOcupante!.trim() : null,
     status: statusDerivado,
     observacao: observacao?.trim() || null,
+    vaga_excedente: true,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }
@@ -1300,11 +1309,13 @@ export async function inserirVagaManual(input: InserirVagaManualInput): Promise<
     entidade: 'Cadastro de Vagas',
     acao: 'Inserção Manual',
     registro_codigo: nova.codigo || null,
-    descricao: `Inserção manual da vaga ${nova.codigo || ''} (${nova.funcao} Nº ${nova.numero_sequencial} - ${nova.unidade_escolar?.nome || ''}, Ano ${anoLetivo}). Ocupante: "${nova.nome_ocupante || 'Nenhum'}" (${nova.status}).`,
+    descricao: `Inserção manual da vaga ${nova.codigo || ''} (${nova.funcao} Nº ${nova.numero_sequencial} - ${nova.unidade_escolar?.nome || ''}, Ano ${anoLetivo}). Vaga Excedente: Sim. Ocupante: "${nova.nome_ocupante || 'Nenhum'}" (${nova.status}).`,
     detalhes: {
       vaga_id: nova.id,
       unidade_escolar_id: unidadeEscolarId,
       ano_letivo: anoLetivo,
+      vaga_excedente: true,
+      vaga_excedente_rotulo: 'Sim',
       valores_novos: nova,
     },
   })
@@ -1400,9 +1411,11 @@ export async function editarVaga(input: EditarVagaInput): Promise<VagaReal> {
     entidade: 'Cadastro de Vagas',
     acao: 'Edição Manual',
     registro_codigo: atualizada.codigo || null,
-    descricao: `Edição manual da vaga ${atualizada.codigo || vagaId} (${atualizada.funcao} - ${atualizada.unidade_escolar?.nome || ''}): ocupante "${atualizada.nome_ocupante || 'Nenhum'}" (${atualizada.status}).`,
+    descricao: `Edição manual da vaga ${atualizada.codigo || vagaId} (${atualizada.funcao} - ${atualizada.unidade_escolar?.nome || ''}, Vaga Excedente: ${atualizada.vaga_excedente ? 'Sim' : 'Não'}): ocupante "${atualizada.nome_ocupante || 'Nenhum'}" (${atualizada.status}).`,
     detalhes: {
       vaga_id: vagaId,
+      vaga_excedente: Boolean(atualizada.vaga_excedente),
+      vaga_excedente_rotulo: atualizada.vaga_excedente ? 'Sim' : 'Não',
       valores_antigos: anterior,
       valores_novos: atualizada,
     },
@@ -1434,9 +1447,11 @@ export async function excluirVagaManual(vagaId: string): Promise<void> {
     entidade: 'Cadastro de Vagas',
     acao: 'Exclusão Manual',
     registro_codigo: anterior?.codigo || null,
-    descricao: `Exclusão manual da vaga ${anterior?.codigo || vagaId} (${anterior?.funcao} Nº ${anterior?.numero_sequencial} - ${anterior?.unidade_escolar?.nome || ''}, Ano ${anterior?.ano_letivo || '-'}). Ocupante desvinculado: "${anterior?.nome_ocupante || 'Nenhum'}".`,
+    descricao: `Exclusão manual da vaga ${anterior?.codigo || vagaId} (${anterior?.funcao} Nº ${anterior?.numero_sequencial} - ${anterior?.unidade_escolar?.nome || ''}, Ano ${anterior?.ano_letivo || '-'}, Vaga Excedente: ${anterior?.vaga_excedente ? 'Sim' : 'Não'}). Ocupante desvinculado: "${anterior?.nome_ocupante || 'Nenhum'}".`,
     detalhes: {
       vaga_id: vagaId,
+      vaga_excedente: Boolean(anterior?.vaga_excedente),
+      vaga_excedente_rotulo: anterior?.vaga_excedente ? 'Sim' : 'Não',
       registro_excluido: anterior,
     },
   })
