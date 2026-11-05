@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, ChevronRight, Printer, Search, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ArrowLeft, BookOpen, ChevronRight, Printer, Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -31,6 +32,7 @@ interface ImpressaoPayload {
 }
 
 function CentralAjudaConteudo() {
+  const navigate = useNavigate()
   const [busca, setBusca] = useState('')
   const [moduloSelecionado, setModuloSelecionado] = useState<SistemaMenuKey | null>(null)
   const [dialogImpressaoAberto, setDialogImpressaoAberto] = useState(false)
@@ -131,6 +133,20 @@ function CentralAjudaConteudo() {
 
   const dataImpressao = new Date().toLocaleString('pt-BR')
 
+  /**
+   * Voltar ao Sistema: usa o histórico do app (navigate(-1)) quando existe uma
+   * entrada anterior na mesma sessão de navegação; caso contrário (acesso direto
+   * à rota ou primeira tela da sessão), volta ao Painel de Início.
+   */
+  const voltarAoSistema = () => {
+    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0
+    if (idx > 0) {
+      navigate(-1)
+    } else {
+      navigate('/')
+    }
+  }
+
   return (
     <>
       {/* ÁREA DE IMPRESSÃO (oculta na tela, visível somente na impressão) */}
@@ -171,15 +187,26 @@ function CentralAjudaConteudo() {
 
       {/* CONTEÚDO DE TELA (oculto durante a impressão) */}
       <div className="container mx-auto space-y-6 p-4 md:p-6 nao-imprimir">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-6 w-6" />
-            <h1 className="text-2xl font-bold">Central de Ajuda</h1>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-6 w-6" />
+              <h1 className="text-2xl font-bold">Central de Ajuda</h1>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Ajuda e Regras de todos os módulos do sistema, organizadas pelos grupos do Menu
+              Principal. O mesmo conteúdo está disponível no botão "Ajuda e Regras" de cada tela.
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Ajuda e Regras de todos os módulos do sistema, organizadas pelos grupos do Menu
-            Principal. O mesmo conteúdo está disponível no botão "Ajuda e Regras" de cada tela.
-          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-1 shrink-0 gap-2"
+            onClick={voltarAoSistema}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Voltar ao Sistema
+          </Button>
         </div>
 
         <div className="flex flex-col gap-3 md:flex-row md:items-center">

@@ -634,6 +634,7 @@ export const AJUDAS_MODULOS: AjudaModulo[] = [
         itens: [
           'Use o campo de busca para localizar um módulo por nome ou palavra-chave.',
           'Use o índice lateral para ir direto à ajuda de um módulo.',
+          'Botão "Voltar ao Sistema" no cabeçalho da tela (com ícone de seta de retorno): volta para a tela de onde o usuário veio; se a Central foi aberta diretamente (sem histórico de navegação), volta ao Painel de Início.',
           'Tela somente de consulta: não altera dados.',
         ],
       },
