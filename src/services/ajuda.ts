@@ -640,11 +640,11 @@ export const AJUDAS_MODULOS: AjudaModulo[] = [
       {
         titulo: 'Impressão',
         itens: [
-          'Botão "Imprimir" no cabeçalho da tela, ao lado do campo de busca.',
-          'Escolha do escopo antes de imprimir: "Todos os módulos" (toda a Central de Ajuda) ou "Apenas este módulo" (somente o módulo atualmente visível/selecionado).',
-          'Quando não houver módulo específico selecionado, o escopo "Apenas este módulo" fica desabilitado.',
-          'A impressão abre a janela de impressão do navegador (Ctrl+P) com o conteúdo já formatado para papel: fundo branco, texto escuro, títulos dos módulos e blocos de conteúdo legíveis, independentemente do tema claro/escuro da tela.',
-          'A versão impressa omite o menu lateral, a barra superior e os controles de navegação; cada módulo inicia em uma nova página quando há mais de um.',
+          'Botão "Imprimir" no cabeçalho da tela, ao lado do campo de busca, no mesmo padrão visual dos demais botões de cabeçalho (com ícone de impressora).',
+          'Antes de imprimir, um diálogo permite escolher o escopo: "Todos os módulos" (Central de Ajuda completa) ou "Apenas este módulo" (somente a ajuda do módulo selecionado no índice lateral).',
+          'Quando nenhum módulo está selecionado no índice, a opção "Apenas este módulo" fica desabilitada e o escopo inicial é "Todos os módulos".',
+          'A impressão abre a janela de impressão do navegador (Ctrl+P) com o conteúdo já formatado para papel: fundo branco e texto escuro, independentemente do tema claro/escuro da tela.',
+          'A versão impressa omite o menu lateral, a barra superior e os controles de navegação; cada módulo inicia em uma nova página (quebra entre módulos) e os blocos de conteúdo são exibidos de forma neutra e legível.',
           'Cada acionamento da impressão é registrado na Auditoria: quem imprimiu, quando e qual o escopo (todos os módulos ou um módulo específico).',
         ],
       },
