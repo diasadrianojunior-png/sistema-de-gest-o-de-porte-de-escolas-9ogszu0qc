@@ -484,6 +484,7 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
       .from('vaga')
       .update({
         servidor_id: profissionalId,
+        profissional_ocupante_id: profissionalId,
         nome_ocupante: nomeProfissional,
         cargo_id: nv.cargo_id || null,
         status: 'OCUPADA',
@@ -502,6 +503,7 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
       .from('vaga')
       .update({
         servidor_id: null,
+        profissional_ocupante_id: null,
         nome_ocupante: null,
         cargo_id: null,
         status: 'ABERTA',
@@ -609,6 +611,7 @@ export async function deleteProfissional(id: string): Promise<void> {
       .from('vaga')
       .update({
         servidor_id: null,
+        profissional_ocupante_id: null,
         nome_ocupante: null,
         cargo_id: null,
         status: 'ABERTA',

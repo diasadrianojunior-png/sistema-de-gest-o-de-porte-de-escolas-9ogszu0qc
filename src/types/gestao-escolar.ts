@@ -544,25 +544,32 @@ export interface VagaReal {
   codigo?: string // VAGP-0001
   unidade_escolar_id: string
   ano_letivo: number
-  configuracao_rh_id: string
-  configuracao_rh_linha_id: string
-  funcao: string
+  configuracao_rh_id?: string | null
+  configuracao_rh_linha_id?: string | null
+  funcao?: string | null
+  funcao_id?: string | null
+  tipo_vinculo?: TipoVinculoVaga | string | null
   numero_sequencial: number
   periodo?: PeriodoEscola | null
   turma_id?: string | null
-  modalidade: ModalidadeRhVaga
+  modalidade: ModalidadeRhVaga | string
   dias_semana?: number | null
   cargo_id?: string | null
   servidor_id?: string | null
   nome_ocupante?: string | null
-  status: StatusVagaReal
+  status: StatusVagaReal | string
   observacao?: string | null
   vaga_excedente?: boolean
+  profissional_titular_id?: string | null
+  profissional_ocupante_id?: string | null
   created_at?: string
   updated_at?: string
   // Vínculos expandidos
   unidade_escolar?: UnidadeEscolar | null
   cargo?: Cargo | null
+  funcao_objeto?: Funcao | null
+  profissional_titular?: Profissional | { id: string; nome: string; codigo?: string } | null
+  profissional_ocupante?: Profissional | { id: string; nome: string; codigo?: string } | null
   turma?: Turma | null
   configuracao_rh?: ConfiguracaoRh | null
   configuracao_rh_linha?: ConfiguracaoRhLinha | null

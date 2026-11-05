@@ -33,7 +33,9 @@ import { VagaCalculadaMemoria, ConfiguracaoVagasRh, LinhaConfigVagas } from '@/t
 const TABELA = 'vaga' as const
 
 export const STATUS_VAGA_REAL: StatusVagaReal[] = ['ABERTA', 'PREENCHIDA']
-export const PERIODOS_VAGA: Array<{ valor: PeriodoEscola; rotulo: string }> = [
+export type PeriodoOpcaoForm = 'SEM' | 'MANHA' | 'TARDE' | 'INTEGRAL' | 'NOITE'
+
+export const PERIODOS_VAGA: Array<{ valor: PeriodoOpcaoForm; rotulo: string }> = [
   { valor: 'SEM', rotulo: 'Geral / Sem Período' },
   { valor: 'MANHA', rotulo: 'Manhã' },
   { valor: 'TARDE', rotulo: 'Tarde' },
@@ -74,12 +76,17 @@ export const calcularStatusPorOcupacao = (
 }
 
 export interface VagaCompleta extends VagaReal {
-  unidade_escolar?: { id: string; nome: string } | null
-  cargo?: { id: string; nome: string } | null
-  funcao?: { id: string; nome: string } | null
-  profissional_titular?: { id: string; nome: string } | null
-  profissional_ocupante?: { id: string; nome: string } | null
-  configuracao_rh?: { id: string; nome: string } | null
+  unidade_escolar?: { id: string; nome: string; tipo_atendimento?: string } | null
+  cargo?: { id: string; nome: string; codigo?: string } | null
+  funcao_objeto?: { id: string; nome: string; codigo?: string } | null
+  profissional_titular?: { id: string; nome: string; codigo?: string } | null
+  profissional_ocupante?: { id: string; nome: string; codigo?: string } | null
+  configuracao_rh?: {
+    id: string
+    tipo_atendimento: string
+    ano_letivo?: number
+    status?: string
+  } | null
 }
 
 export interface FiltrosVagasListagem {
@@ -95,9 +102,10 @@ export interface InserirVagaManualInput {
   tipoVinculo: 'CARGO' | 'FUNCAO'
   cargoId?: string | null
   funcaoId?: string | null
-  periodo: PeriodoEscola
+  periodo: PeriodoOpcaoForm | PeriodoEscola
   modalidade: 'FIXO' | 'ITINERANTE'
   diasSemana?: number | null
+  status?: 'ABERTA' | 'PREENCHIDA' | string | null
   profissionalOcupanteId?: string | null
   profissionalTitularId?: string | null
   observacao?: string | null
@@ -108,9 +116,10 @@ export interface EditarVagaManualInput {
   tipoVinculo?: 'CARGO' | 'FUNCAO'
   cargoId?: string | null
   funcaoId?: string | null
-  periodo: PeriodoEscola
+  periodo: PeriodoOpcaoForm | PeriodoEscola
   modalidade: 'FIXO' | 'ITINERANTE'
   diasSemana?: number | null
+  status?: 'ABERTA' | 'PREENCHIDA' | string | null
   profissionalOcupanteId?: string | null
   profissionalTitularId?: string | null
   observacao?: string | null
@@ -152,15 +161,19 @@ function montarPayloadVaga(
   input: InserirVagaManualInput | EditarVagaManualInput,
 ): Record<string, unknown> {
   const ocupante = (input as InserirVagaManualInput).profissionalOcupanteId || null
+  const titular = (input as InserirVagaManualInput).profissionalTitularId || null
+  // No banco, período CHECK aceita MANHA, TARDE, INTEGRAL, NOITE ou NULL (Geral / Sem Período)
+  const periodoDb = !input.periodo || (input.periodo as string) === 'SEM' ? null : input.periodo
+
   const payload: Record<string, unknown> = {
-    tipo_vinculo: input.tipoVinculo ?? 'CARGO',
+    tipo_vinculo: input.tipoVinculo ?? 'FUNCAO',
     cargo_id: input.tipoVinculo === 'CARGO' ? input.cargoId || null : null,
     funcao_id: input.tipoVinculo === 'FUNCAO' ? input.funcaoId || null : null,
-    periodo: input.periodo,
+    periodo: periodoDb,
     modalidade: input.modalidade,
     dias_semana: input.modalidade === 'ITINERANTE' ? Number(input.diasSemana ?? 2) : null,
     profissional_ocupante_id: ocupante,
-    profissional_titular_id: (input as InserirVagaManualInput).profissionalTitularId || null,
+    profissional_titular_id: titular,
     observacao: input.observacao || null,
   }
   if ((input as InserirVagaManualInput).unidadeEscolarId) {
@@ -169,7 +182,6 @@ function montarPayloadVaga(
   if ((input as InserirVagaManualInput).anoLetivo) {
     payload.ano_letivo = (input as InserirVagaManualInput).anoLetivo
   }
-  payload.status = calcularStatusPorOcupacao(ocupante)
   return payload
 }
 
@@ -213,12 +225,12 @@ async function gerarProximoSequencial(
 
 const SELECT_COMPLETO = `
   *,
-  unidade_escolar:unidade_escolar_id(id, nome),
-  cargo:cargo_id(id, nome),
-  funcao:funcao_id(id, nome),
-  profissional_titular:profissional_titular_id(id, nome),
-  profissional_ocupante:profissional_ocupante_id(id, nome),
-  configuracao_rh:configuracao_rh_id(id, nome)
+  unidade_escolar:unidade_escolar_id(id, nome, tipo_atendimento),
+  cargo:cargo_id(id, nome, codigo),
+  funcao_objeto:funcao_id(id, nome, codigo),
+  profissional_titular:profissional_titular_id(id, nome, codigo),
+  profissional_ocupante:profissional_ocupante_id(id, nome, codigo),
+  configuracao_rh:configuracao_rh_id(id, tipo_atendimento, ano_letivo, status)
 `
 
 export async function listarVagasCompletas(): Promise<VagaCompleta[]> {
@@ -284,8 +296,9 @@ export async function listarVagasFiltradas(filtros: FiltrosVagasListagem): Promi
         const alvo = [
           v.codigo,
           v.nome_ocupante,
+          v.funcao,
           v.cargo?.nome,
-          v.funcao?.nome,
+          v.funcao_objeto?.nome,
           v.profissional_ocupante?.nome,
           v.profissional_titular?.nome,
           v.unidade_escolar?.nome,
@@ -353,10 +366,12 @@ function descricaoVaga(
   if (v.ano_letivo) partes.push(`Ano Letivo: ${v.ano_letivo}`)
   partes.push(`Vínculo: ${rotuloTipoVinculoVaga(v.tipo_vinculo)}`)
   if (v.tipo_vinculo === 'FUNCAO') {
-    if (v.funcao?.nome) partes.push(`Função da Vaga: ${v.funcao.nome}`)
+    if (v.funcao_objeto?.nome) partes.push(`Função da Vaga: ${v.funcao_objeto.nome}`)
+    else if (v.funcao) partes.push(`Função da Vaga: ${v.funcao}`)
     else if (v.funcao_id) partes.push(`Função da Vaga: ${v.funcao_id}`)
   } else {
     if (v.cargo?.nome) partes.push(`Cargo da Vaga: ${v.cargo.nome}`)
+    else if (v.funcao) partes.push(`Cargo da Vaga: ${v.funcao}`)
     else if (v.cargo_id) partes.push(`Cargo da Vaga: ${v.cargo_id}`)
   }
   partes.push(`Período: ${rotuloPeriodoVaga(v.periodo)}`)
@@ -410,9 +425,52 @@ export async function inserirVagaManual(input: InserirVagaManualInput): Promise<
   payload.codigo = codigo
   payload.numero_sequencial = sequencial
   payload.vaga_excedente = true // inserção manual = vaga excedente
-  payload.status = 'EXCEDENTE' // inserção manual marca excedente e fica coerente com ocupação:
-  if (input.profissionalOcupanteId) payload.status = 'PREENCHIDA'
-  else payload.status = 'ABERTA'
+
+  // Status no banco: CHECK aceita ABERTA, OCUPADA, EXCEDENTE.
+  // Regra de negócio: se tem profissional ocupante ou o usuário selecionou Preenchida => OCUPADA.
+  // Caso contrário, se o status escolhido for Aberta => ABERTA.
+  let statusFinal = 'ABERTA'
+  if (input.profissionalOcupanteId) {
+    statusFinal = 'OCUPADA'
+  } else if (input.status === 'PREENCHIDA' || input.status === 'OCUPADA') {
+    statusFinal = 'OCUPADA'
+  } else {
+    statusFinal = 'ABERTA'
+  }
+  payload.status = statusFinal
+
+  // Se tem ocupante FK, carrega o nome dele para nome_ocupante
+  if (input.profissionalOcupanteId) {
+    const { data: prof } = await supabase
+      .from('profissionais')
+      .select('nome')
+      .eq('id', input.profissionalOcupanteId)
+      .maybeSingle()
+    if (prof?.nome) {
+      payload.nome_ocupante = prof.nome
+    }
+  } else {
+    payload.nome_ocupante = null
+  }
+
+  // Se tem funcaoId ou cargoId, preenche funcao (TEXT not-null legado)
+  if (input.tipoVinculo === 'FUNCAO' && input.funcaoId) {
+    const { data: func } = await supabase
+      .from('funcoes')
+      .select('nome')
+      .eq('id', input.funcaoId)
+      .maybeSingle()
+    payload.funcao = func?.nome || 'Função'
+  } else if (input.tipoVinculo === 'CARGO' && input.cargoId) {
+    const { data: cg } = await supabase
+      .from('cargos')
+      .select('nome')
+      .eq('id', input.cargoId)
+      .maybeSingle()
+    payload.funcao = cg?.nome || 'Cargo'
+  } else {
+    payload.funcao = 'Vaga'
+  }
 
   const { data, error } = await supabase
     .from(TABELA)
@@ -444,6 +502,49 @@ export async function editarVaga(input: EditarVagaManualInput): Promise<VagaComp
   })
   delete payload.unidade_escolar_id
   delete payload.ano_letivo
+
+  // Status no banco
+  let statusFinal = 'ABERTA'
+  if (input.profissionalOcupanteId) {
+    statusFinal = 'OCUPADA'
+  } else if (input.status === 'PREENCHIDA' || input.status === 'OCUPADA') {
+    statusFinal = 'OCUPADA'
+  } else {
+    statusFinal = 'ABERTA'
+  }
+  payload.status = statusFinal
+
+  // Atualiza nome_ocupante
+  if (input.profissionalOcupanteId) {
+    const { data: prof } = await supabase
+      .from('profissionais')
+      .select('nome')
+      .eq('id', input.profissionalOcupanteId)
+      .maybeSingle()
+    if (prof?.nome) {
+      payload.nome_ocupante = prof.nome
+    }
+  } else {
+    payload.nome_ocupante = null
+  }
+
+  // Atualiza texto funcao caso tenha mudado
+  if (input.tipoVinculo === 'FUNCAO' && input.funcaoId) {
+    const { data: func } = await supabase
+      .from('funcoes')
+      .select('nome')
+      .eq('id', input.funcaoId)
+      .maybeSingle()
+    if (func?.nome) payload.funcao = func.nome
+  } else if (input.tipoVinculo === 'CARGO' && input.cargoId) {
+    const { data: cg } = await supabase
+      .from('cargos')
+      .select('nome')
+      .eq('id', input.cargoId)
+      .maybeSingle()
+    if (cg?.nome) payload.funcao = cg.nome
+  }
+
   const { data, error } = await supabase
     .from(TABELA)
     .update(payload)
@@ -899,3 +1000,152 @@ export async function migrarVagasEntreAnos(
 }
 
 export type { VagaReal, StatusVagaReal, PeriodoEscola, StatusOcupacaoVaga }
+
+/* ------------------------------------------------------------------ */
+/* TIPOS E ALIASES COMPATÍVEIS PARA TELAS (Vagas.tsx e UnidadeDrilldown) */
+/* ------------------------------------------------------------------ */
+export type PeriodoVagaOpcao = 'GERAL' | 'MANHA' | 'TARDE' | 'INTEGRAL' | 'NOITE'
+export type ModalidadeVagaOpcao = 'FIXO' | 'ITINERANTE'
+export type StatusOcupanteForm = 'ABERTA' | 'PREENCHIDA'
+
+export interface ResumoVagasAnoOrigem {
+  anoOrigem: number
+  unidadeId?: string
+  totalVagas: number
+  abertas: number
+  ocupadas: number
+  excedentes: number
+  funcoesDistintas: string[]
+  amostraVagas: VagaCompleta[]
+}
+
+/** Retorna resumo de vagas existentes no ano de origem (opcionalmente filtrado por unidade). */
+export async function obterResumoVagasAnoOrigem(
+  anoOrigem: number,
+  unidadeId?: string,
+): Promise<ResumoVagasAnoOrigem> {
+  const query = supabase
+    .from(TABELA)
+    .select(`
+      id,
+      codigo,
+      unidade_escolar_id,
+      ano_letivo,
+      tipo_vinculo,
+      cargo_id,
+      funcao_id,
+      funcao,
+      periodo,
+      modalidade,
+      dias_semana,
+      status,
+      vaga_excedente,
+      numero_sequencial,
+      configuracao_rh_id,
+      turma_id,
+      observacao,
+      created_at,
+      profissional_titular_id,
+      profissional_ocupante_id,
+      nome_ocupante
+    `)
+    .eq('ano_letivo', anoOrigem)
+
+  if (unidadeId) {
+    query.eq('unidade_escolar_id', unidadeId)
+  }
+
+  const { data, error } = await query
+  if (error) throw error
+
+  const vagas = (data || []) as unknown as VagaCompleta[]
+  const totalVagas = vagas.length
+  const ocupadas = vagas.filter(
+    (v) => v.profissional_ocupante_id || v.status === 'PREENCHIDA' || v.status === 'OCUPADA',
+  ).length
+  const abertas = vagas.filter((v) => v.status === 'ABERTA').length
+  const excedentes = vagas.filter((v) => v.vaga_excedente).length
+  const funcoesSet = new Set<string>()
+  for (const v of vagas) {
+    if (v.funcao) funcoesSet.add(v.funcao)
+  }
+
+  return {
+    anoOrigem,
+    unidadeId,
+    totalVagas,
+    abertas,
+    ocupadas,
+    excedentes,
+    funcoesDistintas: Array.from(funcoesSet),
+    amostraVagas: vagas.slice(0, 10),
+  }
+}
+
+/** Migra vagas de um ano para outro, com suporte a filtro de unidade individual ou lote. */
+export async function migrarVagasAnoLetivo(params: {
+  anoOrigem: number
+  anoDestino: number
+  unidadeEscolarId?: string
+}): Promise<MigracaoAnoLetivoResultado & { totalOrigem?: number }> {
+  const usuario = await getUsuarioAtualParaAuditoria()
+
+  let query = supabase.from(TABELA).select('*').eq('ano_letivo', params.anoOrigem)
+  if (params.unidadeEscolarId) {
+    query = query.eq('unidade_escolar_id', params.unidadeEscolarId)
+  }
+  const { data: origem, error } = await query
+  if (error) throw error
+
+  const listaOrigem = (origem || []) as any[]
+  let copiadas = 0
+  let ignoradasOcupadas = 0
+
+  for (const vaga of listaOrigem) {
+    // Na migração, toda vaga nasce ABERTA e sem ocupante
+    const sequencial = await gerarProximoSequencial(vaga.unidade_escolar_id, params.anoDestino)
+    const codigo = await gerarProximoCodigo()
+
+    const payload: Record<string, unknown> = {
+      codigo,
+      unidade_escolar_id: vaga.unidade_escolar_id,
+      ano_letivo: params.anoDestino,
+      tipo_vinculo: vaga.tipo_vinculo || 'CARGO',
+      cargo_id: vaga.cargo_id ?? null,
+      funcao_id: vaga.funcao_id ?? null,
+      funcao: vaga.funcao ?? null,
+      periodo: vaga.periodo,
+      modalidade: vaga.modalidade,
+      dias_semana: vaga.dias_semana ?? null,
+      status: 'ABERTA',
+      vaga_excedente: Boolean(vaga.vaga_excedente),
+      numero_sequencial: sequencial,
+      configuracao_rh_id: vaga.configuracao_rh_id ?? null,
+      observacao: vaga.observacao ?? null,
+      profissional_titular_id: null,
+      profissional_ocupante_id: null,
+      nome_ocupante: null,
+    }
+
+    const { error: insErr } = await supabase.from(TABELA).insert(payload)
+    if (insErr) throw insErr
+    copiadas += 1
+  }
+
+  await registrarAuditoria({
+    usuarioNome: usuario?.nome ?? 'Sistema',
+    usuarioEmail: usuario?.email ?? '',
+    entidade: 'Vaga',
+    acao: 'Criação',
+    descricao: `Migração de vagas de ${params.anoOrigem} para ${params.anoDestino} (unidade: ${params.unidadeEscolarId || 'todas'}): ${copiadas} vaga(s) copiada(s) como ABERTA.`,
+    detalhes: {
+      ano_origem: params.anoOrigem,
+      ano_destino: params.anoDestino,
+      unidade_id: params.unidadeEscolarId ?? 'todas',
+      copiadas,
+    },
+    vinculos: sanitizarVinculosAuditados([]),
+  })
+
+  return { copiadas, ignoradasOcupadas, totalOrigem: listaOrigem.length }
+}

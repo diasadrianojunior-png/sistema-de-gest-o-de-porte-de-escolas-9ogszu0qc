@@ -6,6 +6,8 @@ import {
   VagaReal,
   StatusVagaReal,
   Cargo,
+  Funcao,
+  Profissional,
   PeriodoEscola,
 } from '@/types/gestao-escolar'
 import {
@@ -20,10 +22,14 @@ import {
   obterResumoVagasAnoOrigem,
   migrarVagasAnoLetivo,
   ResumoVagasAnoOrigem,
+  PeriodoVagaOpcao,
+  ModalidadeVagaOpcao,
+  StatusOcupanteForm,
 } from '@/services/vagas'
 import { ANOS_LETIVOS } from './Etapas'
 import { getUnidadesEscolares } from '@/services/unidades-escolares'
-import { getCargos } from '@/services/apoio'
+import { getCargos, getFuncoes } from '@/services/apoio'
+import { getProfissionais } from '@/services/profissionais'
 import { exportarVagasExcel, exportarVagasPDF } from '@/services/vagas-export'
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -170,13 +176,56 @@ export const VagasPage: React.FC = () => {
   // Modal de Ajuda e Regras
   const [modalAjudaAberto, setModalAjudaAberto] = useState<boolean>(false)
 
-  // Carregar Unidades e Cargos na montagem
+  const [funcoesGerais, setFuncoesGerais] = useState<Funcao[]>([])
+  const [profissionaisGerais, setProfissionaisGerais] = useState<Profissional[]>([])
+
+  // Atributos do novo formulário unificado (criação / edição)
+  const [modalFormularioAberto, setModalFormularioAberto] = useState<boolean>(false)
+  const [modoEdicao, setModoEdicao] = useState<boolean>(false)
+  const [vagaSelecionada, setVagaSelecionada] = useState<VagaReal | null>(null)
+
+  // 1. Identificação
+  const [formIdentificacao, setFormIdentificacao] = useState<string>('')
+  // 2. Ano Letivo
+  const [formAnoLetivo, setFormAnoLetivo] = useState<number>(2026)
+  // 3. Unidade Escolar
+  const [formUnidadeId, setFormUnidadeId] = useState<string>('')
+  // 4. Tipo de Vínculo: Cargo ou Função
+  const [formTipoVinculo, setFormTipoVinculo] = useState<'CARGO' | 'FUNCAO'>('FUNCAO')
+  // 5. Cargo da Vaga ou Função da Vaga
+  const [formCargoId, setFormCargoId] = useState<string>('')
+  const [formFuncaoId, setFormFuncaoId] = useState<string>('')
+  // 6. Período
+  const [formPeriodo, setFormPeriodo] = useState<PeriodoVagaOpcao>('GERAL')
+  // 7. Modalidade
+  const [formModalidade, setFormModalidade] = useState<ModalidadeVagaOpcao>('FIXO')
+  const [formDiasSemana, setFormDiasSemana] = useState<number>(2)
+  // 8. Status da Vaga do Ocupante (Aberta / Preenchida / Opcional vazio)
+  const [formStatusOcupante, setFormStatusOcupante] = useState<StatusOcupanteForm>('ABERTA')
+  // 9. Profissional Titular
+  const [formTitularId, setFormTitularId] = useState<string>('')
+  // 10. Profissional Ocupante
+  const [formOcupanteId, setFormOcupanteId] = useState<string>('')
+
+  // Outros campos auxiliares
+  const [formSequencial, setFormSequencial] = useState<string>('')
+  const [formObservacao, setFormObservacao] = useState<string>('')
+  const [salvandoFormulario, setSalvandoFormulario] = useState<boolean>(false)
+
+  // Carregar Unidades, Cargos, Funções e Profissionais na montagem
   useEffect(() => {
     async function carregarMestres() {
       try {
-        const [listaEscolas, listaCargos] = await Promise.all([getUnidadesEscolares(), getCargos()])
+        const [listaEscolas, listaCargos, listaFuncoes, listaProfissionais] = await Promise.all([
+          getUnidadesEscolares(),
+          getCargos(),
+          getFuncoes(),
+          getProfissionais(),
+        ])
         setEscolas(listaEscolas)
         setCargosGerais(listaCargos)
+        setFuncoesGerais(listaFuncoes)
+        setProfissionaisGerais(listaProfissionais)
         // Selecionar a primeira unidade ativa se nenhuma selecionada
         if (listaEscolas.length > 0 && !unidadeSelecionadaId) {
           setUnidadeSelecionadaId(listaEscolas[0].id)
@@ -185,7 +234,7 @@ export const VagasPage: React.FC = () => {
         console.error('Erro ao carregar dados mestres:', err)
         toast({
           title: 'Erro ao carregar cadastros básicos',
-          description: err.message || 'Falha ao buscar unidades e cargos.',
+          description: err.message || 'Falha ao buscar unidades, cargos e funções.',
           variant: 'destructive',
         })
       }
@@ -459,126 +508,180 @@ export const VagasPage: React.FC = () => {
     }
   }
 
-  // Abrir modal de inserção manual
-  const handleAbrirInsercaoManual = () => {
-    if (linhasConfiguracaoDisponiveis.length > 0) {
-      const prim = linhasConfiguracaoDisponiveis[0]
-      setNovaLinhaId(prim.id)
-      setNovaFuncao(prim.funcaoNome)
-      setNovoCargoId(prim.cargoPadraoId || (prim.cargosElegiveis[0]?.id ?? ''))
-    } else {
-      setNovaLinhaId('')
-      setNovaFuncao('')
-      setNovoCargoId('')
-    }
-    setNovoPeriodo('SEM')
-    setNovaModalidade('FIXO')
-    setNovosDiasSemana(2)
-    setNovoSequencial('')
-    setNovoOcupante('')
-    setNovaObservacao('')
-    setModalInserirAberto(true)
+  // Abrir modal de nova vaga (novo formulário com os 10 atributos na ordem exata do usuário)
+  const handleAbrirNovaVaga = () => {
+    setModoEdicao(false)
+    setVagaSelecionada(null)
+    setFormIdentificacao('(Gerada automaticamente ao salvar — ex.: VAG-0001 / VAGP-0001)')
+    setFormAnoLetivo(anoLetivo)
+    setFormUnidadeId(unidadeSelecionadaId || (escolas[0]?.id ?? ''))
+    setFormTipoVinculo('FUNCAO')
+    setFormCargoId('')
+    setFormFuncaoId(funcoesGerais[0]?.id ?? '')
+    setFormPeriodo('GERAL')
+    setFormModalidade('FIXO')
+    setFormDiasSemana(2)
+    setFormStatusOcupante('ABERTA')
+    setFormTitularId('')
+    setFormOcupanteId('')
+    setFormSequencial('')
+    setFormObservacao('')
+    setModalFormularioAberto(true)
   }
 
-  // Salvar inserção manual de vaga
-  const handleSalvarInsercaoManual = async () => {
-    if (!unidadeSelecionadaId || !dadosResumo?.configuracaoUsada) return
+  // Abrir modal de edição (preenche os 10 atributos na ordem exata)
+  const handleAbrirEdicaoVaga = (v: VagaReal) => {
+    setModoEdicao(true)
+    setVagaSelecionada(v)
+    setFormIdentificacao(v.codigo || v.id)
+    setFormAnoLetivo(v.ano_letivo)
+    setFormUnidadeId(v.unidade_escolar_id)
 
-    if (!novaLinhaId || !novaFuncao) {
+    // Tipo de vínculo
+    const vinculo: 'CARGO' | 'FUNCAO' =
+      (v.tipo_vinculo as 'CARGO' | 'FUNCAO') || (v.cargo_id && !v.funcao_id ? 'CARGO' : 'FUNCAO')
+    setFormTipoVinculo(vinculo)
+    setFormCargoId(v.cargo_id || '')
+    setFormFuncaoId(v.funcao_id || '')
+
+    // Período mapeado para as 5 opções
+    const pStr = (v.periodo || '').toUpperCase()
+    let pVal: PeriodoVagaOpcao = 'GERAL'
+    if (pStr === 'MANHA' || pStr === 'MANHÃ') pVal = 'MANHA'
+    else if (pStr === 'TARDE') pVal = 'TARDE'
+    else if (pStr === 'INTEGRAL') pVal = 'INTEGRAL'
+    else if (pStr === 'NOITE') pVal = 'NOITE'
+    setFormPeriodo(pVal)
+
+    // Modalidade
+    setFormModalidade((v.modalidade as ModalidadeVagaOpcao) || 'FIXO')
+    setFormDiasSemana(v.dias_semana || 2)
+
+    // Status da Vaga do Ocupante: "Aberta" ou "Preenchida"
+    setFormStatusOcupante(v.status === 'OCUPADA' ? 'PREENCHIDA' : 'ABERTA')
+
+    // Profissionais
+    setFormTitularId(v.profissional_titular_id || '')
+    setFormOcupanteId(v.profissional_ocupante_id || '')
+
+    // Auxiliares
+    setFormSequencial(String(v.numero_sequencial || ''))
+    setFormObservacao(v.observacao || '')
+
+    setModalFormularioAberto(true)
+  }
+
+  // Salvar formulário (criação ou edição com dependências dinâmicas estritas)
+  const handleSalvarFormulario = async () => {
+    if (!formAnoLetivo) {
       toast({
-        title: 'Campos incompletos',
-        description: 'Selecione uma função compatível com a configuração vigente.',
+        title: 'Ano Letivo obrigatório',
+        description: 'Informe o Ano Letivo da vaga.',
         variant: 'destructive',
       })
       return
     }
 
-    setSalvandoInsercao(true)
-    try {
-      await inserirVagaManual({
-        unidadeEscolarId: unidadeSelecionadaId,
-        anoLetivo,
-        configuracaoRhId: dadosResumo.configuracaoUsada.id,
-        configuracaoRhLinhaId: novaLinhaId,
-        funcao: novaFuncao,
-        cargoId: novoCargoId || null,
-        periodo: novoPeriodo === 'SEM' ? null : novoPeriodo,
-        modalidade: novaModalidade,
-        diasSemana: novaModalidade === 'ITINERANTE' ? novosDiasSemana : null,
-        numeroSequencial: novoSequencial ? Number(novoSequencial) : null,
-        nomeOcupante: novoOcupante || null,
-        observacao: novaObservacao || null,
-      })
-
+    if (!formUnidadeId) {
       toast({
-        title: 'Vaga inserida com sucesso',
-        description: `Nova vaga de ${novaFuncao} cadastrada para ${unidadeAtual?.nome}.`,
+        title: 'Unidade Escolar obrigatória',
+        description: 'Selecione uma Unidade Escolar válida para a vaga.',
+        variant: 'destructive',
       })
+      return
+    }
 
-      setModalInserirAberto(false)
+    // Dependência dinâmica estrita de Cargo vs Função
+    if (formTipoVinculo === 'CARGO' && !formCargoId) {
+      toast({
+        title: 'Cargo da Vaga obrigatório',
+        description: 'Para uma vaga de Cargo, selecione o Cargo da Vaga correspondente.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (formTipoVinculo === 'FUNCAO' && !formFuncaoId) {
+      toast({
+        title: 'Função da Vaga obrigatória',
+        description: 'Para uma vaga de Função, selecione a Função da Vaga correspondente.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setSalvandoFormulario(true)
+    try {
+      if (modoEdicao && vagaSelecionada) {
+        // Atualização da vaga existente
+        await editarVaga({
+          vagaId: vagaSelecionada.id,
+          tipoVinculo: formTipoVinculo,
+          cargoId: formTipoVinculo === 'CARGO' ? formCargoId : null,
+          funcaoId: formTipoVinculo === 'FUNCAO' ? formFuncaoId : null,
+          periodo: formPeriodo === 'GERAL' ? null : formPeriodo,
+          modalidade: formModalidade,
+          diasSemana: formModalidade === 'ITINERANTE' ? formDiasSemana : null,
+          numeroSequencial: formSequencial ? Number(formSequencial) : null,
+          statusOcupante: formStatusOcupante,
+          profissionalTitularId: formTitularId || null,
+          profissionalOcupanteId: formOcupanteId || null,
+          observacao: formObservacao || null,
+        })
+
+        toast({
+          title: 'Vaga atualizada com sucesso',
+          description: `Vaga ${vagaSelecionada.codigo || vagaSelecionada.id} atualizada com integridade.`,
+        })
+      } else {
+        // Criação de nova vaga (vaga inserida manualmente = vaga_excedente: true)
+        const funcaoObj = funcoesGerais.find((f) => f.id === formFuncaoId)
+        const cargoObj = cargosGerais.find((c) => c.id === formCargoId)
+        const nomeDescritivo =
+          formTipoVinculo === 'FUNCAO' ? funcaoObj?.nome || 'Função' : cargoObj?.nome || 'Cargo'
+
+        await inserirVagaManual({
+          unidadeEscolarId: formUnidadeId,
+          anoLetivo: formAnoLetivo,
+          configuracaoRhId: dadosResumo?.configuracaoUsada?.id || null,
+          configuracaoRhLinhaId: null,
+          funcao: nomeDescritivo,
+          tipoVinculo: formTipoVinculo,
+          cargoId: formTipoVinculo === 'CARGO' ? formCargoId : null,
+          funcaoId: formTipoVinculo === 'FUNCAO' ? formFuncaoId : null,
+          periodo: formPeriodo === 'GERAL' ? null : formPeriodo,
+          modalidade: formModalidade,
+          diasSemana: formModalidade === 'ITINERANTE' ? formDiasSemana : null,
+          numeroSequencial: formSequencial ? Number(formSequencial) : null,
+          statusOcupante: formStatusOcupante,
+          profissionalTitularId: formTitularId || null,
+          profissionalOcupanteId: formOcupanteId || null,
+          observacao: formObservacao || null,
+        })
+
+        toast({
+          title: 'Vaga cadastrada com sucesso',
+          description: `Nova vaga de ${nomeDescritivo} cadastrada com identificação automática gerada pelo sistema.`,
+        })
+      }
+
+      setModalFormularioAberto(false)
       recarregarTudo()
     } catch (err: any) {
-      console.error('Erro ao inserir vaga manualmente:', err)
+      console.error('Erro ao salvar vaga:', err)
       toast({
-        title: 'Erro ao cadastrar vaga',
-        description: err.message || 'Falha ao salvar registro.',
+        title: 'Erro ao salvar vaga',
+        description: err.message || 'Falha ao persistir dados da vaga.',
         variant: 'destructive',
       })
     } finally {
-      setSalvandoInsercao(false)
+      setSalvandoFormulario(false)
     }
   }
 
-  // Abrir modal de edição manual
-  const handleAbrirEdicaoManual = (v: VagaReal) => {
-    setVagaEmEdicao(v)
-    setEditOcupante(v.nome_ocupante || '')
-    setEditCargoId(v.cargo_id || '')
-    setEditPeriodo((v.periodo as PeriodoEscola) || 'SEM')
-    setEditModalidade(v.modalidade === 'ITINERANTE' ? 'ITINERANTE' : 'FIXO')
-    setEditDiasSemana(v.dias_semana || 2)
-    setEditSequencial(String(v.numero_sequencial || '1'))
-    setEditStatus(v.status)
-    setEditObservacao(v.observacao || '')
-    setModalEditarAberto(true)
-  }
-
-  // Salvar edição manual de vaga
-  const handleSalvarEdicaoManual = async () => {
-    if (!vagaEmEdicao) return
-    setSalvandoEdicao(true)
-
-    try {
-      await editarVaga({
-        vagaId: vagaEmEdicao.id,
-        nomeOcupante: editOcupante,
-        cargoId: editCargoId || null,
-        periodo: editPeriodo === 'SEM' ? null : editPeriodo,
-        modalidade: editModalidade,
-        diasSemana: editModalidade === 'ITINERANTE' ? editDiasSemana : null,
-        numeroSequencial: editSequencial ? Number(editSequencial) : null,
-        status: editStatus,
-        observacao: editObservacao,
-      })
-
-      toast({
-        title: 'Vaga atualizada com sucesso',
-        description: `Vaga ${vagaEmEdicao.codigo || vagaEmEdicao.id} editada com sucesso.`,
-      })
-
-      setModalEditarAberto(false)
-      recarregarTudo()
-    } catch (err: any) {
-      console.error('Erro ao atualizar vaga:', err)
-      toast({
-        title: 'Erro ao atualizar vaga',
-        description: err.message || 'Falha ao gravar alterações.',
-        variant: 'destructive',
-      })
-    } finally {
-      setSalvandoEdicao(false)
-    }
-  }
+  // Compatibilidade com callbacks antigos
+  const handleAbrirInsercaoManual = handleAbrirNovaVaga
+  const handleAbrirEdicaoManual = handleAbrirEdicaoVaga
 
   // Abrir modal de confirmação de exclusão
   const handleAbrirExclusao = (v: VagaReal) => {
@@ -1206,20 +1309,24 @@ export const VagasPage: React.FC = () => {
           <Table>
             <TableHeader className="bg-slate-50/70">
               <TableRow className="border-b border-slate-200 text-xs">
-                <TableHead className="w-24 font-semibold text-slate-700">Código</TableHead>
+                <TableHead className="w-24 font-semibold text-slate-700">Identificação</TableHead>
+                <TableHead className="w-16 font-semibold text-slate-700">Ano Letivo</TableHead>
                 <TableHead className="font-semibold text-slate-700">Unidade Escolar</TableHead>
-                <TableHead className="w-16 font-semibold text-slate-700">Ano</TableHead>
-                <TableHead className="font-semibold text-slate-700">Função</TableHead>
-                <TableHead className="w-16 font-semibold text-slate-700 text-center">Nº</TableHead>
-                <TableHead className="font-semibold text-slate-700">Período</TableHead>
-                <TableHead className="font-semibold text-slate-700">Modalidade (dias)</TableHead>
-                <TableHead className="font-semibold text-slate-700">Cargo</TableHead>
-                <TableHead className="font-semibold text-slate-700">Ocupante</TableHead>
-                <TableHead className="w-24 text-center font-semibold text-slate-700">
-                  Status
+                <TableHead className="w-20 font-semibold text-slate-700">Tipo</TableHead>
+                <TableHead className="font-semibold text-slate-700">
+                  Cargo / Função da Vaga
                 </TableHead>
-                <TableHead className="w-28 text-center font-semibold text-slate-700">
-                  Vaga Excedente
+                <TableHead className="font-semibold text-slate-700">Período</TableHead>
+                <TableHead className="font-semibold text-slate-700">Modalidade</TableHead>
+                <TableHead className="w-24 text-center font-semibold text-slate-700">
+                  Status da Vaga
+                </TableHead>
+                <TableHead className="font-semibold text-slate-700">Profissional Titular</TableHead>
+                <TableHead className="font-semibold text-slate-700">
+                  Profissional Ocupante
+                </TableHead>
+                <TableHead className="w-24 text-center font-semibold text-slate-700">
+                  Excedente
                 </TableHead>
                 <TableHead className="w-28 text-right font-semibold text-slate-700">
                   Ações
@@ -1273,29 +1380,45 @@ export const VagasPage: React.FC = () => {
                     key={v.id}
                     className="hover:bg-slate-50/80 transition-colors text-xs border-b border-slate-100"
                   >
-                    <TableCell className="font-mono text-[11px] font-semibold text-slate-600">
-                      {v.codigo || '—'}
+                    {/* 1. Identificação */}
+                    <TableCell className="font-mono text-[11px] font-bold text-blue-700">
+                      {v.codigo || v.id.slice(0, 8)}
                     </TableCell>
-                    <TableCell className="font-medium text-slate-900">
+                    {/* 2. Ano Letivo */}
+                    <TableCell className="text-slate-700 font-medium">{v.ano_letivo}</TableCell>
+                    {/* 3. Unidade Escolar */}
+                    <TableCell
+                      className="font-medium text-slate-900 max-w-[180px] truncate"
+                      title={v.unidade_escolar?.nome || ''}
+                    >
                       {v.unidade_escolar?.nome || '—'}
                     </TableCell>
-                    <TableCell className="text-slate-600">{v.ano_letivo}</TableCell>
-                    <TableCell className="font-semibold text-slate-800">{v.funcao}</TableCell>
-                    <TableCell className="text-center font-bold text-slate-600">
-                      {v.numero_sequencial}
+                    {/* 4. Tipo de Vínculo: Cargo ou Função */}
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] font-bold ${
+                          v.tipo_vinculo === 'CARGO'
+                            ? 'bg-purple-50 text-purple-700 border-purple-200'
+                            : 'bg-blue-50 text-blue-700 border-blue-200'
+                        }`}
+                      >
+                        {v.tipo_vinculo === 'CARGO' ? 'Cargo' : 'Função'}
+                      </Badge>
                     </TableCell>
+                    {/* 5. Cargo da Vaga ou Função da Vaga */}
+                    <TableCell className="text-slate-800 font-semibold max-w-[200px] truncate">
+                      {v.tipo_vinculo === 'CARGO'
+                        ? v.cargo?.nome || v.funcao || 'Cargo'
+                        : v.funcao_rel?.nome || v.funcao || 'Função'}
+                    </TableCell>
+                    {/* 6. Período */}
                     <TableCell className="text-slate-600">
-                      {v.periodo ? (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] font-medium border-slate-200"
-                        >
-                          {v.periodo}
-                        </Badge>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
+                      <Badge variant="outline" className="text-[10px] font-medium border-slate-200">
+                        {v.periodo || 'Geral / Sem Período'}
+                      </Badge>
                     </TableCell>
+                    {/* 7. Modalidade */}
                     <TableCell className="text-slate-600">
                       {v.modalidade === 'ITINERANTE' ? (
                         <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-medium hover:bg-amber-100">
@@ -1305,29 +1428,10 @@ export const VagasPage: React.FC = () => {
                         <span className="text-slate-600 text-xs">Fixo</span>
                       )}
                     </TableCell>
-                    <TableCell
-                      className="text-slate-700 max-w-[180px] truncate"
-                      title={v.cargo?.nome || ''}
-                    >
-                      {v.cargo?.nome || (
-                        <span className="text-slate-400 italic">Não vinculado</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {v.nome_ocupante ? (
-                        <span
-                          className="font-semibold text-slate-900 block truncate max-w-[160px]"
-                          title={v.nome_ocupante}
-                        >
-                          {v.nome_ocupante}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 italic">Sem ocupante</span>
-                      )}
-                    </TableCell>
+                    {/* 8. Status da Vaga do Ocupante */}
                     <TableCell className="text-center">
                       <Badge
-                        className={`text-[10px] uppercase font-bold tracking-wider ${
+                        className={`text-[10px] font-bold tracking-wider ${
                           v.status === 'OCUPADA'
                             ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100'
                             : v.status === 'EXCEDENTE'
@@ -1335,9 +1439,40 @@ export const VagasPage: React.FC = () => {
                               : 'bg-blue-100 text-blue-800 hover:bg-blue-100'
                         }`}
                       >
-                        {v.status}
+                        {v.status === 'OCUPADA'
+                          ? 'Preenchida'
+                          : v.status === 'EXCEDENTE'
+                            ? 'Excedente'
+                            : 'Aberta'}
                       </Badge>
                     </TableCell>
+                    {/* 9. Profissional Titular */}
+                    <TableCell
+                      className="max-w-[150px] truncate"
+                      title={v.profissional_titular?.nome || ''}
+                    >
+                      {v.profissional_titular ? (
+                        <span className="text-slate-900 font-medium text-xs">
+                          {v.profissional_titular.nome}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic text-[11px]">Nenhum</span>
+                      )}
+                    </TableCell>
+                    {/* 10. Profissional Ocupante */}
+                    <TableCell
+                      className="max-w-[160px] truncate"
+                      title={v.profissional_ocupante?.nome || v.nome_ocupante || ''}
+                    >
+                      {v.profissional_ocupante?.nome || v.nome_ocupante ? (
+                        <span className="font-semibold text-slate-900 text-xs block truncate">
+                          {v.profissional_ocupante?.nome || v.nome_ocupante}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic text-[11px]">Sem ocupante</span>
+                      )}
+                    </TableCell>
+                    {/* Excedente */}
                     <TableCell className="text-center">
                       <Badge
                         variant="outline"
@@ -2016,80 +2151,215 @@ export const VagasPage: React.FC = () => {
       </Dialog>
 
       {/* ==================================================================== */}
-      {/* MODAL 4.A: INSERÇÃO MANUAL DE VAGA */}
+      {/* NOVO FORMULÁRIO UNIFICADO: CADASTRO / EDIÇÃO DE VAGA */}
+      {/* Segue a ordem estrita e os 10 atributos especificados pelo usuário: */}
+      {/* 1. Identificação (gerada automaticamente pelo sistema) */}
+      {/* 2. Ano Letivo (obrigatório, combobox 2020-2040) */}
+      {/* 3. Unidade Escolar (obrigatória, FK) */}
+      {/* 4. Pergunta: Cargo ou Função (dependência dinâmica) */}
+      {/* 5. Cargo da Vaga OU Função da Vaga (conforme escolha) */}
+      {/* 6. Período (obrigatório: Geral, Manhã, Tarde, Integral, Noite) */}
+      {/* 7. Modalidade (obrigatória: Fixo, Itinerante) */}
+      {/* 8. Status da Vaga do Ocupante (opcional: Aberta, Preenchida) */}
+      {/* 9. Profissional Titular (opcional, FK) */}
+      {/* 10. Profissional Ocupante (opcional, FK - pode ser o mesmo do titular) */}
       {/* ==================================================================== */}
-      <Dialog open={modalInserirAberto} onOpenChange={setModalInserirAberto}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={modalFormularioAberto} onOpenChange={setModalFormularioAberto}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2 text-slate-900">
-              <PlusCircle className="w-5 h-5 text-emerald-600" />
-              Inserir Vaga Manual
+              {modoEdicao ? (
+                <>
+                  <Pencil className="w-5 h-5 text-blue-600" />
+                  Editar Cadastro de Vaga
+                </>
+              ) : (
+                <>
+                  <PlusCircle className="w-5 h-5 text-emerald-600" />
+                  Novo Cadastro de Vaga
+                </>
+              )}
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Unidade: {unidadeAtual?.nome} · Ano Letivo: {anoLetivo}
+              Preencha os atributos da vaga. Todos os campos com asterisco (*) são obrigatórios.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3.5 py-2">
-            {/* Escolha da Linha / Função da configuração vigente */}
+          <div className="space-y-4 py-2">
+            {/* 1. Identificação (gerada automaticamente pelo sistema, desabilitada para edição) */}
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                1. Identificação da Vaga (Gerada automaticamente)
+              </Label>
+              <Input
+                value={formIdentificacao}
+                disabled
+                className="mt-1 h-9 text-xs font-mono font-semibold bg-slate-100/90 text-slate-700 border-slate-300 cursor-not-allowed"
+              />
+              <span className="text-[11px] text-slate-400 mt-1 block">
+                O identificador é gerado automaticamente pelo sistema mantendo o padrão único do
+                cadastro.
+              </span>
+            </div>
+
+            {/* 2. Ano Letivo */}
             <div>
-              <Label className="text-xs font-semibold text-slate-700">
-                Função (linhas da configuração vigente) *
+              <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                2. Ano Letivo <span className="text-rose-500">*</span>
               </Label>
               <Select
-                value={novaLinhaId}
-                onValueChange={(id) => {
-                  setNovaLinhaId(id)
-                  const lin = linhasConfiguracaoDisponiveis.find((l) => l.id === id)
-                  if (lin) {
-                    setNovaFuncao(lin.funcaoNome)
-                    setNovoCargoId(lin.cargoPadraoId || (lin.cargosElegiveis[0]?.id ?? ''))
-                  }
-                }}
+                value={String(formAnoLetivo)}
+                onValueChange={(val) => setFormAnoLetivo(Number(val))}
               >
                 <SelectTrigger className="mt-1 h-9 text-xs bg-white">
-                  <SelectValue placeholder="Selecione a função" />
+                  <SelectValue placeholder="Selecione o ano letivo" />
                 </SelectTrigger>
-                <SelectContent>
-                  {linhasConfiguracaoDisponiveis.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.funcaoNome} ({l.baseCalculo})
+                <SelectContent className="max-h-56">
+                  {ANOS_LETIVOS.map((ano) => (
+                    <SelectItem key={ano} value={String(ano)}>
+                      Ano Letivo {ano}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Cargo permitido */}
+            {/* 3. Unidade Escolar */}
             <div>
-              <Label className="text-xs font-semibold text-slate-700">
-                Cargo (somente permitidos para {novaFuncao || 'a função'})
+              <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                3. Unidade Escolar <span className="text-rose-500">*</span>
               </Label>
-              <Select value={novoCargoId} onValueChange={setNovoCargoId}>
+              <Select value={formUnidadeId} onValueChange={setFormUnidadeId}>
                 <SelectTrigger className="mt-1 h-9 text-xs bg-white">
-                  <SelectValue placeholder="Selecione o cargo (opcional)" />
+                  <SelectValue placeholder="Selecione a Unidade Escolar" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="nenhum">Nenhum / A vincular posteriormente</SelectItem>
-                  {cargosElegiveisInsercao.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome} {c.condicao && c.condicao !== 'NENHUMA' ? `(${c.condicao})` : ''}
+                <SelectContent className="max-h-60">
+                  {escolas.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.nome} ({e.codigo || 'S/C'})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Período e Modalidade */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* 4. Pergunta: Cargo ou Função (Dependência dinâmica) */}
+            <div className="p-3.5 rounded-lg border border-blue-200 bg-blue-50/40">
+              <Label className="text-xs font-bold text-slate-900 block mb-2">
+                4. A vaga é de Cargo ou de Função? <span className="text-rose-500">*</span>
+              </Label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormTipoVinculo('CARGO')
+                    // Limpar seleção incompatível
+                    setFormFuncaoId('')
+                    if (!formCargoId && cargosGerais.length > 0) {
+                      setFormCargoId(cargosGerais[0].id)
+                    }
+                  }}
+                  className={`p-2.5 rounded-md border text-left text-xs font-semibold transition-all flex items-center justify-between ${
+                    formTipoVinculo === 'CARGO'
+                      ? 'border-blue-600 bg-blue-600 text-white shadow-xs'
+                      : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>Vaga de Cargo</span>
+                  {formTipoVinculo === 'CARGO' && <Check className="w-4 h-4 text-white" />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormTipoVinculo('FUNCAO')
+                    // Limpar seleção incompatível
+                    setFormCargoId('')
+                    if (!formFuncaoId && funcoesGerais.length > 0) {
+                      setFormFuncaoId(funcoesGerais[0].id)
+                    }
+                  }}
+                  className={`p-2.5 rounded-md border text-left text-xs font-semibold transition-all flex items-center justify-between ${
+                    formTipoVinculo === 'FUNCAO'
+                      ? 'border-blue-600 bg-blue-600 text-white shadow-xs'
+                      : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>Vaga de Função</span>
+                  {formTipoVinculo === 'FUNCAO' && <Check className="w-4 h-4 text-white" />}
+                </button>
+              </div>
+
+              {/* 5. Cargo da Vaga OU Função da Vaga dependente */}
+              <div className="mt-3 pt-3 border-t border-blue-100">
+                {formTipoVinculo === 'CARGO' ? (
+                  <div>
+                    <Label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                      <Briefcase className="w-3.5 h-3.5 text-blue-600" />
+                      5. Cargo da Vaga <span className="text-rose-500">*</span>
+                    </Label>
+                    <Select value={formCargoId} onValueChange={setFormCargoId}>
+                      <SelectTrigger className="mt-1 h-9 text-xs bg-white">
+                        <SelectValue placeholder="Selecione o Cargo da Vaga" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {cargosGerais.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.nome} {c.codigo ? `(${c.codigo})` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-[11px] text-slate-500 mt-1 block">
+                      Vinculado ao Cadastro de Cargos mantendo integridade referencial.
+                    </span>
+                  </div>
+                ) : (
+                  <div>
+                    <Label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-blue-600" />
+                      5. Função da Vaga <span className="text-rose-500">*</span>
+                    </Label>
+                    <Select value={formFuncaoId} onValueChange={setFormFuncaoId}>
+                      <SelectTrigger className="mt-1 h-9 text-xs bg-white">
+                        <SelectValue placeholder="Selecione a Função da Vaga" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {funcoesGerais.map((f) => (
+                          <SelectItem key={f.id} value={f.id}>
+                            {f.nome} {f.codigo ? `(${f.codigo})` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-[11px] text-slate-500 mt-1 block">
+                      Vinculada ao Cadastro de Funções mantendo integridade referencial.
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 6. Período e 7. Modalidade */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* 6. Período */}
               <div>
-                <Label className="text-xs font-semibold text-slate-700">Período</Label>
-                <Select value={novoPeriodo} onValueChange={(val: any) => setNovoPeriodo(val)}>
+                <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-blue-600" />
+                  6. Período <span className="text-rose-500">*</span>
+                </Label>
+                <Select
+                  value={formPeriodo}
+                  onValueChange={(val: PeriodoVagaOpcao) => setFormPeriodo(val)}
+                >
                   <SelectTrigger className="mt-1 h-9 text-xs bg-white">
-                    <SelectValue placeholder="Período" />
+                    <SelectValue placeholder="Selecione o período" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="SEM">Geral / Sem Período</SelectItem>
+                    <SelectItem value="GERAL">Geral / Sem Período</SelectItem>
                     <SelectItem value="MANHA">Manhã</SelectItem>
                     <SelectItem value="TARDE">Tarde</SelectItem>
                     <SelectItem value="INTEGRAL">Integral</SelectItem>
@@ -2098,11 +2368,18 @@ export const VagasPage: React.FC = () => {
                 </Select>
               </div>
 
+              {/* 7. Modalidade */}
               <div>
-                <Label className="text-xs font-semibold text-slate-700">Modalidade</Label>
-                <Select value={novaModalidade} onValueChange={(val: any) => setNovaModalidade(val)}>
+                <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Briefcase className="w-3.5 h-3.5 text-blue-600" />
+                  7. Modalidade <span className="text-rose-500">*</span>
+                </Label>
+                <Select
+                  value={formModalidade}
+                  onValueChange={(val: ModalidadeVagaOpcao) => setFormModalidade(val)}
+                >
                   <SelectTrigger className="mt-1 h-9 text-xs bg-white">
-                    <SelectValue placeholder="Modalidade" />
+                    <SelectValue placeholder="Selecione a modalidade" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="FIXO">Fixo</SelectItem>
@@ -2112,22 +2389,111 @@ export const VagasPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Dias se itinerante e Número Sequencial */}
-            <div className="grid grid-cols-2 gap-3">
-              {novaModalidade === 'ITINERANTE' && (
-                <div>
-                  <Label className="text-xs font-semibold text-slate-700">Dias na Semana</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={5}
-                    value={novosDiasSemana}
-                    onChange={(e) => setNovosDiasSemana(Number(e.target.value) || 2)}
-                    className="mt-1 h-9 text-xs"
-                  />
-                </div>
-              )}
+            {/* Dias de itinerância se modalidade = ITINERANTE */}
+            {formModalidade === 'ITINERANTE' && (
+              <div>
+                <Label className="text-xs font-semibold text-slate-700">
+                  Dias na Semana (Itinerante)
+                </Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={formDiasSemana}
+                  onChange={(e) => setFormDiasSemana(Number(e.target.value) || 2)}
+                  className="mt-1 h-9 text-xs"
+                />
+              </div>
+            )}
 
+            {/* 8. Status da Vaga do Ocupante */}
+            <div>
+              <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+                8. Status da Vaga do Ocupante (Opcional)
+              </Label>
+              <Select
+                value={formStatusOcupante}
+                onValueChange={(val: StatusOcupanteForm) => setFormStatusOcupante(val)}
+              >
+                <SelectTrigger className="mt-1 h-9 text-xs bg-white">
+                  <SelectValue placeholder="Selecione o status do ocupante" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ABERTA">Aberta</SelectItem>
+                  <SelectItem value="PREENCHIDA">Preenchida</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 9. Profissional Titular e 10. Profissional Ocupante */}
+            <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50 space-y-3">
+              <span className="text-xs font-bold text-slate-900 block">
+                Profissionais Vinculados (Cadastro de Profissionais)
+              </span>
+
+              {/* 9. Profissional Titular */}
+              <div>
+                <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-blue-600" />
+                  9. Profissional Titular (Opcional)
+                </Label>
+                <Select
+                  value={formTitularId || 'nenhum'}
+                  onValueChange={(val) => setFormTitularId(val === 'nenhum' ? '' : val)}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-xs bg-white">
+                    <SelectValue placeholder="Selecione o Profissional Titular" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="nenhum">Nenhum / Sem Titular</SelectItem>
+                    {profissionaisGerais.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.nome} {p.matricula ? `(Matrícula: ${p.matricula})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* 10. Profissional Ocupante */}
+              <div>
+                <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  10. Profissional Ocupante (Opcional — pode ser o mesmo do titular)
+                </Label>
+                <Select
+                  value={formOcupanteId || 'nenhum'}
+                  onValueChange={(val) => {
+                    const novoId = val === 'nenhum' ? '' : val
+                    setFormOcupanteId(novoId)
+                    // Ao escolher ocupante, sugere Preenchida
+                    if (novoId && formStatusOcupante === 'ABERTA') {
+                      setFormStatusOcupante('PREENCHIDA')
+                    }
+                  }}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-xs bg-white">
+                    <SelectValue placeholder="Selecione o Profissional Ocupante" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="nenhum">Nenhum / Sem Ocupante</SelectItem>
+                    {profissionaisGerais.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.nome} {p.matricula ? `(Matrícula: ${p.matricula})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-[11px] text-slate-500 mt-1 block">
+                  Regra do sistema: o Profissional Ocupante pode ser o mesmo que o Profissional
+                  Titular.
+                </span>
+              </div>
+            </div>
+
+            {/* Observações e Sequencial */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <Label className="text-xs font-semibold text-slate-700">
                   Nº Sequencial (opcional)
@@ -2135,224 +2501,21 @@ export const VagasPage: React.FC = () => {
                 <Input
                   type="number"
                   min={1}
-                  value={novoSequencial}
-                  onChange={(e) => setNovoSequencial(e.target.value)}
-                  placeholder="Automático se vazio"
+                  value={formSequencial}
+                  onChange={(e) => setFormSequencial(e.target.value)}
+                  placeholder="Automático"
                   className="mt-1 h-9 text-xs"
                 />
               </div>
-            </div>
-
-            {/* Ocupante */}
-            <div>
-              <Label className="text-xs font-semibold text-slate-700">
-                Nome do Ocupante (opcional)
-              </Label>
-              <Input
-                value={novoOcupante}
-                onChange={(e) => setNovoOcupante(e.target.value)}
-                placeholder="Ex: Maria dos Santos"
-                className="mt-1 h-9 text-xs"
-              />
-              <span className="text-[11px] text-slate-400 mt-1 block">
-                Com ocupante preenchido o status vira <strong>OCUPADA</strong>; sem vira{' '}
-                <strong>ABERTA</strong>.
-              </span>
-            </div>
-
-            {/* Observação */}
-            <div>
-              <Label className="text-xs font-semibold text-slate-700">Observação</Label>
-              <Input
-                value={novaObservacao}
-                onChange={(e) => setNovaObservacao(e.target.value)}
-                placeholder="Ex: Vaga inserida manualmente por necessidade pedagógica."
-                className="mt-1 h-9 text-xs"
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0 pt-3 border-t border-slate-200">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setModalInserirAberto(false)}
-              disabled={salvandoInsercao}
-              className="text-xs"
-            >
-              Cancelar
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleSalvarInsercaoManual}
-              disabled={salvandoInsercao}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
-            >
-              {salvandoInsercao ? 'Salvando...' : 'Salvar Vaga'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ==================================================================== */}
-      {/* MODAL 4.B: EDIÇÃO MANUAL DE VAGA */}
-      {/* ==================================================================== */}
-      <Dialog open={modalEditarAberto} onOpenChange={setModalEditarAberto}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold flex items-center gap-2 text-slate-900">
-              <Pencil className="w-5 h-5 text-blue-600" />
-              Editar Vaga: {vagaEmEdicao?.funcao} (Nº {vagaEmEdicao?.numero_sequencial})
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Código: {vagaEmEdicao?.codigo || '—'} · Unidade: {vagaEmEdicao?.unidade_escolar?.nome}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3.5 py-2">
-            {/* Vaga Excedente (Somente Leitura) */}
-            <div>
-              <Label className="text-xs font-semibold text-slate-700">
-                Vaga Excedente (Definido pelo sistema)
-              </Label>
-              <div className="mt-1 flex items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className={`text-xs font-semibold py-1 px-2.5 ${
-                    vagaEmEdicao?.vaga_excedente
-                      ? 'bg-amber-50 text-amber-700 border-amber-200'
-                      : 'bg-slate-50 text-slate-600 border-slate-200'
-                  }`}
-                >
-                  {vagaEmEdicao?.vaga_excedente ? 'Sim' : 'Não'}
-                </Badge>
-                <span className="text-[11px] text-slate-400">
-                  {vagaEmEdicao?.vaga_excedente
-                    ? 'Origem: Inserção manual no sistema (não editável).'
-                    : 'Origem: Geração automática pelo porte e matriz (não editável).'}
-                </span>
-              </div>
-            </div>
-
-            {/* Ocupante */}
-            <div>
-              <Label className="text-xs font-semibold text-slate-700">Nome do Ocupante</Label>
-              <Input
-                value={editOcupante}
-                onChange={(e) => setEditOcupante(e.target.value)}
-                placeholder="Deixe vazio para liberar a vaga"
-                className="mt-1 h-9 text-xs"
-              />
-              <span className="text-[11px] text-slate-400 mt-1 block">
-                Com ocupante preenchido o status vira <strong>OCUPADA</strong>. Se vazio, vira{' '}
-                <strong>ABERTA</strong>.
-              </span>
-            </div>
-
-            {/* Cargo permitido */}
-            <div>
-              <Label className="text-xs font-semibold text-slate-700">
-                Cargo (Permitidos para {vagaEmEdicao?.funcao})
-              </Label>
-              <Select value={editCargoId} onValueChange={setEditCargoId}>
-                <SelectTrigger className="mt-1 h-9 text-xs bg-white">
-                  <SelectValue placeholder="Selecione o cargo do ocupante" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="nenhum">Nenhum / Desvincular cargo</SelectItem>
-                  {cargosElegiveisEdicao.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome} {c.condicao && c.condicao !== 'NENHUMA' ? `(${c.condicao})` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Período e Modalidade */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs font-semibold text-slate-700">Período</Label>
-                <Select value={editPeriodo} onValueChange={(val: any) => setEditPeriodo(val)}>
-                  <SelectTrigger className="mt-1 h-9 text-xs bg-white">
-                    <SelectValue placeholder="Período" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="SEM">Sem Período</SelectItem>
-                    <SelectItem value="MANHA">Manhã</SelectItem>
-                    <SelectItem value="TARDE">Tarde</SelectItem>
-                    <SelectItem value="INTEGRAL">Integral</SelectItem>
-                    <SelectItem value="NOITE">Noite</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label className="text-xs font-semibold text-slate-700">Modalidade</Label>
-                <Select value={editModalidade} onValueChange={(val: any) => setEditModalidade(val)}>
-                  <SelectTrigger className="mt-1 h-9 text-xs bg-white">
-                    <SelectValue placeholder="Modalidade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="FIXO">Fixo</SelectItem>
-                    <SelectItem value="ITINERANTE">Itinerante</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Dias de itinerância e Sequencial */}
-            <div className="grid grid-cols-2 gap-3">
-              {editModalidade === 'ITINERANTE' && (
-                <div>
-                  <Label className="text-xs font-semibold text-slate-700">Dias na Semana</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={5}
-                    value={editDiasSemana}
-                    onChange={(e) => setEditDiasSemana(Number(e.target.value) || 2)}
-                    className="mt-1 h-9 text-xs"
-                  />
-                </div>
-              )}
-
-              <div>
-                <Label className="text-xs font-semibold text-slate-700">Nº Sequencial</Label>
+              <div className="sm:col-span-2">
+                <Label className="text-xs font-semibold text-slate-700">Observações</Label>
                 <Input
-                  type="number"
-                  min={1}
-                  value={editSequencial}
-                  onChange={(e) => setEditSequencial(e.target.value)}
+                  value={formObservacao}
+                  onChange={(e) => setFormObservacao(e.target.value)}
+                  placeholder="Observação livre da vaga"
                   className="mt-1 h-9 text-xs"
                 />
               </div>
-            </div>
-
-            {/* Status (se ocupante, pode ser forçado para EXCEDENTE) */}
-            <div>
-              <Label className="text-xs font-semibold text-slate-700">Status</Label>
-              <Select value={editStatus} onValueChange={(val: any) => setEditStatus(val)}>
-                <SelectTrigger className="mt-1 h-9 text-xs bg-white">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ABERTA">ABERTA (sem ocupante)</SelectItem>
-                  <SelectItem value="OCUPADA">OCUPADA (com ocupante)</SelectItem>
-                  <SelectItem value="EXCEDENTE">EXCEDENTE (ocupante excedente)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Observação */}
-            <div>
-              <Label className="text-xs font-semibold text-slate-700">Observação</Label>
-              <Input
-                value={editObservacao}
-                onChange={(e) => setEditObservacao(e.target.value)}
-                placeholder="Observações adicionais"
-                className="mt-1 h-9 text-xs"
-              />
             </div>
           </div>
 
@@ -2360,19 +2523,28 @@ export const VagasPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setModalEditarAberto(false)}
-              disabled={salvandoEdicao}
+              onClick={() => setModalFormularioAberto(false)}
+              disabled={salvandoFormulario}
               className="text-xs"
             >
               Cancelar
             </Button>
             <Button
               size="sm"
-              onClick={handleSalvarEdicaoManual}
-              disabled={salvandoEdicao}
+              onClick={handleSalvarFormulario}
+              disabled={salvandoFormulario}
               className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold"
             >
-              {salvandoEdicao ? 'Salvando...' : 'Salvar Alterações'}
+              {salvandoFormulario ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  Salvando...
+                </>
+              ) : modoEdicao ? (
+                'Salvar Alterações'
+              ) : (
+                'Cadastrar Vaga'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2456,14 +2628,51 @@ export const VagasPage: React.FC = () => {
           <div className="space-y-4 text-xs text-slate-700 py-2 leading-relaxed">
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <h4 className="font-bold text-blue-900 text-sm mb-1">
-                1. Atributos Principais da Tela
+                1. Novo Modelo do Cadastro de Vagas (10 Atributos Oficiais)
               </h4>
-              <p>
-                A tela opera com base em <strong>"Ano Letivo"</strong> e{' '}
-                <strong>"Unidade Escolar"</strong>. Ao selecionar a unidade, o sistema não exige
-                digitação de alunos nem turmas: esses dados são resgatados automaticamente das suas
-                fontes oficiais.
+              <p className="mb-2">
+                O formulário de cadastro e edição de vagas segue estritamente a ordem e as regras do
+                sistema:
               </p>
+              <ol className="list-decimal pl-5 space-y-1 text-slate-800">
+                <li>
+                  <strong>Identificação:</strong> gerada automaticamente pelo sistema com formato
+                  único padronizado.
+                </li>
+                <li>
+                  <strong>Ano Letivo:</strong> obrigatório, combobox com anos de 2020 a 2040.
+                </li>
+                <li>
+                  <strong>Unidade Escolar:</strong> obrigatória, vinculada com integridade
+                  referencial ao Cadastro de Unidades.
+                </li>
+                <li>
+                  <strong>Pergunta Cargo ou Função:</strong> escolha dinâmica exclusiva entre Cargo
+                  e Função.
+                </li>
+                <li>
+                  <strong>Cargo da Vaga ou Função da Vaga:</strong> campo obrigatório dinâmico
+                  exibido conforme a escolha anterior (limpa incompatíveis).
+                </li>
+                <li>
+                  <strong>Período:</strong> obrigatório com 5 opções (Geral / Sem Período, Manhã,
+                  Tarde, Integral, Noite).
+                </li>
+                <li>
+                  <strong>Modalidade:</strong> obrigatória (Fixo ou Itinerante).
+                </li>
+                <li>
+                  <strong>Status da Vaga do Ocupante:</strong> opcional (Aberta ou Preenchida).
+                </li>
+                <li>
+                  <strong>Profissional Titular:</strong> opcional, vinculado ao Cadastro de
+                  Profissionais.
+                </li>
+                <li>
+                  <strong>Profissional Ocupante:</strong> opcional, vinculado ao Cadastro de
+                  Profissionais (o mesmo profissional pode ser titular e ocupante).
+                </li>
+              </ol>
             </div>
 
             <div>

@@ -5,41 +5,57 @@ import { VagaReal } from '@/types/gestao-escolar'
  */
 export function exportarVagasExcel(vagas: VagaReal[], nomeArquivo = 'cadastro-vagas.csv') {
   const colunas = [
-    'Código Vaga',
-    'Unidade Escolar',
-    'Tipo Atendimento',
+    'Identificação',
     'Ano Letivo',
-    'Nível',
-    'Função',
+    'Unidade Escolar',
+    'Tipo de Vínculo',
+    'Cargo/Função da Vaga',
     'Nº Seq.',
     'Período',
     'Modalidade',
-    'Dias/Semana',
-    'Cargo',
-    'Ocupante',
     'Status',
+    'Profissional Titular',
+    'Profissional Ocupante',
     'Vaga Excedente',
     'Observação',
   ]
 
+  const rotuloPeriodo = (p: string | null | undefined) => {
+    if (!p) return 'Geral / Sem Período'
+    if (p === 'MANHA') return 'Manhã'
+    if (p === 'TARDE') return 'Tarde'
+    if (p === 'INTEGRAL') return 'Integral'
+    if (p === 'NOITE') return 'Noite'
+    return p
+  }
+
   const linhas = vagas.map((v) => {
-    const nivel = v.configuracao_rh
-      ? `Nível ${v.configuracao_rh.tipo_atendimento.includes('40h') ? 'Infantil' : 'Fundamental'}`
-      : '-'
+    const tipo = v.tipo_vinculo === 'CARGO' ? 'Cargo' : 'Função'
+    const cargoOuFuncao =
+      v.tipo_vinculo === 'CARGO'
+        ? v.cargo?.nome || v.funcao || '-'
+        : v.funcao_objeto?.nome || v.funcao || '-'
+    const titularNome = (v.profissional_titular as any)?.nome || '-'
+    const ocupanteNome = (v.profissional_ocupante as any)?.nome || v.nome_ocupante || '-'
+    const statusRotulo =
+      v.status === 'OCUPADA' || v.status === 'PREENCHIDA'
+        ? 'Preenchida'
+        : v.status === 'EXCEDENTE'
+          ? 'Excedente'
+          : 'Aberta'
+
     return [
       v.codigo || '',
-      `"${(v.unidade_escolar?.nome || '').replace(/"/g, '""')}"`,
-      `"${(v.unidade_escolar?.tipo_atendimento || '').replace(/"/g, '""')}"`,
       v.ano_letivo,
-      nivel,
-      `"${(v.funcao || '').replace(/"/g, '""')}"`,
+      `"${(v.unidade_escolar?.nome || '').replace(/"/g, '""')}"`,
+      tipo,
+      `"${cargoOuFuncao.replace(/"/g, '""')}"`,
       v.numero_sequencial,
-      v.periodo || 'Integral/Geral',
-      v.modalidade,
-      v.dias_semana ? `${v.dias_semana}x/sem` : '',
-      `"${(v.cargo?.nome || '').replace(/"/g, '""')}"`,
-      `"${(v.nome_ocupante || '').replace(/"/g, '""')}"`,
-      v.status,
+      rotuloPeriodo(v.periodo),
+      v.modalidade === 'ITINERANTE' ? 'Itinerante' : 'Fixo',
+      statusRotulo,
+      `"${titularNome.replace(/"/g, '""')}"`,
+      `"${ocupanteNome.replace(/"/g, '""')}"`,
       v.vaga_excedente ? 'Sim' : 'Não',
       `"${(v.observacao || '').replace(/"/g, '""')}"`,
     ].join(';')
@@ -79,26 +95,48 @@ export function exportarVagasPDF(
   }
 
   const linhasHtml = vagas
-    .map(
-      (v, idx) => `
+    .map((v, idx) => {
+      const cargoOuFuncao =
+        v.tipo_vinculo === 'CARGO'
+          ? v.cargo?.nome || v.funcao || '-'
+          : v.funcao_objeto?.nome || v.funcao || '-'
+      const ocupanteNome = (v.profissional_ocupante as any)?.nome || v.nome_ocupante || ''
+      const titularNome = (v.profissional_titular as any)?.nome || ''
+      const isOcupada = v.status === 'OCUPADA' || v.status === 'PREENCHIDA' || !!ocupanteNome
+      const rotuloPeriodo = !v.periodo
+        ? 'Geral'
+        : v.periodo === 'MANHA'
+          ? 'Manhã'
+          : v.periodo === 'TARDE'
+            ? 'Tarde'
+            : v.periodo === 'INTEGRAL'
+              ? 'Integral'
+              : v.periodo === 'NOITE'
+                ? 'Noite'
+                : v.periodo
+
+      return `
       <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
         <td style="padding: 6px 8px; border: 1px solid #e2e8f0; font-family: monospace; font-size: 11px;">${v.codigo || '-'}</td>
         <td style="padding: 6px 8px; border: 1px solid #e2e8f0; font-weight: 500;">${v.unidade_escolar?.nome || '-'}</td>
-        <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${v.funcao} (${v.numero_sequencial})</td>
-        <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${v.periodo || '—'}</td>
-        <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${v.modalidade}${v.dias_semana ? ` (${v.dias_semana}x/sem)` : ''}</td>
-        <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${v.cargo?.nome || '—'}</td>
-        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; font-weight: 600;">${v.nome_ocupante || '<span style="color:#94a3b8;font-weight:normal;">(Em aberto)</span>'}</td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">
+          <div style="font-weight: 600;">${cargoOuFuncao}</div>
+          <div style="font-size: 10px; color: #64748b;">${v.tipo_vinculo === 'CARGO' ? 'Cargo' : 'Função'} · Seq #${v.numero_sequencial}</div>
+        </td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${rotuloPeriodo}</td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${v.modalidade === 'ITINERANTE' ? 'Itinerante' : 'Fixo'}</td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; font-size: 11px;">${titularNome || '<span style="color:#94a3b8;">—</span>'}</td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; font-weight: 600; font-size: 11px;">${ocupanteNome || '<span style="color:#94a3b8;font-weight:normal;">(Em aberto)</span>'}</td>
         <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center;">
           <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase;
             ${
-              v.status === 'OCUPADA'
+              isOcupada
                 ? 'background: #dcfce7; color: #15803d;'
                 : v.status === 'EXCEDENTE'
                   ? 'background: #fef3c7; color: #b45309;'
                   : 'background: #dbeafe; color: #1d4ed8;'
             }">
-            ${v.status}
+            ${isOcupada ? 'PREENCHIDA' : v.status}
           </span>
         </td>
         <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center;">
@@ -112,8 +150,8 @@ export function exportarVagasPDF(
           </span>
         </td>
       </tr>
-    `,
-    )
+    `
+    })
     .join('')
 
   const docHtml = `
