@@ -288,3 +288,92 @@
     animation: spotlight 2s ease forwards;
   }
 }
+
+/* =========================================================================
+   Impressão da Central de Ajuda (/central-ajuda)
+   - Oculta sidebar, barra superior, rodapé e controles de navegação.
+   - Fundo branco e texto escuro, independentemente do tema claro/escuro.
+   - Cada módulo de ajuda começa em uma nova página (quebra entre módulos).
+   ========================================================================= */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  /* Zera margens/paddings de todo o documento para impressão limpa */
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Força fundo branco em qualquer elemento ao imprimir (ignora tema escuro) */
+  html,
+  body,
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Oculta o layout do sistema inteiro e mostra apenas a área de impressão */
+  body.printando-ajuda > * {
+    display: none !important;
+  }
+  body.printando-ajuda > #root {
+    display: block !important;
+  }
+  /* Cobre o caso da raiz sem classe no body (fallback de segurança) */
+  body:not(.printando-ajuda) .print-area-ajuda {
+    display: block !important;
+  }
+
+  /* Área de impressão: sempre visível, ocupando a página */
+  .print-area-ajuda {
+    display: block !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  /* Título e cabeçalho da versão impressa */
+  .print-area-ajuda .print-titulo {
+    font-size: 18pt !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    margin-bottom: 4mm !important;
+  }
+
+  /* Blocos de conteúdo dos módulos: neutros e legíveis */
+  .print-area-ajuda .print-bloco {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 2mm !important;
+    padding: 4mm !important;
+    margin-bottom: 4mm !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-area-ajuda .print-bloco h3 {
+    font-size: 12pt !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    margin-bottom: 2mm !important;
+  }
+
+  .print-area-ajuda .print-bloco li {
+    font-size: 10pt !important;
+    color: #334155 !important;
+    line-height: 1.5 !important;
+  }
+
+  /* Rodapé com data/hora e escopo da impressão */
+  .print-area-ajuda .print-rodape {
+    font-size: 9pt !important;
+    color: #64748b !important;
+    border-top: 1px solid #cbd5e1 !important;
+    padding-top: 2mm !important;
+    margin-top: 6mm !important;
+  }
+}

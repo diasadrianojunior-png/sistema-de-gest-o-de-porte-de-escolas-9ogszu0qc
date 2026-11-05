@@ -300,6 +300,7 @@ export type EntidadeAuditoria =
   | 'Permissões'
   | 'Autenticação'
   | 'Especializações'
+  | 'Central de Ajuda'
 
 export type SistemaMenuKey =
   | 'painel'

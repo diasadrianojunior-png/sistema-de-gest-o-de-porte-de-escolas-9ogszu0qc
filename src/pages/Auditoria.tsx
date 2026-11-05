@@ -351,6 +351,7 @@ export default function Auditoria() {
                   <SelectItem value="Permissões">Permissões de Acesso</SelectItem>
                   <SelectItem value="Administração">Administração</SelectItem>
                   <SelectItem value="Autenticação">Autenticação (Login)</SelectItem>
+                  <SelectItem value="Central de Ajuda">Central de Ajuda</SelectItem>
                 </SelectContent>
               </Select>
             </div>
