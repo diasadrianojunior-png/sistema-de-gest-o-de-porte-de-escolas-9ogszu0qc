@@ -609,6 +609,8 @@ export interface Profissional {
   data_nascimento?: string | null
   classe?: ClasseProfissional | string | null
   classificacao_concurso?: string | null
+  /** E-mail do Profissional: opcional; validado no formato quando preenchido */
+  email_profissional?: string | null
   created_at?: string
   updated_at?: string
   // Relações expandidas

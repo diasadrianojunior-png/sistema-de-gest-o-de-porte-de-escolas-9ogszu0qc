@@ -27,6 +27,8 @@ export interface SalvarProfissionalInput {
   data_nascimento?: string | null
   classe?: ClasseProfissional | string | null
   classificacao_concurso?: string | null
+  /** E-mail do Profissional: campo opcional; validado no formato quando preenchido */
+  email_profissional?: string | null
   vagas?: VinculoVagaInput[]
   /** Especialidade(s) do Profissional: ids das Especializações (opcional, multi-seleção) */
   especialidades?: string[]
@@ -66,6 +68,24 @@ export function calcularClasseProfissional(
   }
 
   return 'Novos na Rede'
+}
+
+/**
+ * Valida o formato do E-mail do Profissional quando informado.
+ * Campo opcional: vazio/nulo é válido; preenchido, precisa ter formato "algo@dominio.tld".
+ * Retorna a mensagem de erro amigável ou null quando válido.
+ */
+export function validarEmailProfissional(email?: string | null): string | null {
+  const valor = (email || '').trim()
+  if (!valor) return null
+
+  // Regex simples e objetiva: parte local + @ + domínio com pelo menos um ponto
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(valor)) {
+    return 'E-mail inválido: informe um endereço no formato nome@dominio (ex.: professor@escola.gov.br).'
+  }
+
+  return null
 }
 
 /**
@@ -186,6 +206,15 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
     )
   }
 
+  // E-mail do Profissional: campo OPCIONAL. Quando preenchido, valida o formato.
+  const erroEmail = validarEmailProfissional(input.email_profissional)
+  if (erroEmail) {
+    throw new Error(erroEmail)
+  }
+  const emailProfissionalNormalizado = input.email_profissional
+    ? input.email_profissional.trim()
+    : null
+
   // Validação: não pode haver dois registros para o mesmo Ano Letivo no mesmo profissional
   const anosInscricaoInformados = (input.inscricoes_ano || []).map((i) => i.ano_letivo)
   if (new Set(anosInscricaoInformados).size !== anosInscricaoInformados.length) {
@@ -208,6 +237,7 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
         data_nascimento: dataNascimentoNormalizada,
         classe: classeCalculada,
         classificacao_concurso: classificacaoConcursoNormalizada,
+        email_profissional: emailProfissionalNormalizado,
         updated_at: new Date().toISOString(),
       })
       .eq('id', input.id)
@@ -230,6 +260,7 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
         data_nascimento: dataNascimentoNormalizada,
         classe: classeCalculada,
         classificacao_concurso: classificacaoConcursoNormalizada,
+        email_profissional: emailProfissionalNormalizado,
       })
       .select('*, unidade_escolar:unidades_escolares(*)')
       .single()
@@ -495,6 +526,7 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
         data_nascimento: profissionalAnterior.data_nascimento || null,
         classe: profissionalAnterior.classe || null,
         classificacao_concurso: profissionalAnterior.classificacao_concurso || null,
+        email_profissional: profissionalAnterior.email_profissional || null,
         vagas_vinculadas: (profissionalAnterior.vagas_vinculadas || []).map((v) => ({
           vaga_id: v.vaga_id,
           titular: v.titular,
@@ -517,6 +549,7 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
     data_nascimento: profissionalSalvo.data_nascimento || null,
     classe: profissionalSalvo.classe || null,
     classificacao_concurso: profissionalSalvo.classificacao_concurso || null,
+    email_profissional: profissionalSalvo.email_profissional || null,
     vagas_vinculadas: novosVinculos,
     especialidades: nomesEspecialidadesSalvas,
     inscricoes_ano: inscricoesNormalizadas,
@@ -527,8 +560,8 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
     acao: isEdicao ? 'Edição' : 'Criação',
     registro_codigo: profissionalSalvo.codigo || null,
     descricao: isEdicao
-      ? `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) atualizado. Classe: "${profissionalSalvo.classe}". Classificação no Concurso: "${profissionalSalvo.classificacao_concurso || '-'}". Vagas vinculadas: ${novosVinculos.length}. Especialidades: ${nomesEspecialidadesSalvas.length > 0 ? nomesEspecialidadesSalvas.join(', ') : 'nenhuma'}.`
-      : `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) cadastrado com sucesso. Classe: "${profissionalSalvo.classe}". Classificação no Concurso: "${profissionalSalvo.classificacao_concurso || '-'}". Vagas vinculadas: ${novosVinculos.length}. Especialidades: ${nomesEspecialidadesSalvas.length > 0 ? nomesEspecialidadesSalvas.join(', ') : 'nenhuma'}.`,
+      ? `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) atualizado. Classe: "${profissionalSalvo.classe}". Classificação no Concurso: "${profissionalSalvo.classificacao_concurso || '-'}". E-mail: "${profissionalSalvo.email_profissional || '-'}". Vagas vinculadas: ${novosVinculos.length}. Especialidades: ${nomesEspecialidadesSalvas.length > 0 ? nomesEspecialidadesSalvas.join(', ') : 'nenhuma'}.`
+      : `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) cadastrado com sucesso. Classe: "${profissionalSalvo.classe}". Classificação no Concurso: "${profissionalSalvo.classificacao_concurso || '-'}". E-mail: "${profissionalSalvo.email_profissional || '-'}". Vagas vinculadas: ${novosVinculos.length}. Especialidades: ${nomesEspecialidadesSalvas.length > 0 ? nomesEspecialidadesSalvas.join(', ') : 'nenhuma'}.`,
     detalhes: {
       profissional_id: profissionalId,
       nome: profissionalSalvo.nome,
@@ -538,6 +571,7 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
       data_nascimento: profissionalSalvo.data_nascimento,
       classe: profissionalSalvo.classe,
       classificacao_concurso: profissionalSalvo.classificacao_concurso,
+      email_profissional: profissionalSalvo.email_profissional || null,
       valores_antigos: valoresAntigos,
       valores_novos: valoresNovos,
       especialidades: nomesEspecialidadesSalvas,

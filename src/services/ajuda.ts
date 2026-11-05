@@ -337,6 +337,7 @@ export const AJUDAS_MODULOS: AjudaModulo[] = [
         itens: [
           'Identificador do registro: gerado automaticamente pelo sistema (padrão PRO-XXXX).',
           'Nome, unidade escolar (seleção dinâmica), situação (ativo/inativo), data de admissão e data de nascimento.',
+          'E-mail do Profissional: campo OPCIONAL, posicionado imediatamente abaixo do Nome do Profissional. Quando preenchido, o formato do e-mail é validado (ex.: nome@dominio.com) e o salvamento é bloqueado com aviso amigável se estiver inválido. Exibido na listagem, no detalhe do profissional e na exportação (Excel/CSV).',
           'Classe Profissional: "Antigos na Rede" ou "Novos na Rede".',
           'Classificação no Concurso: texto livre, posicionado logo após a Classe Profissional; obrigatório somente quando a classe for "Novos na Rede" (validação na página e no serviço).',
           'Especialidade(s) do Profissional: relação com o cadastro de Especializações (múltipla seleção).',
@@ -351,6 +352,7 @@ export const AJUDAS_MODULOS: AjudaModulo[] = [
           'O vínculo do profissional com a vaga é titular ou não; o tipo de vínculo (CARGO/FUNCAO) é derivado da linha da Configuração de RH que gerou a vaga.',
           'Vínculos do tipo FUNCAO são sempre gravados como não titulares.',
           'A classe pode ser calculada automaticamente a partir da data de admissão (calcularClasseProfissional).',
+          'E-mail do Profissional é opcional; quando informado, o formato é validado e o valor é registrado na auditoria (valores antigos → novos) em inclusões e alterações.',
           'Inscrições no Processo Seletivo: o mesmo Ano Letivo não pode se repetir no mesmo profissional; ao salvar, as inscrições anteriores são substituídas pelas informadas no formulário.',
           'Salvar o profissional sem nenhuma linha de inscrição é permitido.',
         ],

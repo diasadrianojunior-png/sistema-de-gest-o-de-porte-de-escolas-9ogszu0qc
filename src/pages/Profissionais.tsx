@@ -38,6 +38,8 @@ import {
   Loader2,
   Search,
   UserCheck,
+  Mail,
+  Download,
   Building,
   Briefcase,
   Eye,
@@ -60,9 +62,11 @@ import {
   getVagasPorUnidade,
   calcularClasseProfissional,
   determinarTipoVinculoVaga,
+  validarEmailProfissional,
   VinculoVagaInput,
   InscricaoAnoInput,
 } from '@/services/profissionais'
+import { exportarProfissionaisExcel } from '@/services/profissionais-export'
 import { getUnidadesEscolares } from '@/services/unidades-escolares'
 import { getCargos } from '@/services/apoio'
 import { getEspecializacoes } from '@/services/especializacoes'
@@ -110,6 +114,8 @@ export default function Profissionais() {
   const [openDialog, setOpenDialog] = useState(false)
   const [editingProfissional, setEditingProfissional] = useState<Profissional | null>(null)
   const [formNome, setFormNome] = useState('')
+  // E-mail do Profissional: campo opcional, posicionado logo abaixo do Nome do Profissional
+  const [formEmailProfissional, setFormEmailProfissional] = useState('')
   const [formDataAdmissao, setFormDataAdmissao] = useState('')
   const [formDataNascimento, setFormDataNascimento] = useState('')
   const [formClasse, setFormClasse] = useState<ClasseProfissional>('Antigos na Rede')
@@ -230,6 +236,7 @@ export default function Profissionais() {
   const handleOpenCreate = () => {
     setEditingProfissional(null)
     setFormNome('')
+    setFormEmailProfissional('')
     setFormDataAdmissao('')
     setFormDataNascimento('')
     setFormClasse('Antigos na Rede')
@@ -247,6 +254,7 @@ export default function Profissionais() {
   const handleOpenEdit = async (prof: Profissional) => {
     setEditingProfissional(prof)
     setFormNome(prof.nome)
+    setFormEmailProfissional(prof.email_profissional || '')
     const dataAdm = prof.data_admissao || ''
     setFormDataAdmissao(dataAdm)
     setFormDataNascimento(prof.data_nascimento || '')
@@ -458,6 +466,7 @@ export default function Profissionais() {
       await salvarProfissional({
         id: editingProfissional?.id,
         nome: formNome.trim(),
+        email_profissional: formEmailProfissional.trim() ? formEmailProfissional.trim() : null,
         unidade_escolar_id: formUnidadeId,
         ativo: formAtivo,
         data_admissao: formDataAdmissao,
@@ -502,6 +511,17 @@ export default function Profissionais() {
       toast({
         title: 'Nome obrigatório',
         description: 'Informe o nome do profissional.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // E-mail do Profissional: OPCIONAL; quando preenchido, valida o formato do e-mail
+    const erroEmail = validarEmailProfissional(formEmailProfissional)
+    if (erroEmail) {
+      toast({
+        title: 'E-mail do Profissional inválido',
+        description: erroEmail,
         variant: 'destructive',
       })
       return
@@ -781,6 +801,21 @@ export default function Profissionais() {
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
+            onClick={() =>
+              exportarProfissionaisExcel(
+                profissionais,
+                `profissionais-${new Date().toISOString().slice(0, 10)}.csv`,
+              )
+            }
+            className="border-slate-300 text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+            title="Exportar listagem de profissionais (Excel/CSV)"
+          >
+            <Download className="w-4 h-4 text-blue-600" />
+            Exportar
+          </Button>
+
+          <Button
+            variant="outline"
             onClick={() => setOpenAjuda(true)}
             className="border-slate-300 text-slate-700 hover:bg-slate-50 flex items-center gap-2"
           >
@@ -898,6 +933,7 @@ export default function Profissionais() {
                   <tr className="bg-slate-100/60 border-b border-slate-200 text-slate-600 font-semibold">
                     <th className="py-3 px-4 w-28">Identificador</th>
                     <th className="py-3 px-4">Nome do Profissional</th>
+                    <th className="py-3 px-4 w-52">E-mail do Profissional</th>
                     <th className="py-3 px-4 w-36">Classe</th>
                     <th className="py-3 px-4 w-44">Classificação no Concurso</th>
                     <th className="py-3 px-4">Especialidade(s)</th>
@@ -923,6 +959,20 @@ export default function Profissionais() {
                             <UserCheck className="w-4 h-4 text-slate-400 shrink-0" />
                             <span>{p.nome}</span>
                           </div>
+                        </td>
+                        <td className="py-3 px-4 text-slate-700 max-w-[220px]">
+                          {p.email_profissional ? (
+                            <a
+                              href={`mailto:${p.email_profissional}`}
+                              className="inline-flex items-center gap-1.5 text-xs text-blue-700 hover:text-blue-900 hover:underline truncate"
+                              title={p.email_profissional}
+                            >
+                              <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span className="truncate">{p.email_profissional}</span>
+                            </a>
+                          ) : (
+                            <span className="text-slate-400 italic text-xs">—</span>
+                          )}
                         </td>
                         <td className="py-3 px-4">
                           <Badge
@@ -1113,6 +1163,29 @@ export default function Profissionais() {
                   className="mt-1"
                   required
                 />
+              </div>
+
+              {/* E-mail do Profissional — campo OPCIONAL, imediatamente abaixo do Nome do Profissional */}
+              <div>
+                <Label
+                  htmlFor="email_profissional"
+                  className="text-xs font-semibold text-slate-700"
+                >
+                  E-mail do Profissional{' '}
+                  <span className="text-slate-400 font-normal">(opcional)</span>
+                </Label>
+                <Input
+                  id="email_profissional"
+                  type="email"
+                  value={formEmailProfissional}
+                  onChange={(e) => setFormEmailProfissional(e.target.value)}
+                  placeholder="exemplo@dominio.com"
+                  className="mt-1 bg-white"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Campo opcional. Se preenchido, o formato do e-mail é validado (ex.:
+                  nome@dominio.com).
+                </p>
               </div>
 
               {/* Novos campos exigidos posicionados LOGO ABAIXO do Nome do Profissional, nesta ordem exata: */}
@@ -1674,6 +1747,23 @@ export default function Profissionais() {
                     {viewingProfissional.nome}
                   </span>
                 </div>
+                <div className="col-span-2">
+                  <span className="text-slate-400 uppercase font-semibold text-[10px] block">
+                    E-mail do Profissional
+                  </span>
+                  {viewingProfissional.email_profissional ? (
+                    <a
+                      href={`mailto:${viewingProfissional.email_profissional}`}
+                      className="inline-flex items-center gap-1.5 text-sm text-blue-700 hover:text-blue-900 hover:underline mt-1"
+                      title={viewingProfissional.email_profissional}
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      {viewingProfissional.email_profissional}
+                    </a>
+                  ) : (
+                    <span className="text-slate-400 italic text-xs mt-1">Não informado</span>
+                  )}
+                </div>
                 <div>
                   <span className="text-slate-400 uppercase font-semibold text-[10px] block">
                     Data de Admissão
@@ -1894,6 +1984,15 @@ export default function Profissionais() {
                 <li>
                   <strong>Nome do Profissional:</strong> Nome completo do servidor/profissional
                   (obrigatório).
+                </li>
+                <li>
+                  <strong>E-mail do Profissional:</strong> Campo posicionado{' '}
+                  <strong>imediatamente abaixo</strong> do Nome do Profissional e de preenchimento{' '}
+                  <strong>opcional</strong> — o cadastro pode ser salvo sem informá-lo. Quando
+                  preenchido, o sistema valida o formato do e-mail (ex.:{' '}
+                  <code>nome@dominio.com</code>) e bloqueia o salvamento com aviso amigável se
+                  estiver inválido. O e-mail aparece na listagem, no detalhe do profissional e na
+                  exportação da listagem (Excel/CSV).
                 </li>
                 <li>
                   <strong>Data de Admissão:</strong> Data de ingresso do profissional na rede
