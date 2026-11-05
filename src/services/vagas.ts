@@ -1,1854 +1,901 @@
+/**
+ * Serviço do Cadastro de Vagas — modelo novo:
+ *  - Tipo de vínculo: CARGO ou FUNCAO (pergunta no formulário).
+ *  - Cargo da Vaga / Função da Vaga: FKs para cadastros de Cargos / Funções.
+ *  - Período (SEM/MANHA/TARDE/INTEGRAL/NOITE) e Modalidade (FIXO/ITINERANTE) — obrigatórios.
+ *  - Status da Vaga do Ocupante (ABERTA/PREENCHIDA) — opcional na tela; coerência:
+ *      com Profissional Ocupante => PREENCHIDA; sem ocupante => ABERTA.
+ *  - Profissional Titular e Profissional Ocupante: FKs para Profissionais
+ *      (o MESMO profissional pode ser titular e ocupante da mesma vaga).
+ *  - Vaga Excedente: Não = gerada automaticamente; Sim = inserida manualmente.
+ *  - Identificação automática: VAG-XXXX; código e número sequencial preservados.
+ * Fluxos preservados: geração automática (prévia/resumo/confirmação, preserva
+ * vagas ocupadas, excedentes => EXCEDENTE), migração entre anos letivos,
+ * inserção/edição/exclusão manual, exportação e auditoria.
+ */
 import { supabase } from '@/lib/supabase/client'
 import {
-  ConfiguracaoRhCompleta,
-  ConfiguracaoRhLinha,
-  PeriodoEscola,
-  PorteEscolaAno,
-  StatusVagaReal,
-  UnidadeEscolar,
-  UnidadeEscolarAno,
-  VagaReal,
-} from '@/types/gestao-escolar'
+  registrarAuditoria,
+  sanitizarVinculosAuditados,
+  getUsuarioAtualParaAuditoria,
+} from '@/services/auditoria'
+import { getConfiguracoesRh } from '@/services/configuracao-rh'
+import { calcularVagasPorNivel } from '@/services/configuracao-rh-calculo'
 import {
-  calcularVagasPorNivel,
-  ResultadoCalculoVagas,
-  normalizarChaveEtapa,
-} from './configuracao-rh-calculo'
-import { getConfiguracaoRhCompleta } from './configuracao-rh'
-import { registrarAuditoria } from './auditoria'
+  VagaReal,
+  StatusVagaReal,
+  PeriodoEscola,
+  StatusOcupacaoVaga,
+  TipoAtendimentoUnidade,
+} from '@/types/gestao-escolar'
+import { VagaCalculadaMemoria, ConfiguracaoVagasRh, LinhaConfigVagas } from '@/types/gestao-escolar'
 
-const db = supabase as any
+const TABELA = 'vaga' as const
 
-// ==========================================
-// SELEÇÃO DA CONFIGURAÇÃO ADEQUADA (Regra 1)
-// "Ao gerar vagas para uma escola, use a configuração do tipo de atendimento da escola nesta ordem de prioridade:
-// 1) a VIGENTE do ano letivo escolhido;
-// 2) se não houver, a ÚLTIMA criada (mais recente) daquele tipo de atendimento.
-// Mostre na tela qual configuração foi usada (tipo, ano, status, data) e grave o configuracao_rh_id em cada vaga gerada."
-// ==========================================
+export const STATUS_VAGA_REAL: StatusVagaReal[] = ['ABERTA', 'PREENCHIDA']
+export const PERIODOS_VAGA: Array<{ valor: PeriodoEscola; rotulo: string }> = [
+  { valor: 'SEM', rotulo: 'Geral / Sem Período' },
+  { valor: 'MANHA', rotulo: 'Manhã' },
+  { valor: 'TARDE', rotulo: 'Tarde' },
+  { valor: 'INTEGRAL', rotulo: 'Integral' },
+  { valor: 'NOITE', rotulo: 'Noite' },
+]
+export const MODALIDADES_VAGA: Array<{ valor: 'FIXO' | 'ITINERANTE'; rotulo: string }> = [
+  { valor: 'FIXO', rotulo: 'Fixo' },
+  { valor: 'ITINERANTE', rotulo: 'Itinerante' },
+]
 
-export interface ResolucaoConfiguracaoRh {
-  configuracao: ConfiguracaoRhCompleta
-  criterio: 'VIGENTE_ANO' | 'MAIS_RECENTE'
-  motivoTexto: string
+export const rotuloPeriodoVaga = (valor: string | null | undefined): string => {
+  if (!valor) return 'Geral / Sem Período'
+  const achou = PERIODOS_VAGA.find((p) => p.valor === valor)
+  return achou ? achou.rotulo : valor
+}
+export const rotuloModalidadeVaga = (valor: string | null | undefined): string => {
+  if (valor === 'ITINERANTE') return 'Itinerante'
+  return 'Fixo'
+}
+export const rotuloStatusVagaReal = (valor: string | null | undefined): string => {
+  if (valor === 'PREENCHIDA') return 'Preenchida'
+  if (valor === 'EXCEDENTE') return 'Excedente'
+  return 'Aberta'
+}
+export const rotuloTipoVinculoVaga = (tipo: string | null | undefined): string => {
+  if (tipo === 'FUNCAO') return 'Função'
+  return 'Cargo'
 }
 
-export async function resolverConfiguracaoParaEscola(
-  tipoAtendimento: string,
-  anoLetivo: number,
-): Promise<ResolucaoConfiguracaoRh> {
-  // 1) Buscar VIGENTE do ano letivo
-  const { data: vigentes, error: errVigente } = await db
-    .from('configuracao_rh')
-    .select('id, codigo, tipo_atendimento, ano_letivo, status, created_at')
-    .eq('tipo_atendimento', tipoAtendimento)
-    .eq('ano_letivo', anoLetivo)
-    .eq('status', 'VIGENTE')
-    .limit(1)
-
-  if (!errVigente && vigentes && vigentes.length > 0) {
-    const completa = await getConfiguracaoRhCompleta(vigentes[0].id)
-    return {
-      configuracao: completa,
-      criterio: 'VIGENTE_ANO',
-      motivoTexto: `Configuração VIGENTE do ano ${anoLetivo} (${completa.codigo || completa.id}).`,
-    }
-  }
-
-  // 2) Se não houver, a ÚLTIMA criada (mais recente) daquele tipo de atendimento
-  const { data: maisRecentes, error: errRecente } = await db
-    .from('configuracao_rh')
-    .select('id, codigo, tipo_atendimento, ano_letivo, status, created_at')
-    .eq('tipo_atendimento', tipoAtendimento)
-    .order('created_at', { ascending: false })
-    .limit(1)
-
-  if (errRecente || !maisRecentes || maisRecentes.length === 0) {
-    throw new Error(
-      `Nenhuma configuração de RH cadastrada para o tipo de atendimento "${tipoAtendimento}". Cadastre uma em Cadastros de Apoio > Configuração de Vagas por Nível antes de gerar vagas.`,
-    )
-  }
-
-  const escolhida = maisRecentes[0]
-  const completa = await getConfiguracaoRhCompleta(escolhida.id)
-  return {
-    configuracao: completa,
-    criterio: 'MAIS_RECENTE',
-    motivoTexto: `Sem configuração VIGENTE em ${anoLetivo}. Utilizada a configuração mais recente cadastrada (Ano ${completa.ano_letivo}, Status: ${completa.status}, criada em ${new Date(completa.created_at || '').toLocaleDateString('pt-BR')}).`,
-  }
+/** Status coerente com a ocupação: com ocupante => PREENCHIDA; sem => ABERTA. */
+export const calcularStatusPorOcupacao = (
+  ocupanteId: string | null | undefined,
+  statusInformado?: string | null,
+): StatusVagaReal | 'EXCEDENTE' => {
+  if (statusInformado === 'EXCEDENTE') return 'EXCEDENTE'
+  return ocupanteId ? 'PREENCHIDA' : 'ABERTA'
 }
 
-// ==========================================
-// UNIDADE ESCOLAR ANO (Dados base do cálculo)
-// ==========================================
-
-export async function getUnidadeEscolarAno(
-  unidadeEscolarId: string,
-  anoLetivo: number,
-): Promise<UnidadeEscolarAno | null> {
-  const { data, error } = await db
-    .from('unidade_escolar_ano')
-    .select('*, unidade_escolar:unidades_escolares(*), configuracao_rh(*)')
-    .eq('unidade_escolar_id', unidadeEscolarId)
-    .eq('ano_letivo', anoLetivo)
-    .maybeSingle()
-
-  if (error) {
-    console.error('Erro ao buscar unidade_escolar_ano:', error)
-    throw error
-  }
-  return (data as UnidadeEscolarAno) || null
+export interface VagaCompleta extends VagaReal {
+  unidade_escolar?: { id: string; nome: string } | null
+  cargo?: { id: string; nome: string } | null
+  funcao?: { id: string; nome: string } | null
+  profissional_titular?: { id: string; nome: string } | null
+  profissional_ocupante?: { id: string; nome: string } | null
+  configuracao_rh?: { id: string; nome: string } | null
 }
 
-export async function getUnidadesEscolaresAnoPorAno(
-  anoLetivo: number,
-): Promise<UnidadeEscolarAno[]> {
-  const { data, error } = await db
-    .from('unidade_escolar_ano')
-    .select('*, unidade_escolar:unidades_escolares(*), configuracao_rh(*)')
-    .eq('ano_letivo', anoLetivo)
-    .order('created_at', { ascending: true })
-
-  if (error) {
-    console.error('Erro ao listar unidade_escolar_ano:', error)
-    throw error
-  }
-  return (data as UnidadeEscolarAno[]) || []
+export interface FiltrosVagasListagem {
+  anoLetivo?: number | null
+  unidadeId?: string | null
+  somenteExcedentes?: boolean
+  busca?: string | null
 }
-
-export async function salvarUnidadeEscolarAno(
-  registro: Partial<UnidadeEscolarAno> & {
-    unidade_escolar_id: string
-    ano_letivo: number
-  },
-): Promise<UnidadeEscolarAno> {
-  const payload = {
-    ...registro,
-    updated_at: new Date().toISOString(),
-  }
-
-  const { data, error } = await db
-    .from('unidade_escolar_ano')
-    .upsert(payload, { onConflict: 'unidade_escolar_id,ano_letivo' })
-    .select('*, unidade_escolar:unidades_escolares(*)')
-    .single()
-
-  if (error) {
-    console.error('Erro ao salvar unidade_escolar_ano:', error)
-    throw error
-  }
-
-  return data as UnidadeEscolarAno
-}
-
-// ==========================================
-// CÁLCULO E PRÉVIA DA GERAÇÃO (Regra 3 & 5)
-// ==========================================
-
-export interface PreviaVagaLinha {
-  linhaId: string
-  funcao: string
-  baseCalculo: string
-  modalidade: 'FIXO' | 'ITINERANTE'
-  diasSemana?: number | null
-  quantidadeMatriz: number
-  multiplicador: number
-  quantidadeFinal: number
-  periodoAtribuido?: PeriodoEscola | null
-  cargosElegiveis: Array<{ cargoId: string; cargoNome: string; condicao: string }>
-}
-
-export interface PreviaItemIndividual {
-  funcao: string
-  linhaId: string
-  numeroSequencial: number
-  periodo?: PeriodoEscola | null
-  modalidade: 'FIXO' | 'ITINERANTE'
-  diasSemana?: number | null
-  cargosElegiveis: Array<{ cargoId: string; cargoNome: string; condicao: string }>
-}
-
-export interface PreviaGeracaoResultado {
-  escola: UnidadeEscolar
-  anoLetivo: number
-  porteEscola: PorteEscolaAno | null
-  turmasCadastradas: Array<{
-    id: string
-    nome: string
-    etapaNome?: string
-    anoSerieNome?: string
-  }>
-  contagemTurmasPorEtapa: Record<string, number>
-  unidadeAno: UnidadeEscolarAno
-  configuracaoUsada: ConfiguracaoRhCompleta
-  criterioConfiguracao: 'VIGENTE_ANO' | 'MAIS_RECENTE'
-  motivoConfiguracao: string
-  resultadoCalculo: ResultadoCalculoVagas
-  nivelEncontradoCodigo: string
-  nivelFaixaDescricao: string
-  vagasLinhas: PreviaVagaLinha[]
-  totalVagasCalculadas: number
-  // Comparação com o banco existente (idempotência)
-  vagasExistentes: VagaReal[]
-  novasVagasCriar: PreviaItemIndividual[]
-  abertasRemover: VagaReal[]
-  ocupadasExcedentes: VagaReal[]
-  ocupadasMantidas: VagaReal[]
-  resumoTexto: string // Ex: "+30 novas" ou "+2 novas, -1 aberta removida, 1 excedente"
-  bloqueadoPorFaltaDados?: {
-    campo: string
-    mensagem: string
-  } | null
-}
-
-/**
- * Converte turmas_por_etapa para Record<string, number> normalizado
- */
-export function normalizarTurmasPorEtapaDicionario(raw: any): Record<string, number> {
-  if (!raw) return {}
-  if (Array.isArray(raw)) {
-    const res: Record<string, number> = {}
-    for (const item of raw) {
-      if (item && item.etapa) {
-        res[item.etapa] = Number(item.quantidade) || 0
-      }
-    }
-    return res
-  }
-  if (typeof raw === 'object') {
-    const res: Record<string, number> = {}
-    for (const [k, v] of Object.entries(raw)) {
-      res[k] = Number(v) || 0
-    }
-    return res
-  }
-  return {}
-}
-
-/**
- * Gera os slots individuais que deveriam existir para uma dada linha calculada
- * respeitando as regras:
- * - POR_ESCOLA com quantidade 8 -> 8 registros
- * - POR_PERIODO com quantidade 1 e 2 períodos -> 2 registros (um MANHA, um TARDE)
- * - POR_TURMA com 14 turmas -> 14 registros
- * - quantidade 0 -> nenhum registro
- */
-export function expandirSlotsIndividuais(
-  linha: ConfiguracaoRhLinha,
-  qtdMatriz: number,
-  periodosEscola: PeriodoEscola[],
-  totalTurmas: number,
-  turmasEtapaCount: number,
-  modalidade: 'FIXO' | 'ITINERANTE',
-  diasSemana?: number | null,
-): Array<{
-  funcao: string
-  linhaId: string
-  numeroSequencial: number
-  periodo?: PeriodoEscola | null
-  modalidade: 'FIXO' | 'ITINERANTE'
-  diasSemana?: number | null
-  cargosElegiveis: Array<{ cargoId: string; cargoNome: string; condicao: string }>
-}> {
-  const slots: Array<{
-    funcao: string
-    linhaId: string
-    numeroSequencial: number
-    periodo?: PeriodoEscola | null
-    modalidade: 'FIXO' | 'ITINERANTE'
-    diasSemana?: number | null
-    cargosElegiveis: Array<{ cargoId: string; cargoNome: string; condicao: string }>
-    cargoIdPredefinido?: string | null
-  }> = []
-
-  const isCargo = linha.tipo_linha === 'CARGO' || (!linha.funcao_id && !!linha.cargo_id)
-  const funcaoNome = isCargo ? linha.cargo?.nome || 'Cargo' : linha.funcao?.nome || 'Função'
-  const cargoIdPredefinido = isCargo ? linha.cargo_id || null : null
-
-  let cargosElegiveis: Array<{ cargoId: string; cargoNome: string; condicao: string }> = []
-  if (isCargo && linha.cargo_id) {
-    if (linha.cargos && linha.cargos.length > 0) {
-      cargosElegiveis = linha.cargos.map((c) => ({
-        cargoId: c.cargo_id,
-        cargoNome: c.cargo?.nome || linha.cargo?.nome || 'Cargo',
-        condicao: c.condicao || 'NENHUMA',
-      }))
-    } else {
-      cargosElegiveis = [
-        {
-          cargoId: linha.cargo_id,
-          cargoNome: linha.cargo?.nome || 'Cargo',
-          condicao: 'NENHUMA',
-        },
-      ]
-    }
-  } else {
-    cargosElegiveis = (linha.cargos || []).map((c) => ({
-      cargoId: c.cargo_id,
-      cargoNome: c.cargo?.nome || 'Cargo',
-      condicao: c.condicao,
-    }))
-  }
-
-  if (qtdMatriz <= 0) return slots
-
-  let seq = 1
-
-  switch (linha.base_calculo) {
-    case 'POR_ESCOLA': {
-      for (let i = 0; i < qtdMatriz; i++) {
-        slots.push({
-          funcao: funcaoNome,
-          linhaId: linha.id,
-          numeroSequencial: seq++,
-          periodo: null,
-          modalidade,
-          diasSemana,
-          cargosElegiveis,
-          cargoIdPredefinido,
-        })
-      }
-      break
-    }
-
-    case 'POR_PERIODO': {
-      // Para cada período da escola, cria qtdMatriz vagas associadas a esse período
-      const periodos = periodosEscola.length > 0 ? periodosEscola : ['MANHA' as PeriodoEscola]
-      for (const p of periodos) {
-        for (let i = 0; i < qtdMatriz; i++) {
-          slots.push({
-            funcao: funcaoNome,
-            linhaId: linha.id,
-            numeroSequencial: seq++,
-            periodo: p,
-            modalidade,
-            diasSemana,
-            cargosElegiveis,
-            cargoIdPredefinido,
-          })
-        }
-      }
-      break
-    }
-
-    case 'POR_TURMA': {
-      const total = qtdMatriz * totalTurmas
-      for (let i = 0; i < total; i++) {
-        slots.push({
-          funcao: funcaoNome,
-          linhaId: linha.id,
-          numeroSequencial: seq++,
-          periodo: null,
-          modalidade,
-          diasSemana,
-          cargosElegiveis,
-          cargoIdPredefinido,
-        })
-      }
-      break
-    }
-
-    case 'POR_TURMA_ETAPA': {
-      const total = qtdMatriz * turmasEtapaCount
-      for (let i = 0; i < total; i++) {
-        slots.push({
-          funcao: funcaoNome,
-          linhaId: linha.id,
-          numeroSequencial: seq++,
-          periodo: null,
-          modalidade,
-          diasSemana,
-          cargosElegiveis,
-          cargoIdPredefinido,
-        })
-      }
-      break
-    }
-
-    default: {
-      for (let i = 0; i < qtdMatriz; i++) {
-        slots.push({
-          funcao: funcaoNome,
-          linhaId: linha.id,
-          numeroSequencial: seq++,
-          periodo: null,
-          modalidade,
-          diasSemana,
-          cargosElegiveis,
-          cargoIdPredefinido,
-        })
-      }
-    }
-  }
-
-  return slots
-}
-
-/**
- * Calcula a prévia completa de geração de vagas para uma unidade escolar em um ano letivo,
- * comparando o resultado com as vagas já existentes para garantir idempotência estrita.
- */
-export async function calcularPreviaGeracao(
-  unidadeEscolarId: string,
-  anoLetivo: number,
-  dadosEscolaAnoOverride?: Partial<UnidadeEscolarAno>,
-): Promise<PreviaGeracaoResultado> {
-  // 1. Carregar escola
-  const { data: escolaData, error: errEscola } = await db
-    .from('unidades_escolares')
-    .select('*')
-    .eq('id', unidadeEscolarId)
-    .single()
-
-  if (errEscola || !escolaData) {
-    throw new Error('Unidade escolar não encontrada.')
-  }
-  const escola = escolaData as UnidadeEscolar
-
-  // 2. Carregar dados do Porte da Escola no Ano Letivo (porte_escola_ano)
-  const { data: porteEscolaData, error: errPorte } = await db
-    .from('porte_escola_ano')
-    .select('*')
-    .eq('unidade_escolar_id', unidadeEscolarId)
-    .eq('ano_letivo', anoLetivo)
-    .maybeSingle()
-
-  if (errPorte) {
-    console.error('Erro ao consultar porte_escola_ano:', errPorte)
-  }
-  const porteEscola = (porteEscolaData as PorteEscolaAno | null) || null
-
-  // 3. Carregar turmas cadastradas para a unidade e ano letivo (com etapa e ano/série)
-  const { data: turmasCadastradas, error: errTurmas } = await db
-    .from('turmas')
-    .select(
-      'id, nome, ano_letivo, etapa_id, ano_serie_id, etapa:etapas(id, codigo, nome), ano_serie:anos_series(id, codigo, nome)',
-    )
-    .eq('unidade_escolar_id', unidadeEscolarId)
-    .eq('ano_letivo', anoLetivo)
-
-  if (errTurmas) {
-    console.error('Erro ao consultar turmas da unidade:', errTurmas)
-  }
-
-  const turmasList = (turmasCadastradas as any[]) || []
-  const contagemTurmasCadastradas = turmasList.length
-
-  // Montar turmas_por_etapa a partir das turmas vinculadas e suas etapas
-  const contagemPorEtapaCalculada: Record<string, number> = {}
-  for (const t of turmasList) {
-    const nomeEtapa = t.etapa?.nome || 'OUTRAS'
-    const chaveEtapa = normalizarChaveEtapa(nomeEtapa) || 'OUTRAS'
-    contagemPorEtapaCalculada[chaveEtapa] = (contagemPorEtapaCalculada[chaveEtapa] || 0) + 1
-  }
-
-  // 4. Carregar unidade_escolar_ano existente
-  let unidadeAno = await getUnidadeEscolarAno(unidadeEscolarId, anoLetivo)
-
-  // Períodos padrão definidos pelo tipo de atendimento
-  const defaultPeriodos: PeriodoEscola[] = escola.tipo_atendimento.includes('40h')
-    ? ['INTEGRAL']
-    : ['MANHA', 'TARDE']
-
-  // Quantidade de alunos prioritária:
-  // VEM DO CADASTRO 'porte_escola_ano' (regra do usuário), com fallback para unidade_escolar_ano
-  const alunosDerivados =
-    porteEscola && porteEscola.quantidade_alunos > 0
-      ? porteEscola.quantidade_alunos
-      : unidadeAno && unidadeAno.qtd_alunos > 0
-        ? unidadeAno.qtd_alunos
-        : escola.quantidade_alunos && escola.quantidade_alunos > 0
-          ? escola.quantidade_alunos
-          : 0
-
-  // Quantidade de turmas derivada:
-  // Usa a contagem real de turmas cadastradas para a unidade/ano letivo
-  // Se não houver turmas na tabela 'turmas' mas houver no seed de unidade_escolar_ano, mantém fallback para compatibilidade
-  const turmasDerivadas =
-    contagemTurmasCadastradas > 0 ? contagemTurmasCadastradas : unidadeAno?.qtd_turmas || 0
-
-  // Se a contagem real de turmas por etapa gerou valores, use-a; senão use a existente no banco
-  const turmasPorEtapaDerivada =
-    Object.keys(contagemPorEtapaCalculada).length > 0
-      ? contagemPorEtapaCalculada
-      : unidadeAno?.turmas_por_etapa || null
-
-  const periodosDerivados =
-    unidadeAno?.periodos && unidadeAno.periodos.length > 0
-      ? (unidadeAno.periodos as PeriodoEscola[])
-      : defaultPeriodos
-
-  // Se o registro não existia ou se houve sincronização automática, salvar/atualizar
-  if (
-    !unidadeAno ||
-    unidadeAno.qtd_turmas !== turmasDerivadas ||
-    unidadeAno.qtd_alunos !== alunosDerivados
-  ) {
-    try {
-      unidadeAno = await salvarUnidadeEscolarAno({
-        unidade_escolar_id: unidadeEscolarId,
-        ano_letivo: anoLetivo,
-        qtd_alunos: alunosDerivados,
-        qtd_turmas: turmasDerivadas,
-        periodos: periodosDerivados,
-        turmas_por_etapa: turmasPorEtapaDerivada,
-      })
-    } catch (e) {
-      console.warn('Não foi possível sincronizar unidade_escolar_ano automaticamente:', e)
-      if (!unidadeAno) {
-        unidadeAno = {
-          id: '',
-          unidade_escolar_id: unidadeEscolarId,
-          ano_letivo: anoLetivo,
-          qtd_alunos: alunosDerivados,
-          qtd_turmas: turmasDerivadas,
-          periodos: periodosDerivados,
-          turmas_por_etapa: turmasPorEtapaDerivada,
-        }
-      }
-    }
-  }
-
-  if (dadosEscolaAnoOverride) {
-    unidadeAno = {
-      ...unidadeAno,
-      ...dadosEscolaAnoOverride,
-      periodos: dadosEscolaAnoOverride.periodos || unidadeAno.periodos,
-    }
-  }
-
-  // 5. Resolver configuração de RH
-  const resolucao = await resolverConfiguracaoParaEscola(escola.tipo_atendimento, anoLetivo)
-  const config = resolucao.configuracao
-
-  const periodos = (
-    unidadeAno.periodos && unidadeAno.periodos.length > 0 ? unidadeAno.periodos : defaultPeriodos
-  ) as PeriodoEscola[]
-
-  // Bloqueio se porte_escola_ano não estiver cadastrado ou sem alunos
-  if (!porteEscola || porteEscola.quantidade_alunos <= 0) {
-    const turmasResumoFormatado = turmasList.map((t) => ({
-      id: t.id,
-      nome: t.nome,
-      etapaNome: t.etapa?.nome || 'Etapa não informada',
-      anoSerieNome: t.ano_serie?.nome || 'Não informada',
-    }))
-
-    return {
-      escola,
-      anoLetivo,
-      porteEscola,
-      turmasCadastradas: turmasResumoFormatado,
-      contagemTurmasPorEtapa: contagemPorEtapaCalculada,
-      unidadeAno,
-      configuracaoUsada: config,
-      criterioConfiguracao: resolucao.criterio,
-      motivoConfiguracao: resolucao.motivoTexto,
-      resultadoCalculo: {
-        nivelEncontrado: null,
-        totalAlunos: 0,
-        totalPeriodos: 0,
-        totalTurmas: 0,
-        vagas: [],
-        passosMemoria: [],
-        avisos: [],
-      },
-      nivelEncontradoCodigo: '',
-      nivelFaixaDescricao: '',
-      vagasLinhas: [],
-      totalVagasCalculadas: 0,
-      vagasExistentes: [],
-      novasVagasCriar: [],
-      abertasRemover: [],
-      ocupadasExcedentes: [],
-      ocupadasMantidas: [],
-      resumoTexto: 'Porte da Escola não cadastrado',
-      bloqueadoPorFaltaDados: {
-        campo: 'porte_escola_ano',
-        mensagem:
-          'Não há registro de Porte da Escola cadastrado para esta Unidade no Ano Letivo. Acesse "Cadastros de Apoio > Porte da Escola por Ano Letivo" para cadastrá-lo antes de gerar as vagas.',
-      },
-    }
-  }
-
-  if (unidadeAno.qtd_alunos <= 0) {
-    const turmasResumoFormatado = turmasList.map((t) => ({
-      id: t.id,
-      nome: t.nome,
-      etapaNome: t.etapa?.nome || 'Etapa não informada',
-      anoSerieNome: t.ano_serie?.nome || 'Não informada',
-    }))
-
-    return {
-      escola,
-      anoLetivo,
-      porteEscola,
-      turmasCadastradas: turmasResumoFormatado,
-      contagemTurmasPorEtapa: contagemPorEtapaCalculada,
-      unidadeAno,
-      configuracaoUsada: config,
-      criterioConfiguracao: resolucao.criterio,
-      motivoConfiguracao: resolucao.motivoTexto,
-      resultadoCalculo: {
-        nivelEncontrado: null,
-        totalAlunos: 0,
-        totalPeriodos: 0,
-        totalTurmas: 0,
-        vagas: [],
-        passosMemoria: [],
-        avisos: [],
-      },
-      nivelEncontradoCodigo: '',
-      nivelFaixaDescricao: '',
-      vagasLinhas: [],
-      totalVagasCalculadas: 0,
-      vagasExistentes: [],
-      novasVagasCriar: [],
-      abertasRemover: [],
-      ocupadasExcedentes: [],
-      ocupadasMantidas: [],
-      resumoTexto: 'Alunos não cadastrados',
-      bloqueadoPorFaltaDados: {
-        campo: 'qtd_alunos',
-        mensagem:
-          'A unidade escolar não possui quantidade de alunos cadastrada no cadastro "Porte da Escola por Ano Letivo". Acesse esse cadastro para preencher a quantidade de alunos e nível da escola.',
-      },
-    }
-  }
-
-  if (unidadeAno.qtd_turmas <= 0) {
-    const turmasResumoFormatado = turmasList.map((t) => ({
-      id: t.id,
-      nome: t.nome,
-      etapaNome: t.etapa?.nome || 'Etapa não informada',
-      anoSerieNome: t.ano_serie?.nome || 'Não informada',
-    }))
-
-    return {
-      escola,
-      anoLetivo,
-      porteEscola,
-      turmasCadastradas: turmasResumoFormatado,
-      contagemTurmasPorEtapa: contagemPorEtapaCalculada,
-      unidadeAno,
-      configuracaoUsada: config,
-      criterioConfiguracao: resolucao.criterio,
-      motivoConfiguracao: resolucao.motivoTexto,
-      resultadoCalculo: {
-        nivelEncontrado: null,
-        totalAlunos: unidadeAno.qtd_alunos,
-        totalPeriodos: periodos.length,
-        totalTurmas: 0,
-        vagas: [],
-        passosMemoria: [],
-        avisos: [],
-      },
-      nivelEncontradoCodigo: '',
-      nivelFaixaDescricao: '',
-      vagasLinhas: [],
-      totalVagasCalculadas: 0,
-      vagasExistentes: [],
-      novasVagasCriar: [],
-      abertasRemover: [],
-      ocupadasExcedentes: [],
-      ocupadasMantidas: [],
-      resumoTexto: 'Turmas não vinculadas',
-      bloqueadoPorFaltaDados: {
-        campo: 'qtd_turmas',
-        mensagem:
-          'A unidade escolar não possui turmas vinculadas para o ano letivo. Acesse o menu "Cadastros de Apoio > Turmas" e cadastre as turmas desta unidade escolar.',
-      },
-    }
-  }
-
-  // Verificar turmas por etapa (se houver linha POR_TURMA_ETAPA)
-  const turmasPorEtapaMap = normalizarTurmasPorEtapaDicionario(unidadeAno.turmas_por_etapa)
-  const temLinhaPorTurmaEtapa = (config.linhas || []).some(
-    (l) => l.base_calculo === 'POR_TURMA_ETAPA',
-  )
-  const totalTurmasEtapaInformadas = Object.values(turmasPorEtapaMap).reduce(
-    (acc, c) => acc + (Number(c) || 0),
-    0,
-  )
-
-  // Se tem linha por turma etapa e não há turmas com etapa correspondente
-  if (temLinhaPorTurmaEtapa && totalTurmasEtapaInformadas <= 0) {
-    const turmasResumoFormatado = turmasList.map((t) => ({
-      id: t.id,
-      nome: t.nome,
-      etapaNome: t.etapa?.nome || 'Etapa não informada',
-      anoSerieNome: t.ano_serie?.nome || 'Não informada',
-    }))
-
-    return {
-      escola,
-      anoLetivo,
-      porteEscola,
-      turmasCadastradas: turmasResumoFormatado,
-      contagemTurmasPorEtapa: contagemPorEtapaCalculada,
-      unidadeAno,
-      configuracaoUsada: config,
-      criterioConfiguracao: resolucao.criterio,
-      motivoConfiguracao: resolucao.motivoTexto,
-      resultadoCalculo: {
-        nivelEncontrado: null,
-        totalAlunos: unidadeAno.qtd_alunos,
-        totalPeriodos: periodos.length,
-        totalTurmas: unidadeAno.qtd_turmas,
-        vagas: [],
-        passosMemoria: [],
-        avisos: [],
-      },
-      nivelEncontradoCodigo: '',
-      nivelFaixaDescricao: '',
-      vagasLinhas: [],
-      totalVagasCalculadas: 0,
-      vagasExistentes: [],
-      novasVagasCriar: [],
-      abertasRemover: [],
-      ocupadasExcedentes: [],
-      ocupadasMantidas: [],
-      resumoTexto: 'Turmas sem etapa vinculada',
-      bloqueadoPorFaltaDados: {
-        campo: 'turmas_por_etapa',
-        mensagem:
-          'A configuração de RH requer cálculo por etapa, mas as turmas vinculadas à unidade não possuem a etapa correspondente informada. Acesse "Cadastros de Apoio > Turmas" e vincule as etapas adequadas.',
-      },
-    }
-  }
-
-  // Se não tem linha POR_TURMA_ETAPA ou se turmasPorEtapaMap não cobre todas as turmas,
-  // garantir que calcularVagasPorNivel tenha o totalTurmas respeitado
-  const turmasPorEtapaInput: Record<string, number> = { ...turmasPorEtapaMap }
-  if (Object.keys(turmasPorEtapaInput).length === 0) {
-    turmasPorEtapaInput['PADRAO'] = unidadeAno.qtd_turmas
-  }
-
-  // 5. Chamar o serviço calcularVagasPorNivel
-  const calculo = calcularVagasPorNivel(
-    config,
-    unidadeAno.qtd_alunos,
-    periodos.length,
-    turmasPorEtapaInput,
-  )
-
-  if (!calculo.nivelEncontrado) {
-    throw new Error(
-      `Não foi possível enquadrar a unidade com ${unidadeAno.qtd_alunos} alunos na configuração "${config.tipo_atendimento}". Verifique as faixas de alunos cadastradas.`,
-    )
-  }
-
-  const nivelFaixa =
-    calculo.nivelEncontrado.max_alunos !== null && calculo.nivelEncontrado.max_alunos !== undefined
-      ? `${calculo.nivelEncontrado.min_alunos} a ${calculo.nivelEncontrado.max_alunos} alunos`
-      : `${calculo.nivelEncontrado.min_alunos} alunos ou mais`
-
-  // 6. Expandir todos os slots ideais calculados por linha
-  const slotsCalculados: PreviaItemIndividual[] = []
-  const vagasLinhas: PreviaVagaLinha[] = []
-
-  for (const v of calculo.vagas) {
-    const linhaOrig = (config.linhas || []).find((l) => l.id === v.linhaId)
-    if (!linhaOrig) continue
-
-    // Contar turmas da etapa filtrada se for POR_TURMA_ETAPA
-    let turmasEtapaCount = 0
-    if (linhaOrig.base_calculo === 'POR_TURMA_ETAPA') {
-      const filtros = (linhaOrig.etapas_filtro || []).map((e) =>
-        e.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
-      )
-      for (const [etapaKey, qtd] of Object.entries(turmasPorEtapaMap)) {
-        const norm = etapaKey.toUpperCase().replace(/[^A-Z0-9]/g, '_')
-        if (filtros.some((f) => norm.includes(f) || f.includes(norm))) {
-          turmasEtapaCount += Number(qtd) || 0
-        }
-      }
-    }
-
-    const slotsDaLinha = expandirSlotsIndividuais(
-      linhaOrig,
-      v.quantidadeMatriz,
-      periodos,
-      unidadeAno.qtd_turmas,
-      turmasEtapaCount,
-      v.modalidade,
-      v.diasSemana,
-    )
-
-    slotsCalculados.push(...slotsDaLinha)
-
-    vagasLinhas.push({
-      linhaId: v.linhaId,
-      funcao: v.funcaoNome,
-      baseCalculo: v.baseCalculo,
-      modalidade: v.modalidade,
-      diasSemana: v.diasSemana,
-      quantidadeMatriz: v.quantidadeMatriz,
-      multiplicador: v.multiplicador,
-      quantidadeFinal: v.quantidadeFinal,
-      periodoAtribuido: slotsDaLinha[0]?.periodo || null,
-      cargosElegiveis: v.cargosElegiveis,
-    })
-  }
-
-  // 7. Buscar vagas já existentes no banco para a escola/ano (idempotência)
-  const { data: vagasExistentesData, error: errVagasExistentes } = await db
-    .from('vaga')
-    .select('*, cargo:cargos(*), configuracao_rh(*), configuracao_rh_linha(*)')
-    .eq('unidade_escolar_id', unidadeEscolarId)
-    .eq('ano_letivo', anoLetivo)
-    .order('numero_sequencial', { ascending: true })
-
-  if (errVagasExistentes) {
-    console.error('Erro ao buscar vagas existentes:', errVagasExistentes)
-    throw errVagasExistentes
-  }
-
-  const vagasExistentes = (vagasExistentesData as VagaReal[]) || []
-
-  // Agrupar vagas existentes por configuracao_rh_linha_id
-  const mapaExistentesPorLinha = new Map<string, VagaReal[]>()
-  for (const v of vagasExistentes) {
-    const list = mapaExistentesPorLinha.get(v.configuracao_rh_linha_id) || []
-    list.push(v)
-    mapaExistentesPorLinha.set(v.configuracao_rh_linha_id, list)
-  }
-
-  // Agrupar slots calculados por linhaId
-  const mapaCalculadosPorLinha = new Map<string, PreviaItemIndividual[]>()
-  for (const s of slotsCalculados) {
-    const list = mapaCalculadosPorLinha.get(s.linhaId) || []
-    list.push(s)
-    mapaCalculadosPorLinha.set(s.linhaId, list)
-  }
-
-  const novasVagasCriar: PreviaItemIndividual[] = []
-  const abertasRemover: VagaReal[] = []
-  const ocupadasExcedentes: VagaReal[] = []
-  const ocupadasMantidas: VagaReal[] = []
-
-  // Iterar sobre todas as linhas conhecidas (calculadas ou existentes)
-  const todasLinhasIds = new Set<string>([
-    ...Array.from(mapaCalculadosPorLinha.keys()),
-    ...Array.from(mapaExistentesPorLinha.keys()),
-  ])
-
-  for (const linhaId of todasLinhasIds) {
-    const slotsIdeal = mapaCalculadosPorLinha.get(linhaId) || []
-    const existentes = mapaExistentesPorLinha.get(linhaId) || []
-
-    const qtdIdeal = slotsIdeal.length
-    const qtdExistente = existentes.length
-
-    if (qtdExistente === 0) {
-      // Linha totalmente nova: cria todos os slots calculados
-      novasVagasCriar.push(...slotsIdeal)
-    } else if (qtdIdeal === qtdExistente) {
-      // Mesma quantidade: nenhuma nova, mantém todas. Se havia alguma ocupada, é mantida
-      for (const v of existentes) {
-        if (v.status === 'OCUPADA') {
-          ocupadasMantidas.push(v)
-        }
-      }
-    } else if (qtdIdeal > qtdExistente) {
-      // Precisa de mais vagas: cria apenas as que faltam
-      const faltam = qtdIdeal - qtdExistente
-      // Sequenciais novos começam após o maior sequencial existente
-      const maiorSeq = existentes.reduce((max, v) => Math.max(max, v.numero_sequencial || 0), 0)
-      const slotsNovos = slotsIdeal.slice(qtdExistente).map((s, idx) => ({
-        ...s,
-        numeroSequencial: maiorSeq + idx + 1,
-      }))
-      novasVagasCriar.push(...slotsNovos)
-      for (const v of existentes) {
-        if (v.status === 'OCUPADA') ocupadasMantidas.push(v)
-      }
-    } else {
-      // qtdIdeal < qtdExistente: redução de vagas
-      // Regra 5 do usuário:
-      // "nunca apagar vaga OCUPADA; vaga ABERTA a mais pode ser removida;
-      // vaga OCUPADA a mais vira EXCEDENTE (base para remanejamento)."
-      const vagasAbertas = existentes.filter((v) => v.status === 'ABERTA')
-      const vagasOcupadas = existentes.filter(
-        (v) => v.status === 'OCUPADA' || v.status === 'EXCEDENTE',
-      )
-
-      const diferencaReducao = qtdExistente - qtdIdeal
-
-      // Remove prioritariamente as abertas
-      let abertasParaRemoverCount = Math.min(diferencaReducao, vagasAbertas.length)
-      const abertasParaRemover = vagasAbertas.slice(vagasAbertas.length - abertasParaRemoverCount)
-      abertasRemover.push(...abertasParaRemover)
-
-      // Se ainda sobrou excesso e eram vagas ocupadas, viram EXCEDENTE
-      const excessoOcupado = diferencaReducao - abertasParaRemoverCount
-      if (excessoOcupado > 0) {
-        const excedentes = vagasOcupadas.slice(vagasOcupadas.length - excessoOcupado)
-        ocupadasExcedentes.push(...excedentes)
-        const mantidas = vagasOcupadas.slice(0, vagasOcupadas.length - excessoOcupado)
-        ocupadasMantidas.push(...mantidas)
-      } else {
-        ocupadasMantidas.push(...vagasOcupadas)
-      }
-    }
-  }
-
-  // Resumo textual: "+N novas, −N abertas removidas, N excedentes"
-  const partesResumo: string[] = []
-  if (novasVagasCriar.length > 0) {
-    partesResumo.push(`+${novasVagasCriar.length} novas`)
-  }
-  if (abertasRemover.length > 0) {
-    partesResumo.push(`-${abertasRemover.length} abertas removidas`)
-  }
-  if (ocupadasExcedentes.length > 0) {
-    partesResumo.push(`${ocupadasExcedentes.length} excedentes`)
-  }
-  if (partesResumo.length === 0) {
-    partesResumo.push('Nenhuma alteração necessária (idempotente)')
-  }
-
-  const resumoTexto = partesResumo.join(', ')
-
-  const turmasResumoFormatado = turmasList.map((t) => ({
-    id: t.id,
-    nome: t.nome,
-    etapaNome: t.etapa?.nome || 'Etapa não informada',
-    anoSerieNome: t.ano_serie?.nome || 'Não informada',
-  }))
-
-  return {
-    escola,
-    anoLetivo,
-    porteEscola,
-    turmasCadastradas: turmasResumoFormatado,
-    contagemTurmasPorEtapa: contagemPorEtapaCalculada,
-    unidadeAno,
-    configuracaoUsada: config,
-    criterioConfiguracao: resolucao.criterio,
-    motivoConfiguracao: resolucao.motivoTexto,
-    resultadoCalculo: calculo,
-    nivelEncontradoCodigo: calculo.nivelEncontrado.codigo_nivel,
-    nivelFaixaDescricao: nivelFaixa,
-    vagasLinhas,
-    totalVagasCalculadas: slotsCalculados.length,
-    vagasExistentes,
-    novasVagasCriar,
-    abertasRemover,
-    ocupadasExcedentes,
-    ocupadasMantidas,
-    resumoTexto,
-    bloqueadoPorFaltaDados: null,
-  }
-}
-
-// ==========================================
-// CONFIRMAR GERAÇÃO REAL DE VAGAS (Regra 3, 5 e 6)
-// ==========================================
-
-export interface ConfirmarGeracaoParams {
-  unidadeEscolarId: string
-  anoLetivo: number
-  turmasPorEtapaAtualizadas?: Record<string, number> | null
-  usuarioNome?: string
-  usuarioEmail?: string
-}
-
-export interface ConfirmarGeracaoResultado {
-  sucesso: boolean
-  escolaNome: string
-  anoLetivo: number
-  nivelCodigo: string
-  novasCriadas: number
-  abertasRemovidas: number
-  excedentesMarcadas: number
-  totalVagasFinais: number
-  configuracaoUsadaId: string
-}
-
-export async function confirmarGeracaoVagas(
-  params: ConfirmarGeracaoParams,
-): Promise<ConfirmarGeracaoResultado> {
-  const { unidadeEscolarId, anoLetivo, turmasPorEtapaAtualizadas, usuarioNome, usuarioEmail } =
-    params
-
-  // Se veio turmasPorEtapa atualizado, atualizar antes unidade_escolar_ano
-  if (turmasPorEtapaAtualizadas) {
-    await db
-      .from('unidade_escolar_ano')
-      .update({
-        turmas_por_etapa: turmasPorEtapaAtualizadas,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('unidade_escolar_id', unidadeEscolarId)
-      .eq('ano_letivo', anoLetivo)
-  }
-
-  // Recalcular prévia com os dados mais recentes
-  const previa = await calcularPreviaGeracao(unidadeEscolarId, anoLetivo)
-
-  if (previa.bloqueadoPorFaltaDados) {
-    throw new Error(previa.bloqueadoPorFaltaDados.mensagem)
-  }
-
-  // 1. Remover abertas em excesso
-  if (previa.abertasRemover.length > 0) {
-    const idsRemover = previa.abertasRemover.map((v) => v.id)
-    const { error: errDel } = await db.from('vaga').delete().in('id', idsRemover)
-    if (errDel) {
-      console.error('Erro ao remover vagas abertas excedentes:', errDel)
-      throw errDel
-    }
-  }
-
-  // 2. Marcar vagas ocupadas a mais como EXCEDENTE
-  if (previa.ocupadasExcedentes.length > 0) {
-    const idsExcedentes = previa.ocupadasExcedentes.map((v) => v.id)
-    const { error: errUpd } = await db
-      .from('vaga')
-      .update({
-        status: 'EXCEDENTE',
-        updated_at: new Date().toISOString(),
-      })
-      .in('id', idsExcedentes)
-    if (errUpd) {
-      console.error('Erro ao marcar vagas excedentes:', errUpd)
-      throw errUpd
-    }
-  }
-
-  // 3. Inserir novas vagas (Geração Automática: vaga_excedente = false / Não)
-  if (previa.novasVagasCriar.length > 0) {
-    const rowsInsert = previa.novasVagasCriar.map((s) => ({
-      unidade_escolar_id: unidadeEscolarId,
-      ano_letivo: anoLetivo,
-      configuracao_rh_id: previa.configuracaoUsada.id,
-      configuracao_rh_linha_id: s.linhaId,
-      funcao: s.funcao,
-      numero_sequencial: s.numeroSequencial,
-      periodo: s.periodo || null,
-      modalidade: s.modalidade,
-      dias_semana: s.diasSemana ?? null,
-      cargo_id: (s as any).cargoIdPredefinido || null,
-      servidor_id: null,
-      nome_ocupante: null,
-      status: 'ABERTA' as StatusVagaReal,
-      vaga_excedente: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }))
-
-    const { error: errIns } = await db.from('vaga').insert(rowsInsert)
-    if (errIns) {
-      console.error('Erro ao inserir novas vagas:', errIns)
-      throw errIns
-    }
-  }
-
-  // 4. Atualizar registro em unidade_escolar_ano com nível calculado, config usada e data da geração
-  await db
-    .from('unidade_escolar_ano')
-    .update({
-      nivel_calculado: previa.nivelEncontradoCodigo,
-      configuracao_rh_id: previa.configuracaoUsada.id,
-      data_ultima_geracao: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('unidade_escolar_id', unidadeEscolarId)
-    .eq('ano_letivo', anoLetivo)
-
-  // 5. Total de vagas finais no banco
-  const { count: totalFinal } = await db
-    .from('vaga')
-    .select('id', { count: 'exact', head: true })
-    .eq('unidade_escolar_id', unidadeEscolarId)
-    .eq('ano_letivo', anoLetivo)
-
-  // 6. Auditoria completa
-  await registrarAuditoria({
-    entidade: 'Cadastro de Vagas',
-    acao: 'Geração de Vagas',
-    registro_codigo: previa.escola.codigo || null,
-    descricao: `Geração de vagas para a unidade "${previa.escola.nome}" (Ano Letivo ${anoLetivo}). Nível identificado: ${previa.nivelEncontradoCodigo}. Resultado: ${previa.resumoTexto}. Configuração usada: ${previa.configuracaoUsada.codigo || previa.configuracaoUsada.id} (${previa.configuracaoUsada.tipo_atendimento}, Ano ${previa.configuracaoUsada.ano_letivo}, Status ${previa.configuracaoUsada.status}). Vagas geradas nasceram com Vaga Excedente = Não (origem automática).`,
-    detalhes: {
-      escola_id: unidadeEscolarId,
-      escola_nome: previa.escola.nome,
-      ano_letivo: anoLetivo,
-      nivel_calculado: previa.nivelEncontradoCodigo,
-      configuracao_rh_id: previa.configuracaoUsada.id,
-      criterio_configuracao: previa.criterioConfiguracao,
-      vaga_excedente_padrao: false,
-      vaga_excedente_rotulo: 'Não',
-      novas_criadas: previa.novasVagasCriar.length,
-      abertas_removidas: previa.abertasRemover.length,
-      excedentes_marcadas: previa.ocupadasExcedentes.length,
-      total_final: totalFinal || 0,
-      usuario_solicitante: usuarioNome || 'Sistema',
-      email_solicitante: usuarioEmail || 'sistema@local',
-    },
-  })
-
-  return {
-    sucesso: true,
-    escolaNome: previa.escola.nome,
-    anoLetivo,
-    nivelCodigo: previa.nivelEncontradoCodigo,
-    novasCriadas: previa.novasVagasCriar.length,
-    abertasRemovidas: previa.abertasRemover.length,
-    excedentesMarcadas: previa.ocupadasExcedentes.length,
-    totalVagasFinais: totalFinal || 0,
-    configuracaoUsadaId: previa.configuracaoUsada.id,
-  }
-}
-
-// ==========================================
-// CONSULTA, FILTROS E EDIÇÃO DE VAGAS (Regra 4)
-// ==========================================
-
-export interface FiltrosVagas {
-  anoLetivo: number
-  unidadeEscolarId?: string
-  tipoAtendimento?: string
-  nivel?: string
-  funcao?: string
-  cargoId?: string
-  periodo?: string
-  modalidade?: string
-  status?: StatusVagaReal | 'TODAS'
-  comOcupante?: 'TODAS' | 'COM' | 'SEM'
-  vagaExcedente?: 'TODAS' | 'SIM' | 'NAO'
-  buscaTexto?: string
-}
-
-export async function listarVagasCompletas(filtros: FiltrosVagas): Promise<VagaReal[]> {
-  let query = db
-    .from('vaga')
-    .select(
-      `
-      *,
-      unidade_escolar:unidades_escolares(*),
-      cargo:cargos(*),
-      turma:turmas(*),
-      configuracao_rh:configuracao_rh(*),
-      configuracao_rh_linha:configuracao_rh_linha(
-        *,
-        cargos:configuracao_rh_linha_cargo(*, cargo:cargos(*))
-      )
-    `,
-    )
-    .eq('ano_letivo', filtros.anoLetivo)
-
-  if (filtros.unidadeEscolarId && filtros.unidadeEscolarId !== 'TODAS') {
-    query = query.eq('unidade_escolar_id', filtros.unidadeEscolarId)
-  }
-
-  if (filtros.funcao && filtros.funcao !== 'TODAS') {
-    query = query.eq('funcao', filtros.funcao)
-  }
-
-  if (filtros.cargoId && filtros.cargoId !== 'TODOS') {
-    query = query.eq('cargo_id', filtros.cargoId)
-  }
-
-  if (filtros.periodo && filtros.periodo !== 'TODOS') {
-    query = query.eq('periodo', filtros.periodo)
-  }
-
-  if (filtros.modalidade && filtros.modalidade !== 'TODAS') {
-    query = query.eq('modalidade', filtros.modalidade)
-  }
-
-  if (filtros.status && filtros.status !== 'TODAS') {
-    query = query.eq('status', filtros.status)
-  }
-
-  if (filtros.vagaExcedente && filtros.vagaExcedente !== 'TODAS') {
-    query = query.eq('vaga_excedente', filtros.vagaExcedente === 'SIM')
-  }
-
-  const { data, error } = await query.order('created_at', { ascending: true })
-
-  if (error) {
-    console.error('Erro ao listar vagas:', error)
-    throw error
-  }
-
-  let lista = (data as VagaReal[]) || []
-
-  // Filtros adicionais em memória (joins secundários ou condições de ocupante)
-  if (filtros.tipoAtendimento && filtros.tipoAtendimento !== 'TODOS') {
-    lista = lista.filter((v) => v.unidade_escolar?.tipo_atendimento === filtros.tipoAtendimento)
-  }
-
-  if (filtros.comOcupante && filtros.comOcupante !== 'TODAS') {
-    if (filtros.comOcupante === 'COM') {
-      lista = lista.filter((v) => Boolean(v.nome_ocupante && v.nome_ocupante.trim()))
-    } else if (filtros.comOcupante === 'SEM') {
-      lista = lista.filter((v) => !v.nome_ocupante || !v.nome_ocupante.trim())
-    }
-  }
-
-  if (filtros.buscaTexto && filtros.buscaTexto.trim()) {
-    const term = filtros.buscaTexto.toLowerCase()
-    lista = lista.filter(
-      (v) =>
-        (v.codigo && v.codigo.toLowerCase().includes(term)) ||
-        (v.funcao && v.funcao.toLowerCase().includes(term)) ||
-        (v.unidade_escolar?.nome && v.unidade_escolar.nome.toLowerCase().includes(term)) ||
-        (v.nome_ocupante && v.nome_ocupante.toLowerCase().includes(term)) ||
-        (v.cargo?.nome && v.cargo.nome.toLowerCase().includes(term)),
-    )
-  }
-
-  return lista
-}
-
-/**
- * Atualizar ocupante e cargo de uma vaga (Regra 4)
- * "Regra: com ocupante -> OCUPADA; sem ocupante -> ABERTA.
- * O combo de cargo mostra apenas os cargos permitidos na configuração para aquela função.
- * Se a condição for READAPTADO_COMPATIVEL_LAUDO ou AUTORIZACAO_SEMED, exigir marcação e observação."
- */
-// ==========================================
-// INSERÇÃO, EDIÇÃO E EXCLUSÃO MANUAL DE VAGAS
-// ==========================================
 
 export interface InserirVagaManualInput {
   unidadeEscolarId: string
   anoLetivo: number
-  configuracaoRhId: string
-  configuracaoRhLinhaId: string
-  funcao: string
+  tipoVinculo: 'CARGO' | 'FUNCAO'
   cargoId?: string | null
-  periodo?: PeriodoEscola | null
+  funcaoId?: string | null
+  periodo: PeriodoEscola
   modalidade: 'FIXO' | 'ITINERANTE'
   diasSemana?: number | null
-  numeroSequencial?: number | null
-  nomeOcupante?: string | null
+  profissionalOcupanteId?: string | null
+  profissionalTitularId?: string | null
   observacao?: string | null
 }
 
-export async function inserirVagaManual(input: InserirVagaManualInput): Promise<VagaReal> {
-  const {
-    unidadeEscolarId,
-    anoLetivo,
-    configuracaoRhId,
-    configuracaoRhLinhaId,
-    funcao,
-    cargoId,
-    periodo,
-    modalidade,
-    diasSemana,
-    nomeOcupante,
-    observacao,
-  } = input
+export interface EditarVagaManualInput {
+  id: string
+  tipoVinculo?: 'CARGO' | 'FUNCAO'
+  cargoId?: string | null
+  funcaoId?: string | null
+  periodo: PeriodoEscola
+  modalidade: 'FIXO' | 'ITINERANTE'
+  diasSemana?: number | null
+  profissionalOcupanteId?: string | null
+  profissionalTitularId?: string | null
+  observacao?: string | null
+}
 
-  if (!unidadeEscolarId) {
-    throw new Error('A "Unidade Escolar" é obrigatória para inserir uma vaga.')
-  }
-  if (!anoLetivo) {
-    throw new Error('O "Ano Letivo" é obrigatório.')
-  }
-  if (!funcao || !funcao.trim()) {
-    throw new Error('A "Função" é obrigatória.')
-  }
+export class ValidacaoVagaError extends Error {}
 
-  // Determinar número sequencial se não fornecido
-  let seq = Number(input.numeroSequencial) || 0
-  if (!seq || seq <= 0) {
-    const { data: vagasExistentes } = await db
-      .from('vaga')
-      .select('numero_sequencial')
-      .eq('unidade_escolar_id', unidadeEscolarId)
-      .eq('ano_letivo', anoLetivo)
-      .eq('configuracao_rh_linha_id', configuracaoRhLinhaId)
+function exigir(valor: unknown, mensagem: string): void {
+  if (valor === null || valor === undefined || valor === '' || valor === 0) {
+    throw new ValidacaoVagaError(mensagem)
+  }
+}
 
-    const maior = (vagasExistentes || []).reduce(
-      (acc: number, v: any) => Math.max(acc, Number(v.numero_sequencial) || 0),
+/** Valida os atributos obrigatórios (mensagem amigável lançada como erro). */
+export function validarVagaManual(input: Partial<InserirVagaManualInput>): void {
+  if (!input.unidadeEscolarId) throw new ValidacaoVagaError('Selecione a Unidade Escolar da vaga.')
+  if (!input.anoLetivo) throw new ValidacaoVagaError('Selecione o Ano Letivo da vaga.')
+  if (input.tipoVinculo !== 'CARGO' && input.tipoVinculo !== 'FUNCAO') {
+    throw new ValidacaoVagaError('Informe se a vaga é de Cargo ou de Função.')
+  }
+  if (input.tipoVinculo === 'CARGO' && !input.cargoId) {
+    throw new ValidacaoVagaError('Vaga de Cargo: selecione o Cargo da Vaga.')
+  }
+  if (input.tipoVinculo === 'FUNCAO' && !input.funcaoId) {
+    throw new ValidacaoVagaError('Vaga de Função: selecione a Função da Vaga.')
+  }
+  if (!input.periodo) throw new ValidacaoVagaError('Selecione o Período da vaga.')
+  if (!input.modalidade) throw new ValidacaoVagaError('Selecione a Modalidade da vaga.')
+  if (input.modalidade === 'ITINERANTE') {
+    const dias = Number(input.diasSemana ?? 2)
+    if (!Number.isFinite(dias) || dias < 1 || dias > 5) {
+      throw new ValidacaoVagaError('Dias na Semana deve ficar entre 1 e 5 para vaga Itinerante.')
+    }
+  }
+}
+
+/** Monta o payload no formato da tabela, com status coerente à ocupação. */
+function montarPayloadVaga(
+  input: InserirVagaManualInput | EditarVagaManualInput,
+): Record<string, unknown> {
+  const ocupante = (input as InserirVagaManualInput).profissionalOcupanteId || null
+  const payload: Record<string, unknown> = {
+    tipo_vinculo: input.tipoVinculo ?? 'CARGO',
+    cargo_id: input.tipoVinculo === 'CARGO' ? input.cargoId || null : null,
+    funcao_id: input.tipoVinculo === 'FUNCAO' ? input.funcaoId || null : null,
+    periodo: input.periodo,
+    modalidade: input.modalidade,
+    dias_semana: input.modalidade === 'ITINERANTE' ? Number(input.diasSemana ?? 2) : null,
+    profissional_ocupante_id: ocupante,
+    profissional_titular_id: (input as InserirVagaManualInput).profissionalTitularId || null,
+    observacao: input.observacao || null,
+  }
+  if ((input as InserirVagaManualInput).unidadeEscolarId) {
+    payload.unidade_escolar_id = (input as InserirVagaManualInput).unidadeEscolarId
+  }
+  if ((input as InserirVagaManualInput).anoLetivo) {
+    payload.ano_letivo = (input as InserirVagaManualInput).anoLetivo
+  }
+  payload.status = calcularStatusPorOcupacao(ocupante)
+  return payload
+}
+
+async function gerarProximoCodigo(): Promise<string> {
+  const { data, error } = await supabase
+    .from(TABELA)
+    .select('codigo')
+    .order('created_at', { ascending: false })
+    .limit(1)
+  if (error) throw error
+  let proximo = 1
+  const ultimo = data?.[0]?.codigo as string | undefined
+  const m = ultimo?.match(/^VAG-(\d+)$/)
+  if (m) proximo = Number(m[1]) + 1
+  // Garante unicidade real mesmo com lacunas:
+  let tentativa = proximo
+  for (let i = 0; i < 1000; i += 1) {
+    const codigo = `VAG-${String(tentativa).padStart(4, '0')}`
+    const { data: existe } = await supabase.from(TABELA).select('id').eq('codigo', codigo).limit(1)
+    if (!existe || existe.length === 0) return codigo
+    tentativa += 1
+  }
+  return `VAG-${String(tentativa).padStart(4, '0')}`
+}
+
+async function gerarProximoSequencial(
+  unidadeEscolarId: string,
+  anoLetivo: number,
+): Promise<number> {
+  const { data, error } = await supabase
+    .from(TABELA)
+    .select('numero_sequencial')
+    .eq('unidade_escolar_id', unidadeEscolarId)
+    .eq('ano_letivo', anoLetivo)
+    .order('numero_sequencial', { ascending: false })
+    .limit(1)
+  if (error) throw error
+  const ultimo = (data?.[0]?.numero_sequencial as number | undefined) ?? 0
+  return ultimo + 1
+}
+
+const SELECT_COMPLETO = `
+  *,
+  unidade_escolar:unidade_escolar_id(id, nome),
+  cargo:cargo_id(id, nome),
+  funcao:funcao_id(id, nome),
+  profissional_titular:profissional_titular_id(id, nome),
+  profissional_ocupante:profissional_ocupante_id(id, nome),
+  configuracao_rh:configuracao_rh_id(id, nome)
+`
+
+export async function listarVagasCompletas(): Promise<VagaCompleta[]> {
+  const { data, error } = await supabase
+    .from(TABELA)
+    .select(SELECT_COMPLETO)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data || []) as unknown as VagaCompleta[]
+}
+
+export async function listarVagasAnoLetivo(anoLetivo: number): Promise<VagaCompleta[]> {
+  const { data, error } = await supabase
+    .from(TABELA)
+    .select(SELECT_COMPLETO)
+    .eq('ano_letivo', anoLetivo)
+    .order('unidade_escolar_id', { ascending: true })
+    .order('numero_sequencial', { ascending: true })
+  if (error) throw error
+  return (data || []) as unknown as VagaCompleta[]
+}
+
+export async function getVagasAnoUnidade(
+  anoLetivo: number,
+  unidadeEscolarId: string,
+): Promise<VagaCompleta[]> {
+  const { data, error } = await supabase
+    .from(TABELA)
+    .select(SELECT_COMPLETO)
+    .eq('ano_letivo', anoLetivo)
+    .eq('unidade_escolar_id', unidadeEscolarId)
+    .order('numero_sequencial', { ascending: true })
+  if (error) throw error
+  return (data || []) as unknown as VagaCompleta[]
+}
+
+export async function contarVagasAnoUnidade(
+  anoLetivo: number,
+  unidadeEscolarId: string,
+): Promise<number> {
+  const { count, error } = await supabase
+    .from(TABELA)
+    .select('id', { count: 'exact', head: true })
+    .eq('ano_letivo', anoLetivo)
+    .eq('unidade_escolar_id', unidadeEscolarId)
+  if (error) throw error
+  return count ?? 0
+}
+
+export async function listarVagasFiltradas(filtros: FiltrosVagasListagem): Promise<VagaCompleta[]> {
+  let query = supabase.from(TABELA).select(SELECT_COMPLETO)
+  if (filtros.anoLetivo) query = query.eq('ano_letivo', filtros.anoLetivo)
+  if (filtros.unidadeId) query = query.eq('unidade_escolar_id', filtros.unidadeId)
+  if (filtros.somenteExcedentes) query = query.eq('vaga_excedente', true)
+  query = query.order('created_at', { ascending: false })
+  const { data, error } = await query
+  if (error) throw error
+  const lista = (data || []) as unknown as VagaCompleta[]
+  if (filtros.busca) {
+    const termo = filtros.busca.trim().toLowerCase()
+    if (termo) {
+      return lista.filter((v) => {
+        const alvo = [
+          v.codigo,
+          v.nome_ocupante,
+          v.cargo?.nome,
+          v.funcao?.nome,
+          v.profissional_ocupante?.nome,
+          v.profissional_titular?.nome,
+          v.unidade_escolar?.nome,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+        return alvo.includes(termo)
+      })
+    }
+  }
+  return lista
+}
+
+export async function contarVagasFiltradas(filtros: FiltrosVagasListagem): Promise<number> {
+  const lista = await listarVagasFiltradas(filtros)
+  return lista.length
+}
+
+export async function getVagaCompleta(id: string): Promise<VagaCompleta | null> {
+  const { data, error } = await supabase.from(TABELA).select(SELECT_COMPLETO).eq('id', id).limit(1)
+  if (error) throw error
+  return ((data || [])[0] as unknown as VagaCompleta) ?? null
+}
+
+export async function ultimoAnoComVagas(): Promise<number | null> {
+  const { data, error } = await supabase
+    .from(TABELA)
+    .select('ano_letivo')
+    .order('ano_letivo', { ascending: false })
+    .limit(1)
+  if (error) throw error
+  return (data?.[0]?.ano_letivo as number | undefined) ?? null
+}
+
+export interface LimparVagasResultado {
+  removidas: number
+}
+
+export async function limparVagasAnoUnidade(
+  anoLetivo: number,
+  unidadeEscolarId: string,
+): Promise<LimparVagasResultado> {
+  const { error, count } = await supabase
+    .from(TABELA)
+    .delete({ count: 'exact' })
+    .eq('ano_letivo', anoLetivo)
+    .eq('unidade_escolar_id', unidadeEscolarId)
+  if (error) throw error
+  return { removidas: count ?? 0 }
+}
+
+/* ------------------------------------------------------------------ */
+/* AUDITORIA — descrições com os novos atributos                      */
+/* ------------------------------------------------------------------ */
+
+function descricaoVaga(
+  v: Partial<VagaCompleta> & Record<string, any>,
+  acao: 'criacao' | 'edicao' | 'exclusao' | 'geracao' | 'migracao',
+): string {
+  const partes: string[] = []
+  partes.push(`Vaga ${v.codigo ?? '(sem código)'}`)
+  if (v.unidade_escolar?.nome) partes.push(`Unidade: ${v.unidade_escolar.nome}`)
+  else if (v.unidade_escolar_id) partes.push(`Unidade: ${v.unidade_escolar_id}`)
+  if (v.ano_letivo) partes.push(`Ano Letivo: ${v.ano_letivo}`)
+  partes.push(`Vínculo: ${rotuloTipoVinculoVaga(v.tipo_vinculo)}`)
+  if (v.tipo_vinculo === 'FUNCAO') {
+    if (v.funcao?.nome) partes.push(`Função da Vaga: ${v.funcao.nome}`)
+    else if (v.funcao_id) partes.push(`Função da Vaga: ${v.funcao_id}`)
+  } else {
+    if (v.cargo?.nome) partes.push(`Cargo da Vaga: ${v.cargo.nome}`)
+    else if (v.cargo_id) partes.push(`Cargo da Vaga: ${v.cargo_id}`)
+  }
+  partes.push(`Período: ${rotuloPeriodoVaga(v.periodo)}`)
+  partes.push(`Modalidade: ${rotuloModalidadeVaga(v.modalidade)}`)
+  partes.push(`Status: ${rotuloStatusVagaReal(v.status)}`)
+  if (v.profissional_titular?.nome) partes.push(`Titular: ${v.profissional_titular.nome}`)
+  else if (v.profissional_titular_id) partes.push(`Titular: ${v.profissional_titular_id}`)
+  if (v.profissional_ocupante?.nome) partes.push(`Ocupante: ${v.profissional_ocupante.nome}`)
+  else if (v.profissional_ocupante_id) partes.push(`Ocupante: ${v.profissional_ocupante_id}`)
+  partes.push(`Vaga Excedente: ${v.vaga_excedente ? 'Sim' : 'Não'}`)
+  const prefixo =
+    acao === 'criacao'
+      ? 'Criação de '
+      : acao === 'edicao'
+        ? 'Edição de '
+        : acao === 'exclusao'
+          ? 'Exclusão de '
+          : acao === 'geracao'
+            ? 'Geração de '
+            : 'Migração de '
+  return prefixo + partes.join(' · ')
+}
+
+function detalheVaga(v: Partial<VagaCompleta> & Record<string, any>): Record<string, unknown> {
+  return {
+    codigo: v.codigo ?? null,
+    unidade_escolar_id: v.unidade_escolar_id ?? null,
+    ano_letivo: v.ano_letivo ?? null,
+    tipo_vinculo: v.tipo_vinculo ?? null,
+    cargo_id: v.cargo_id ?? null,
+    funcao_id: v.funcao_id ?? null,
+    periodo: v.periodo ?? null,
+    modalidade: v.modalidade ?? null,
+    status: v.status ?? null,
+    profissional_titular_id: v.profissional_titular_id ?? null,
+    profissional_ocupante_id: v.profissional_ocupante_id ?? null,
+    vaga_excedente: v.vaga_excedente ?? false,
+    numero_sequencial: v.numero_sequencial ?? null,
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* CRUD MANUAL                                                        */
+/* ------------------------------------------------------------------ */
+
+export async function inserirVagaManual(input: InserirVagaManualInput): Promise<VagaCompleta> {
+  validarVagaManual(input)
+  const codigo = await gerarProximoCodigo()
+  const sequencial = await gerarProximoSequencial(input.unidadeEscolarId, input.anoLetivo)
+  const payload = montarPayloadVaga(input)
+  payload.codigo = codigo
+  payload.numero_sequencial = sequencial
+  payload.vaga_excedente = true // inserção manual = vaga excedente
+  payload.status = 'EXCEDENTE' // inserção manual marca excedente e fica coerente com ocupação:
+  if (input.profissionalOcupanteId) payload.status = 'PREENCHIDA'
+  else payload.status = 'ABERTA'
+
+  const { data, error } = await supabase
+    .from(TABELA)
+    .insert(payload)
+    .select(SELECT_COMPLETO)
+    .limit(1)
+  if (error) throw error
+  const vaga = (data || [])[0] as unknown as VagaCompleta
+  const usuario = await getUsuarioAtualParaAuditoria()
+  await registrarAuditoria({
+    usuarioNome: usuario?.nome ?? 'Sistema',
+    usuarioEmail: usuario?.email ?? '',
+    entidade: 'Vaga',
+    acao: 'Criação',
+    descricao: descricaoVaga({ ...vaga, vaga_excedente: true }, 'criacao'),
+    detalhes: { novo: detalheVaga({ ...vaga, vaga_excedente: true }) },
+    vinculos: sanitizarVinculosAuditados([]),
+  })
+  return vaga
+}
+
+export async function editarVaga(input: EditarVagaManualInput): Promise<VagaCompleta> {
+  exigir(input.id, 'Vaga não informada para edição.')
+  const atual = await getVagaCompleta(input.id)
+  if (!atual) throw new ValidacaoVagaError('Vaga não encontrada.')
+  const payload = montarPayloadVaga({ ...input } as EditarVagaManualInput & {
+    unidadeEscolarId: string
+    anoLetivo: number
+  })
+  delete payload.unidade_escolar_id
+  delete payload.ano_letivo
+  const { data, error } = await supabase
+    .from(TABELA)
+    .update(payload)
+    .eq('id', input.id)
+    .select(SELECT_COMPLETO)
+    .limit(1)
+  if (error) throw error
+  const vaga = (data || [])[0] as unknown as VagaCompleta
+  const usuario = await getUsuarioAtualParaAuditoria()
+  await registrarAuditoria({
+    usuarioNome: usuario?.nome ?? 'Sistema',
+    usuarioEmail: usuario?.email ?? '',
+    entidade: 'Vaga',
+    acao: 'Edição',
+    descricao: descricaoVaga(atual, 'edicao'),
+    detalhes: { antigo: detalheVaga(atual), novo: detalheVaga(vaga) },
+    vinculos: sanitizarVinculosAuditados([]),
+  })
+  return vaga
+}
+
+/** Libera a vaga: remove o ocupante; status volta a ABERTA (ou EXCEDENTE, se marcada). */
+export async function liberarVaga(id: string): Promise<VagaCompleta> {
+  const atual = await getVagaCompleta(id)
+  if (!atual) throw new ValidacaoVagaError('Vaga não encontrada.')
+  const { data, error } = await supabase
+    .from(TABELA)
+    .update({
+      profissional_ocupante_id: null,
+      nome_ocupante: null,
+      status: atual.vaga_excedente ? 'ABERTA' : 'ABERTA',
+    })
+    .eq('id', id)
+    .select(SELECT_COMPLETO)
+    .limit(1)
+  if (error) throw error
+  const vaga = (data || [])[0] as unknown as VagaCompleta
+  const usuario = await getUsuarioAtualParaAuditoria()
+  await registrarAuditoria({
+    usuarioNome: usuario?.nome ?? 'Sistema',
+    usuarioEmail: usuario?.email ?? '',
+    entidade: 'Vaga',
+    acao: 'Edição',
+    descricao: `Liberação da ${descricaoVaga(atual, 'edicao')}`,
+    detalhes: { antigo: detalheVaga(atual), novo: detalheVaga(vaga) },
+    vinculos: sanitizarVinculosAuditados([]),
+  })
+  return vaga
+}
+
+export async function excluirVagaManual(id: string): Promise<void> {
+  const atual = await getVagaCompleta(id)
+  if (!atual) throw new ValidacaoVagaError('Vaga não encontrada.')
+  const { error } = await supabase.from(TABELA).delete().eq('id', id)
+  if (error) throw error
+  const usuario = await getUsuarioAtualParaAuditoria()
+  await registrarAuditoria({
+    usuarioNome: usuario?.nome ?? 'Sistema',
+    usuarioEmail: usuario?.email ?? '',
+    entidade: 'Vaga',
+    acao: 'Exclusão',
+    descricao: descricaoVaga(atual, 'exclusao'),
+    detalhes: { antigo: detalheVaga(atual) },
+    vinculos: sanitizarVinculosAuditados([]),
+  })
+}
+
+/* ------------------------------------------------------------------ */
+/* GERAÇÃO AUTOMÁTICA                                                 */
+/* ------------------------------------------------------------------ */
+
+export interface PreviaItemIndividual {
+  nivel: string
+  nivelOrdem?: number
+  funcaoNome: string
+  cargoPadraoId?: string | null
+  cargoNome?: string | null
+  cargosElegiveis?: Array<{ id: string; nome: string; condicao?: string | null }>
+  baseCalculo: string
+  periodo: PeriodoEscola
+  modalidade: 'FIXO' | 'ITINERANTE'
+  tipoVinculo: 'CARGO' | 'FUNCAO'
+  numeroSlot: number
+  slotsIndividuais?: Array<{
+    numeroSlot: number
+    periodo: PeriodoEscola
+    modalidade: 'FIXO' | 'ITINERANTE'
+  }>
+}
+
+export interface PreviaVagaLinha {
+  id: string
+  unidadeEscolarId: string
+  unidadeNome: string
+  nivel: string
+  itens: PreviaItemIndividual[]
+}
+
+export interface PreviaGeracaoResultado {
+  ok: boolean
+  mensagem?: string
+  vagasPorUnidade: PreviaVagaLinha[]
+  totalVagas: number
+  resumo: Array<{ unidade: string; total: number }>
+}
+
+export interface PreviaGeracaoPayload {
+  anoLetivo: number
+  unidadesEscolaresIds: string[]
+  turmasPorUnidade?: Record<string, Array<Record<string, unknown>>>
+}
+
+export interface ConfirmarGeracaoParams {
+  anoLetivo: number
+  unidadesEscolaresIds: string[]
+  previa: PreviaGeracaoResultado
+}
+
+export async function resolverConfiguracaoParaEscola(
+  tipoAtendimento: TipoAtendimentoUnidade,
+  anoLetivo: number,
+): Promise<ResolucaoConfiguracaoRh | null> {
+  const configs = await getConfiguracoesRh()
+  const doTipo = (configs || []).filter(
+    (c: any) => c.tipo_atendimento === tipoAtendimento && c.ano_letivo === anoLetivo,
+  )
+  const vigente = doTipo.find((c: any) => c.status === 'VIGENTE')
+  if (vigente) return { configuracao: vigente as ConfiguracaoVagasRh, criterio: 'VIGENTE' }
+  if (doTipo.length > 0) {
+    const ordenadas = [...doTipo].sort((a: any, b: any) =>
+      (b.created_at || '').localeCompare(a.created_at || ''),
+    )
+    return { configuracao: ordenadas[0] as ConfiguracaoVagasRh, criterio: 'MAIS_RECENTE' }
+  }
+  return null
+}
+
+export async function getUnidadeEscolarAno(
+  unidadeEscolarId: string,
+  anoLetivo: number,
+): Promise<Record<string, any> | null> {
+  const { data, error } = await supabase
+    .from('unidade_escolar_ano')
+    .select('*')
+    .eq('unidade_escolar_id', unidadeEscolarId)
+    .eq('ano_letivo', anoLetivo)
+    .limit(1)
+  if (error) throw error
+  return (data || [])[0] ?? null
+}
+
+export async function getUnidadesEscolaresAnoPorAno(
+  anoLetivo: number,
+): Promise<Array<Record<string, any>>> {
+  const { data, error } = await supabase
+    .from('unidade_escolar_ano')
+    .select('*')
+    .eq('ano_letivo', anoLetivo)
+  if (error) throw error
+  return data || []
+}
+
+export async function salvarUnidadeEscolarAno(registro: Record<string, any>): Promise<void> {
+  const { error } = await supabase.from('unidade_escolar_ano').upsert(registro)
+  if (error) throw error
+}
+
+export function normalizarTurmasPorEtapaDicionario(
+  turmas: Array<Record<string, unknown>>,
+): Record<string, number> {
+  const mapa: Record<string, number> = {}
+  for (const t of turmas) {
+    const etapaNome = String(t.etapa_nome ?? t.etapa?.nome ?? 'Sem Etapa')
+    mapa[etapaNome] = (mapa[etapaNome] || 0) + 1
+  }
+  return mapa
+}
+
+/** Expande linhas "por período" em slots individuais (uma vaga por período). */
+export function expandirSlotsIndividuais(linha: LinhaConfigVagas): PreviaItemIndividual[] {
+  const periodos: PeriodoEscola[] = ['MANHA', 'TARDE', 'INTEGRAL', 'NOITE']
+  const base = {
+    nivel: '',
+    funcaoNome: linha.funcao_nome || '',
+    cargoPadraoId: linha.cargo_padrao_id ?? null,
+    cargosElegiveis: linha.cargos_elegiveis || [],
+    baseCalculo: linha.base_calculo,
+    tipoVinculo: linha.tipo === 'CARGO' ? 'CARGO' : 'FUNCAO',
+  }
+  if (linha.base_calculo !== 'POR_PERIODO') {
+    return [
+      {
+        ...base,
+        periodo: (linha.periodo as PeriodoEscola) || 'SEM',
+        modalidade: linha.modalidade || 'FIXO',
+        numeroSlot: 1,
+      },
+    ]
+  }
+  const quantidade = Number(linha.quantidade ?? 1)
+  const slots: PreviaItemIndividual[] = []
+  for (const periodo of periodos) {
+    for (let i = 1; i <= quantidade; i += 1) {
+      slots.push({ ...base, periodo, modalidade: linha.modalidade || 'FIXO', numeroSlot: i })
+    }
+  }
+  return slots
+}
+
+export async function calcularPreviaGeracao(
+  payload: PreviaGeracaoPayload,
+): Promise<PreviaGeracaoResultado> {
+  const { anoLetivo, unidadesEscolaresIds } = payload
+  if (!unidadesEscolaresIds || unidadesEscolaresIds.length === 0) {
+    return {
+      ok: false,
+      mensagem: 'Selecione ao menos uma unidade escolar.',
+      vagasPorUnidade: [],
+      totalVagas: 0,
+      resumo: [],
+    }
+  }
+  const { data: unidades, error } = await supabase
+    .from('unidade_escolar')
+    .select('id, nome, tipo_atendimento')
+    .in('id', unidadesEscolaresIds)
+  if (error) throw error
+  const vagasPorUnidade: PreviaVagaLinha[] = []
+  const resumo: Array<{ unidade: string; total: number }> = []
+  let totalVagas = 0
+
+  for (const unidade of (unidades || []) as Array<any>) {
+    const porte = await getUnidadeEscolarAno(unidade.id, anoLetivo)
+    if (!porte) {
+      return {
+        ok: false,
+        mensagem: `A unidade "${unidade.nome}" não tem Porte da Escola cadastrado para o ano ${anoLetivo}. Cadastre o porte antes de gerar as vagas.`,
+        vagasPorUnidade: [],
+        totalVagas: 0,
+        resumo: [],
+      }
+    }
+    let turmas: Array<Record<string, unknown>> = payload.turmasPorUnidade?.[unidade.id] || []
+    if (turmas.length === 0) {
+      const { data: turmasDb } = await supabase
+        .from('turma')
+        .select('*, etapa:etapa_id(nome)')
+        .eq('unidade_escolar_id', unidade.id)
+        .eq('ano_letivo', anoLetivo)
+      turmas = (turmasDb || []) as Array<Record<string, unknown>>
+    }
+    const resolucao = await resolverConfiguracaoParaEscola(unidade.tipo_atendimento, anoLetivo)
+    if (!resolucao) {
+      return {
+        ok: false,
+        mensagem: `Não há Configuração de Vagas por Nível para o tipo de atendimento ${unidade.tipo_atendimento} no ano ${anoLetivo}.`,
+        vagasPorUnidade: [],
+        totalVagas: 0,
+        resumo: [],
+      }
+    }
+    const calculo = calcularVagasPorNivel(
+      resolucao.configuracao,
+      { tipoAtendimento: unidade.tipo_atendimento, porte: porte as any },
+      normalizarTurmasPorEtapaDicionario(turmas),
+    )
+    const itens: PreviaItemIndividual[] = []
+    for (const porNivel of calculo.niveis) {
+      for (const vaga of porNivel.vagas as VagaCalculadaMemoria[]) {
+        const slots = expandirSlotsIndividuais({
+          tipo: (vaga as any).tipoVinculo === 'FUNCAO' ? 'FUNCAO' : 'CARGO',
+          funcao_nome: (vaga as any).funcaoNome,
+          cargo_padrao_id: (vaga as any).cargoPadraoId ?? null,
+          cargos_elegiveis: (vaga as any).cargosElegiveis || [],
+          base_calculo: (vaga as any).baseCalculo || 'POR_ESCOLA',
+          periodo: (vaga as any).periodo,
+          modalidade: (vaga as any).modalidade,
+          quantidade: 1,
+        } as unknown as LinhaConfigVagas)
+        for (const slot of slots) {
+          itens.push({ ...slot, nivel: porNivel.nivel, nivelOrdem: porNivel.ordem })
+        }
+      }
+    }
+    vagasPorUnidade.push({
+      id: unidade.id,
+      unidadeEscolarId: unidade.id,
+      unidadeNome: unidade.nome,
+      nivel: (porte as any).nivel || '',
+      itens,
+    })
+    resumo.push({ unidade: unidade.nome, total: itens.length })
+    totalVagas += itens.length
+  }
+  return { ok: true, vagasPorUnidade, totalVagas, resumo }
+}
+
+export async function confirmarGeracaoVagas(
+  params: ConfirmarGeracaoParams,
+): Promise<{ geradas: number }> {
+  const usuario = await getUsuarioAtualParaAuditoria()
+  let geradas = 0
+  for (const linha of params.previa.vagasPorUnidade) {
+    const existentes = await getVagasAnoUnidade(params.anoLetivo, linha.unidadeEscolarId)
+    // Preserva vagas ocupadas do mesmo ano/unidade:
+    const ocupadasPreservadas = existentes.filter(
+      (v) => v.profissional_ocupante_id || v.status === 'PREENCHIDA',
+    )
+    const aExcluir = existentes.filter(
+      (v) => !(v.profissional_ocupante_id || v.status === 'PREENCHIDA'),
+    )
+    if (aExcluir.length > 0) {
+      const { error } = await supabase
+        .from(TABELA)
+        .delete()
+        .in(
+          'id',
+          aExcluir.map((v) => v.id),
+        )
+      if (error) throw error
+    }
+    let sequencial = ocupadasPreservadas.reduce(
+      (max, v) => Math.max(max, Number(v.numero_sequencial ?? 0)),
       0,
     )
-    seq = maior + 1
-  }
-
-  const temOcupante = Boolean(nomeOcupante && nomeOcupante.trim().length > 0)
-  const statusDerivado: StatusVagaReal = temOcupante ? 'OCUPADA' : 'ABERTA'
-
-  const payload: any = {
-    unidade_escolar_id: unidadeEscolarId,
-    ano_letivo: anoLetivo,
-    configuracao_rh_id: configuracaoRhId,
-    configuracao_rh_linha_id: configuracaoRhLinhaId,
-    funcao: funcao.trim(),
-    numero_sequencial: seq,
-    periodo: periodo || null,
-    modalidade: modalidade || 'FIXO',
-    dias_semana: modalidade === 'ITINERANTE' ? Number(diasSemana) || 2 : null,
-    cargo_id: cargoId || null,
-    nome_ocupante: temOcupante ? nomeOcupante!.trim() : null,
-    status: statusDerivado,
-    observacao: observacao?.trim() || null,
-    vaga_excedente: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }
-
-  const { data, error } = await db
-    .from('vaga')
-    .insert([payload])
-    .select('*, cargo:cargos(*), unidade_escolar:unidades_escolares(*)')
-    .single()
-
-  if (error) {
-    console.error('Erro ao inserir vaga manualmente:', error)
-    throw error
-  }
-
-  const nova = data as VagaReal
-
-  await registrarAuditoria({
-    entidade: 'Cadastro de Vagas',
-    acao: 'Inserção Manual',
-    registro_codigo: nova.codigo || null,
-    descricao: `Inserção manual da vaga ${nova.codigo || ''} (${nova.funcao} Nº ${nova.numero_sequencial} - ${nova.unidade_escolar?.nome || ''}, Ano ${anoLetivo}). Vaga Excedente: Sim. Ocupante: "${nova.nome_ocupante || 'Nenhum'}" (${nova.status}).`,
-    detalhes: {
-      vaga_id: nova.id,
-      unidade_escolar_id: unidadeEscolarId,
-      ano_letivo: anoLetivo,
-      vaga_excedente: true,
-      vaga_excedente_rotulo: 'Sim',
-      valores_novos: nova,
-    },
-  })
-
-  return nova
-}
-
-export interface EditarVagaInput {
-  vagaId: string
-  nomeOcupante?: string | null
-  cargoId?: string | null
-  periodo?: PeriodoEscola | null
-  modalidade?: 'FIXO' | 'ITINERANTE'
-  diasSemana?: number | null
-  numeroSequencial?: number | null
-  status?: StatusVagaReal
-  observacao?: string | null
-  turmaId?: string | null
-}
-
-export async function editarVaga(input: EditarVagaInput): Promise<VagaReal> {
-  const {
-    vagaId,
-    nomeOcupante,
-    cargoId,
-    periodo,
-    modalidade,
-    diasSemana,
-    numeroSequencial,
-    status,
-    observacao,
-    turmaId,
-  } = input
-
-  // Buscar vaga atual para auditoria
-  const { data: anteriorData } = await db
-    .from('vaga')
-    .select('*, cargo:cargos(*), unidade_escolar:unidades_escolares(*)')
-    .eq('id', vagaId)
-    .single()
-
-  const anterior = anteriorData as VagaReal
-
-  const temOcupante = Boolean(nomeOcupante && nomeOcupante.trim().length > 0)
-
-  // Regra padrão: com ocupante -> OCUPADA; sem ocupante -> ABERTA.
-  // Se o usuário explicitou EXCEDENTE e há ocupante, respeita.
-  let novoStatus: StatusVagaReal
-  if (status === 'EXCEDENTE' && temOcupante) {
-    novoStatus = 'EXCEDENTE'
-  } else if (temOcupante) {
-    novoStatus = anterior?.status === 'EXCEDENTE' ? 'EXCEDENTE' : 'OCUPADA'
-  } else {
-    novoStatus = 'ABERTA'
-  }
-
-  const payload: any = {
-    nome_ocupante: temOcupante ? nomeOcupante!.trim() : null,
-    cargo_id: cargoId || null,
-    observacao: observacao || null,
-    turma_id: turmaId || null,
-    status: novoStatus,
-    updated_at: new Date().toISOString(),
-  }
-
-  if (periodo !== undefined) {
-    payload.periodo = periodo || null
-  }
-  if (modalidade !== undefined) {
-    payload.modalidade = modalidade
-    payload.dias_semana = modalidade === 'ITINERANTE' ? Number(diasSemana) || 2 : null
-  }
-  if (numeroSequencial !== undefined && numeroSequencial !== null) {
-    payload.numero_sequencial = Number(numeroSequencial)
-  }
-
-  const { data, error } = await db
-    .from('vaga')
-    .update(payload)
-    .eq('id', vagaId)
-    .select('*, cargo:cargos(*), unidade_escolar:unidades_escolares(*)')
-    .single()
-
-  if (error) {
-    console.error('Erro ao atualizar vaga:', error)
-    throw error
-  }
-
-  const atualizada = data as VagaReal
-
-  // Registrar auditoria
-  await registrarAuditoria({
-    entidade: 'Cadastro de Vagas',
-    acao: 'Edição Manual',
-    registro_codigo: atualizada.codigo || null,
-    descricao: `Edição manual da vaga ${atualizada.codigo || vagaId} (${atualizada.funcao} - ${atualizada.unidade_escolar?.nome || ''}, Vaga Excedente: ${atualizada.vaga_excedente ? 'Sim' : 'Não'}): ocupante "${atualizada.nome_ocupante || 'Nenhum'}" (${atualizada.status}).`,
-    detalhes: {
-      vaga_id: vagaId,
-      vaga_excedente: Boolean(atualizada.vaga_excedente),
-      vaga_excedente_rotulo: atualizada.vaga_excedente ? 'Sim' : 'Não',
-      valores_antigos: anterior,
-      valores_novos: atualizada,
-    },
-  })
-
-  return atualizada
-}
-
-/**
- * Excluir vaga manualmente com verificação e auditoria
- */
-export async function excluirVagaManual(vagaId: string): Promise<void> {
-  const { data: anteriorData } = await db
-    .from('vaga')
-    .select('*, cargo:cargos(*), unidade_escolar:unidades_escolares(*)')
-    .eq('id', vagaId)
-    .single()
-
-  const anterior = anteriorData as VagaReal
-
-  const { error } = await db.from('vaga').delete().eq('id', vagaId)
-
-  if (error) {
-    console.error('Erro ao excluir vaga manualmente:', error)
-    throw error
-  }
-
-  await registrarAuditoria({
-    entidade: 'Cadastro de Vagas',
-    acao: 'Exclusão Manual',
-    registro_codigo: anterior?.codigo || null,
-    descricao: `Exclusão manual da vaga ${anterior?.codigo || vagaId} (${anterior?.funcao} Nº ${anterior?.numero_sequencial} - ${anterior?.unidade_escolar?.nome || ''}, Ano ${anterior?.ano_letivo || '-'}, Vaga Excedente: ${anterior?.vaga_excedente ? 'Sim' : 'Não'}). Ocupante desvinculado: "${anterior?.nome_ocupante || 'Nenhum'}".`,
-    detalhes: {
-      vaga_id: vagaId,
-      vaga_excedente: Boolean(anterior?.vaga_excedente),
-      vaga_excedente_rotulo: anterior?.vaga_excedente ? 'Sim' : 'Não',
-      registro_excluido: anterior,
-    },
-  })
-}
-
-/**
- * Liberar vaga (remover ocupante -> status volta para ABERTA)
- */
-export async function liberarVaga(vagaId: string): Promise<VagaReal> {
-  const { data: anteriorData } = await db
-    .from('vaga')
-    .select('*, cargo:cargos(*), unidade_escolar:unidades_escolares(*)')
-    .eq('id', vagaId)
-    .single()
-
-  const anterior = anteriorData as VagaReal
-
-  const payload = {
-    nome_ocupante: null,
-    cargo_id: null,
-    status: 'ABERTA' as StatusVagaReal,
-    updated_at: new Date().toISOString(),
-  }
-
-  const { data, error } = await db
-    .from('vaga')
-    .update(payload)
-    .eq('id', vagaId)
-    .select('*, cargo:cargos(*), unidade_escolar:unidades_escolares(*)')
-    .single()
-
-  if (error) {
-    console.error('Erro ao liberar vaga:', error)
-    throw error
-  }
-
-  const liberada = data as VagaReal
-
-  await registrarAuditoria({
-    entidade: 'Cadastro de Vagas',
-    acao: 'Liberação de Vaga',
-    registro_codigo: liberada.codigo || null,
-    descricao: `Vaga ${liberada.codigo || vagaId} (${liberada.funcao} - ${liberada.unidade_escolar?.nome || ''}) liberada. Ocupante anterior "${anterior?.nome_ocupante || 'Desconhecido'}" removido. Status alterado para ABERTA.`,
-    detalhes: {
-      vaga_id: vagaId,
-      ocupante_removido: anterior?.nome_ocupante,
-      status_anterior: anterior?.status,
-      status_novo: 'ABERTA',
-    },
-  })
-
-  return liberada
-}
-
-// ==========================================
-// MIGRAÇÃO DE VAGAS DE UM ANO LETIVO PARA OUTRO
-// ==========================================
-
-export interface ResumoVagasAnoOrigem {
-  anoOrigem: number
-  unidadeEscolarId: string
-  total: number
-  ocupadas: number
-  abertas: number
-  excedentes: number
-  porFuncao: Array<{
-    funcao: string
-    total: number
-    ocupadas: number
-    abertas: number
-    excedentes: number
-  }>
-  vagas: VagaReal[]
-}
-
-/**
- * Consulta o resumo das vagas da unidade em um ano letivo de origem
- */
-export async function obterResumoVagasAnoOrigem(
-  unidadeEscolarId: string,
-  anoOrigem: number,
-): Promise<ResumoVagasAnoOrigem> {
-  const { data, error } = await db
-    .from('vaga')
-    .select(`
-      *,
-      unidade_escolar:unidades_escolares(*),
-      cargo:cargos(*),
-      turma:turmas(*)
-    `)
-    .eq('unidade_escolar_id', unidadeEscolarId)
-    .eq('ano_letivo', anoOrigem)
-    .order('funcao', { ascending: true })
-    .order('numero_sequencial', { ascending: true })
-
-  if (error) {
-    console.error('Erro ao buscar vagas do ano de origem:', error)
-    throw error
-  }
-
-  const vagas = (data as VagaReal[]) || []
-  const total = vagas.length
-  const ocupadas = vagas.filter((v) => v.status === 'OCUPADA').length
-  const abertas = vagas.filter((v) => v.status === 'ABERTA').length
-  const excedentes = vagas.filter((v) => v.vaga_excedente || v.status === 'EXCEDENTE').length
-
-  // Agrupamento por função
-  const grupos: Record<
-    string,
-    { total: number; ocupadas: number; abertas: number; excedentes: number }
-  > = {}
-
-  for (const v of vagas) {
-    const fn = v.funcao || 'Sem Função'
-    if (!grupos[fn]) {
-      grupos[fn] = { total: 0, ocupadas: 0, abertas: 0, excedentes: 0 }
-    }
-    grupos[fn].total += 1
-    if (v.status === 'OCUPADA') grupos[fn].ocupadas += 1
-    if (v.status === 'ABERTA') grupos[fn].abertas += 1
-    if (v.vaga_excedente || v.status === 'EXCEDENTE') grupos[fn].excedentes += 1
-  }
-
-  const porFuncao = Object.entries(grupos).map(([funcao, contagens]) => ({
-    funcao,
-    ...contagens,
-  }))
-
-  return {
-    anoOrigem,
-    unidadeEscolarId,
-    total,
-    ocupadas,
-    abertas,
-    excedentes,
-    porFuncao,
-    vagas,
-  }
-}
-
-export interface MigrarVagasParams {
-  unidadeEscolarId: string
-  anoOrigem: number
-  anoDestino: number
-  usuarioNome?: string
-  usuarioEmail?: string
-}
-
-export interface MigrarVagasResultado {
-  sucesso: boolean
-  escolaNome: string
-  anoOrigem: number
-  anoDestino: number
-  totalOrigem: number
-  migradasCriadas: number
-  jaExistentesIgnoradas: number
-  totalDestinoFinal: number
-}
-
-/**
- * Executa a migração de vagas do ano de origem para o ano destino:
- * - Toda vaga migrada nasce SEM ocupante (status ABERTA, servidor_id=null, nome_ocupante=null)
- * - Vaga Excedente: se a origem for vaga_excedente=true (manual), mantém true; senão false (gerada)
- * - Não apaga vagas existentes no destino
- * - Evita duplicidade exata (mesma função + período + número sequencial já existente no destino não é duplicada;
- *   renumera sequenciais se necessário para manter sequência limpa por função)
- * - Turmas vinculadas: tenta mapear turma pelo nome no ano destino; se não encontrar, deixa null
- * - Registra auditoria completa
- */
-export async function migrarVagasAnoLetivo(
-  params: MigrarVagasParams,
-): Promise<MigrarVagasResultado> {
-  const { unidadeEscolarId, anoOrigem, anoDestino, usuarioNome, usuarioEmail } = params
-
-  if (!unidadeEscolarId) {
-    throw new Error('Unidade escolar não informada.')
-  }
-  if (!anoOrigem || !anoDestino) {
-    throw new Error('Ano letivo de origem e ano destino são obrigatórios.')
-  }
-  if (anoOrigem === anoDestino) {
-    throw new Error('O ano letivo de origem não pode ser igual ao ano destino.')
-  }
-
-  // 1. Carregar escola
-  const { data: escolaData, error: errEscola } = await db
-    .from('unidades_escolares')
-    .select('*')
-    .eq('id', unidadeEscolarId)
-    .single()
-
-  if (errEscola || !escolaData) {
-    throw new Error('Unidade escolar não encontrada.')
-  }
-  const escola = escolaData as UnidadeEscolar
-
-  // 2. Carregar vagas de origem
-  const { data: vagasOrigemData, error: errOrigem } = await db
-    .from('vaga')
-    .select('*')
-    .eq('unidade_escolar_id', unidadeEscolarId)
-    .eq('ano_letivo', anoOrigem)
-    .order('numero_sequencial', { ascending: true })
-
-  if (errOrigem) {
-    console.error('Erro ao buscar vagas de origem:', errOrigem)
-    throw errOrigem
-  }
-
-  const vagasOrigem = (vagasOrigemData as any[]) || []
-  if (vagasOrigem.length === 0) {
-    throw new Error(
-      `Não existem vagas cadastradas na unidade "${escola.nome}" para o ano letivo ${anoOrigem}.`,
-    )
-  }
-
-  // 3. Carregar vagas já existentes no destino
-  const { data: vagasDestinoData, error: errDestino } = await db
-    .from('vaga')
-    .select('*')
-    .eq('unidade_escolar_id', unidadeEscolarId)
-    .eq('ano_letivo', anoDestino)
-
-  if (errDestino) {
-    console.error('Erro ao buscar vagas do destino:', errDestino)
-    throw errDestino
-  }
-
-  const vagasDestinoExistentes = (vagasDestinoData as any[]) || []
-
-  // 4. Carregar turmas do destino para mapeamento opcional de turma_id por nome
-  const { data: turmasDestinoData } = await db
-    .from('turmas')
-    .select('id, nome')
-    .eq('unidade_escolar_id', unidadeEscolarId)
-    .eq('ano_letivo', anoDestino)
-
-  const mapaTurmasDestinoPorNome = new Map<string, string>()
-  for (const t of turmasDestinoData || []) {
-    if (t.nome) {
-      mapaTurmasDestinoPorNome.set(t.nome.trim().toLowerCase(), t.id)
-    }
-  }
-
-  // Se alguma vaga de origem referencia turma, resgatar os nomes das turmas de origem
-  const turmaIdsOrigem = Array.from(new Set(vagasOrigem.map((v) => v.turma_id).filter(Boolean)))
-  const mapaNomeTurmaOrigemPorId = new Map<string, string>()
-  if (turmaIdsOrigem.length > 0) {
-    const { data: turmasOrigemData } = await db
-      .from('turmas')
-      .select('id, nome')
-      .in('id', turmaIdsOrigem)
-
-    for (const to of turmasOrigemData || []) {
-      if (to.nome) {
-        mapaNomeTurmaOrigemPorId.set(to.id, to.nome.trim().toLowerCase())
+    const configuracao = (
+      await resolverConfiguracaoParaEscola(
+        (
+          await supabase
+            .from('unidade_escolar')
+            .select('tipo_atendimento')
+            .eq('id', linha.unidadeEscolarId)
+            .limit(1)
+        ).data?.[0]?.tipo_atendimento,
+        params.anoLetivo,
+      )
+    )?.configuracao
+    for (const item of linha.itens) {
+      const slots = item.slotsIndividuais?.length
+        ? item.slotsIndividuais
+        : [{ numeroSlot: item.numeroSlot, periodo: item.periodo, modalidade: item.modalidade }]
+      for (const slot of slots) {
+        sequencial += 1
+        const codigo = await gerarProximoCodigo()
+        const payload: Record<string, unknown> = {
+          codigo,
+          unidade_escolar_id: linha.unidadeEscolarId,
+          ano_letivo: params.anoLetivo,
+          tipo_vinculo: item.tipoVinculo,
+          cargo_id: item.tipoVinculo === 'CARGO' ? (item.cargoPadraoId ?? null) : null,
+          funcao_id: item.tipoVinculo === 'FUNCAO' ? ((item as any).funcaoId ?? null) : null,
+          funcao: item.funcaoNome || null,
+          periodo: slot.periodo,
+          modalidade: slot.modalidade,
+          status: 'ABERTA',
+          vaga_excedente: false,
+          numero_sequencial: sequencial,
+          configuracao_rh_id: configuracao?.id ?? null,
+        }
+        const { error } = await supabase.from(TABELA).insert(payload)
+        if (error) throw error
+        geradas += 1
       }
     }
+    await salvarUnidadeEscolarAno({
+      unidade_escolar_id: linha.unidadeEscolarId,
+      ano_letivo: params.anoLetivo,
+      nivel: linha.nivel,
+      ultima_geracao_vagas: new Date().toISOString(),
+    })
+    await registrarAuditoria({
+      usuarioNome: usuario?.nome ?? 'Sistema',
+      usuarioEmail: usuario?.email ?? '',
+      entidade: 'Vaga',
+      acao: 'Criação',
+      descricao: `Geração automática de ${linha.itens.length} vaga(s) na unidade ${linha.unidadeNome} para o ano letivo ${params.anoLetivo} (vagas ocupadas preservadas: ${ocupadasPreservadas.length}).`,
+      detalhes: {
+        ano_letivo: params.anoLetivo,
+        unidade: linha.unidadeNome,
+        itens: linha.itens.length,
+      },
+      vinculos: sanitizarVinculosAuditados([]),
+    })
   }
+  return { geradas }
+}
 
-  // 5. Mapeamento de chaves existentes no destino para evitar duplicidade exata
-  // Chave: funcao + periodo + numero_sequencial
-  const chavesDestinoExistentes = new Set<string>()
-  // Também manter o maior sequencial existente por função no destino
-  const maxSequencialPorFuncao = new Map<string, number>()
+/* ------------------------------------------------------------------ */
+/* MIGRAÇÃO DE ANO LETIVO                                             */
+/* ------------------------------------------------------------------ */
 
-  for (const vd of vagasDestinoExistentes) {
-    const chave = `${vd.funcao}__${vd.periodo || 'SEM'}__${vd.numero_sequencial}`
-    chavesDestinoExistentes.add(chave)
+export interface MigracaoAnoLetivoParams {
+  anoOrigem: number
+  anoDestino: number
+}
 
-    const atualMax = maxSequencialPorFuncao.get(vd.funcao) || 0
-    if (vd.numero_sequencial > atualMax) {
-      maxSequencialPorFuncao.set(vd.funcao, vd.numero_sequencial)
-    }
-  }
+export interface MigracaoAnoLetivoResultado {
+  copiadas: number
+  ignoradasOcupadas: number
+}
 
-  // 6. Montar linhas a inserir
-  const linhasInserir: any[] = []
-  let jaExistentesIgnoradas = 0
-
-  for (const vo of vagasOrigem) {
-    const chaveExata = `${vo.funcao}__${vo.periodo || 'SEM'}__${vo.numero_sequencial}`
-
-    // Se já existe exatamente essa função, período e número sequencial no destino, ignorar para evitar duplicidade
-    if (chavesDestinoExistentes.has(chaveExata)) {
-      jaExistentesIgnoradas++
+/** Copia as vagas do ano origem para o ano destino SEM ocupação (titular/ocupante nulos, status ABERTA). */
+export async function migrarVagasEntreAnos(
+  params: MigracaoAnoLetivoParams,
+): Promise<MigracaoAnoLetivoResultado> {
+  const usuario = await getUsuarioAtualParaAuditoria()
+  const origem = await listarVagasAnoLetivo(params.anoOrigem)
+  let copiadas = 0
+  let ignoradasOcupadas = 0
+  for (const vaga of origem) {
+    if (vaga.profissional_ocupante_id || vaga.status === 'PREENCHIDA') {
+      ignoradasOcupadas += 1
       continue
     }
-
-    // Determinar número sequencial da nova vaga:
-    // Se o número de origem já estiver em uso no destino para a mesma função, pegar o próximo disponível
-    let seq = vo.numero_sequencial || 1
-    const sequenciaisUsadosNaFuncao = new Set(
-      vagasDestinoExistentes
-        .filter((vd) => vd.funcao === vo.funcao)
-        .map((vd) => vd.numero_sequencial)
-        .concat(
-          linhasInserir.filter((li) => li.funcao === vo.funcao).map((li) => li.numero_sequencial),
-        ),
-    )
-
-    if (sequenciaisUsadosNaFuncao.has(seq)) {
-      const maior = Math.max(
-        maxSequencialPorFuncao.get(vo.funcao) || 0,
-        ...Array.from(sequenciaisUsadosNaFuncao),
-      )
-      seq = maior + 1
-      maxSequencialPorFuncao.set(vo.funcao, seq)
+    const sequencial = await gerarProximoSequencial(vaga.unidade_escolar_id, params.anoDestino)
+    const codigo = await gerarProximoCodigo()
+    const payload: Record<string, unknown> = {
+      codigo,
+      unidade_escolar_id: vaga.unidade_escolar_id,
+      ano_letivo: params.anoDestino,
+      tipo_vinculo: vaga.tipo_vinculo || 'CARGO',
+      cargo_id: vaga.cargo_id ?? null,
+      funcao_id: vaga.funcao_id ?? null,
+      funcao: vaga.funcao ?? null,
+      periodo: vaga.periodo,
+      modalidade: vaga.modalidade,
+      dias_semana: vaga.dias_semana ?? null,
+      status: 'ABERTA',
+      vaga_excedente: vaga.vaga_excedente,
+      numero_sequencial: sequencial,
+      configuracao_rh_id: vaga.configuracao_rh_id ?? null,
+      observacao: vaga.observacao ?? null,
     }
-
-    // Resolver turma destino
-    let turmaDestinoId: string | null = null
-    if (vo.turma_id) {
-      const nomeTurmaOrigem = mapaNomeTurmaOrigemPorId.get(vo.turma_id)
-      if (nomeTurmaOrigem && mapaTurmasDestinoPorNome.has(nomeTurmaOrigem)) {
-        turmaDestinoId = mapaTurmasDestinoPorNome.get(nomeTurmaOrigem) || null
-      }
-    }
-
-    // Regra Vaga Excedente:
-    // "vagas vindas de migração são cópia de vagas geradas no ano anterior, então devem nascer com Não
-    //  - exceto se a vaga de origem for excedente manual (Sim), nesse caso copia Sim para preservar a origem."
-    const vagaExcedente = Boolean(vo.vaga_excedente)
-
-    linhasInserir.push({
-      unidade_escolar_id: unidadeEscolarId,
-      ano_letivo: anoDestino,
-      configuracao_rh_id: vo.configuracao_rh_id,
-      configuracao_rh_linha_id: vo.configuracao_rh_linha_id,
-      funcao: vo.funcao,
-      numero_sequencial: seq,
-      periodo: vo.periodo || null,
-      turma_id: turmaDestinoId,
-      modalidade: vo.modalidade || 'FIXO',
-      dias_semana: vo.modalidade === 'ITINERANTE' ? vo.dias_semana || 2 : null,
-      cargo_id: vo.cargo_id || null,
-      // NUNCA COPIAR OCUPAÇÃO:
-      servidor_id: null,
-      nome_ocupante: null,
-      status: 'ABERTA' as StatusVagaReal,
-      vaga_excedente: vagaExcedente,
-      observacao: vo.observacao
-        ? `[Migrada de ${anoOrigem}] ${vo.observacao}`
-        : `Migrada do Ano Letivo ${anoOrigem}`,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-
-    // Registrar chave adicionada para evitar colisões dentro do próprio lote
-    chavesDestinoExistentes.add(`${vo.funcao}__${vo.periodo || 'SEM'}__${seq}`)
+    const { error } = await supabase.from(TABELA).insert(payload)
+    if (error) throw error
+    copiadas += 1
   }
-
-  // 7. Inserir no banco
-  if (linhasInserir.length > 0) {
-    const { error: errIns } = await db.from('vaga').insert(linhasInserir)
-    if (errIns) {
-      console.error('Erro ao inserir vagas migradas:', errIns)
-      throw errIns
-    }
-  }
-
-  // 8. Contar total final de vagas no destino
-  const { count: totalFinal } = await db
-    .from('vaga')
-    .select('id', { count: 'exact', head: true })
-    .eq('unidade_escolar_id', unidadeEscolarId)
-    .eq('ano_letivo', anoDestino)
-
-  // 9. Registrar Auditoria
   await registrarAuditoria({
-    entidade: 'Cadastro de Vagas',
-    acao: 'Migração de Ano Letivo',
-    registro_codigo: escola.codigo || null,
-    descricao: `Migração de vagas para a unidade "${escola.nome}" (Origem: Ano Letivo ${anoOrigem} → Destino: Ano Letivo ${anoDestino}). Vagas de origem: ${vagasOrigem.length}. Vagas migradas criadas: ${linhasInserir.length} (todas ABERTAS e sem ocupante). Vagas existentes preservadas no destino: ${vagasDestinoExistentes.length}. Total final no destino: ${totalFinal || 0}.`,
+    usuarioNome: usuario?.nome ?? 'Sistema',
+    usuarioEmail: usuario?.email ?? '',
+    entidade: 'Vaga',
+    acao: 'Criação',
+    descricao: `Migração de vagas do ano letivo ${params.anoOrigem} para ${params.anoDestino}: ${copiadas} vaga(s) copiada(s) sem ocupação; ${ignoradasOcupadas} vaga(s) ocupada(s) ignorada(s).`,
     detalhes: {
-      escola_id: unidadeEscolarId,
-      escola_nome: escola.nome,
-      ano_origem: anoOrigem,
-      ano_destino: anoDestino,
-      vagas_origem_total: vagasOrigem.length,
-      migradas_criadas: linhasInserir.length,
-      ja_existentes_ignoradas: jaExistentesIgnoradas,
-      existentes_destino_preservadas: vagasDestinoExistentes.length,
-      total_destino_final: totalFinal || 0,
-      usuario_solicitante: usuarioNome || 'Sistema',
-      email_solicitante: usuarioEmail || 'sistema@local',
+      ano_origem: params.anoOrigem,
+      ano_destino: params.anoDestino,
+      copiadas,
+      ignoradasOcupadas,
     },
+    vinculos: sanitizarVinculosAuditados([]),
   })
-
-  return {
-    sucesso: true,
-    escolaNome: escola.nome,
-    anoOrigem,
-    anoDestino,
-    totalOrigem: vagasOrigem.length,
-    migradasCriadas: linhasInserir.length,
-    jaExistentesIgnoradas,
-    totalDestinoFinal: totalFinal || 0,
-  }
+  return { copiadas, ignoradasOcupadas }
 }
+
+export type { VagaReal, StatusVagaReal, PeriodoEscola, StatusOcupacaoVaga }
