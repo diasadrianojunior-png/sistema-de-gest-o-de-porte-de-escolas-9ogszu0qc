@@ -615,6 +615,15 @@ export interface Profissional {
   unidade_escolar?: UnidadeEscolar | null
   vagas_vinculadas?: ProfissionalVaga[]
   especialidades?: ProfissionalEspecializacao[]
+  inscricoes_ano?: ProfissionalInscricaoAno[]
+}
+
+/** Inscrição do profissional no Processo Seletivo por Ano Letivo (uma por ano) */
+export interface ProfissionalInscricaoAno {
+  id?: string
+  profissional_id?: string
+  ano_letivo: number
+  inscrito: boolean
 }
 
 // ==========================================

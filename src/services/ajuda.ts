@@ -340,6 +340,9 @@ export const AJUDAS_MODULOS: AjudaModulo[] = [
           'Classe Profissional: "Antigos na Rede" ou "Novos na Rede".',
           'Classificação no Concurso: texto livre, posicionado logo após a Classe Profissional; obrigatório somente quando a classe for "Novos na Rede" (validação na página e no serviço).',
           'Especialidade(s) do Profissional: relação com o cadastro de Especializações (múltipla seleção).',
+          'Card "Inscrição no Processo Seletivo" (último card do formulário, opcional): lista repetível em que cada linha tem o Ano Letivo (combobox padrão 2020–2040, o mesmo usado em Turmas e Etapas) e o seletor "Inscrito no Processo Seletivo" com as opções Sim e Não.',
+          'Use "Adicionar Ano Letivo" para incluir uma linha e o ícone de lixeira para removê-la. Cada ano aparece uma única vez: anos já usados em outra linha não são oferecidos no combobox.',
+          'O detalhe do profissional exibe as inscrições por ano como etiquetas "Ano XXXX: Sim" ou "Ano XXXX: Não".',
         ],
       },
       {
@@ -348,6 +351,8 @@ export const AJUDAS_MODULOS: AjudaModulo[] = [
           'O vínculo do profissional com a vaga é titular ou não; o tipo de vínculo (CARGO/FUNCAO) é derivado da linha da Configuração de RH que gerou a vaga.',
           'Vínculos do tipo FUNCAO são sempre gravados como não titulares.',
           'A classe pode ser calculada automaticamente a partir da data de admissão (calcularClasseProfissional).',
+          'Inscrições no Processo Seletivo: o mesmo Ano Letivo não pode se repetir no mesmo profissional; ao salvar, as inscrições anteriores são substituídas pelas informadas no formulário.',
+          'Salvar o profissional sem nenhuma linha de inscrição é permitido.',
         ],
       },
       {

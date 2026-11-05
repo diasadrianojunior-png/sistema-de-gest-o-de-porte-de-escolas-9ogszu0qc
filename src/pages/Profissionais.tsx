@@ -61,10 +61,15 @@ import {
   calcularClasseProfissional,
   determinarTipoVinculoVaga,
   VinculoVagaInput,
+  InscricaoAnoInput,
 } from '@/services/profissionais'
 import { getUnidadesEscolares } from '@/services/unidades-escolares'
 import { getCargos } from '@/services/apoio'
 import { getEspecializacoes } from '@/services/especializacoes'
+import {
+  InscricoesAnoProfissionalSection,
+  LinhaInscricaoAnoForm,
+} from '@/components/InscricoesAnoProfissionalSection'
 import {
   Profissional,
   UnidadeEscolar,
@@ -114,6 +119,8 @@ export default function Profissionais() {
   const [formVinculos, setFormVinculos] = useState<LinhaVinculoForm[]>([])
   // Especialidade(s) do Profissional: opcional, múltipla (ids das Especializações)
   const [formEspecialidades, setFormEspecialidades] = useState<string[]>([])
+  // Inscrições no Processo Seletivo por Ano Letivo (opcional, lista repetível)
+  const [formInscricoes, setFormInscricoes] = useState<LinhaInscricaoAnoForm[]>([])
 
   // Modal de Ajuda e Regras
   const [openAjuda, setOpenAjuda] = useState(false)
@@ -231,6 +238,7 @@ export default function Profissionais() {
     setFormAtivo(true)
     setFormVinculos([])
     setFormEspecialidades([])
+    setFormInscricoes([])
     setVagasDaUnidade([])
     setOpenDialog(true)
   }
@@ -253,6 +261,15 @@ export default function Profissionais() {
       (prof.especialidades || [])
         .map((e) => e.especializacao_id)
         .filter((idEsp): idEsp is string => Boolean(idEsp)),
+    )
+
+    // Inscrições no Processo Seletivo: recarrega as linhas salvas por Ano Letivo
+    setFormInscricoes(
+      (prof.inscricoes_ano || []).map((i) => ({
+        idTemp: String(i.id || Math.random()),
+        ano_letivo: i.ano_letivo,
+        inscrito: Boolean(i.inscrito),
+      })),
     )
 
     const linhasIniciais: LinhaVinculoForm[] = (prof.vagas_vinculadas || []).map((v) => {
@@ -392,6 +409,48 @@ export default function Profissionais() {
     )
   }
 
+  // Adicionar uma linha de inscrição no Processo Seletivo (ano e Sim/Não ainda em branco)
+  const handleAdicionarInscricaoAno = () => {
+    setFormInscricoes((prev) => [
+      ...prev,
+      { idTemp: Math.random().toString(), ano_letivo: null, inscrito: null },
+    ])
+  }
+
+  // Remover linha de inscrição
+  const handleRemoverInscricaoAno = (idTemp: string) => {
+    setFormInscricoes((prev) => prev.filter((l) => l.idTemp !== idTemp))
+  }
+
+  // Alterar ano ou Sim/Não de uma linha. Ano já usado em outra linha é bloqueado com aviso.
+  const handleAlterarInscricaoAno = (
+    idTemp: string,
+    campo: 'ano_letivo' | 'inscrito',
+    valor: string,
+  ) => {
+    if (campo === 'ano_letivo') {
+      const ano = Number(valor)
+      const jaInformado = formInscricoes.some((l) => l.idTemp !== idTemp && l.ano_letivo === ano)
+      if (jaInformado) {
+        toast({
+          title: 'Ano Letivo já informado',
+          description: `O Ano Letivo ${ano} já está na lista de inscrições deste profissional. Escolha outro ano ou altere a linha existente.`,
+          variant: 'destructive',
+        })
+        return
+      }
+    }
+
+    setFormInscricoes((prev) =>
+      prev.map((l) => {
+        if (l.idTemp !== idTemp) return l
+        return campo === 'ano_letivo'
+          ? { ...l, ano_letivo: Number(valor) }
+          : { ...l, inscrito: valor === 'sim' }
+      }),
+    )
+  }
+
   // Executar a gravação final do profissional e seus vínculos
   const executarGravacaoProfissional = async (vinculosFinal: VinculoVagaInput[]) => {
     try {
@@ -407,6 +466,9 @@ export default function Profissionais() {
         classificacao_concurso: formClassificacaoConcurso,
         vagas: vinculosFinal,
         especialidades: formEspecialidades,
+        inscricoes_ano: formInscricoes
+          .filter((l) => l.ano_letivo !== null && l.inscrito !== null)
+          .map((l) => ({ ano_letivo: l.ano_letivo as number, inscrito: l.inscrito as boolean })),
       })
 
       toast({
@@ -488,6 +550,28 @@ export default function Profissionais() {
       toast({
         title: 'Unidade Escolar obrigatória',
         description: 'Selecione a unidade escolar do profissional.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Inscrições no Processo Seletivo: cada linha precisa de Ano Letivo e Sim/Não, sem anos repetidos
+    if (formInscricoes.some((l) => l.ano_letivo === null || l.inscrito === null)) {
+      toast({
+        title: 'Inscrição incompleta',
+        description:
+          'Informe o Ano Letivo e se o profissional está inscrito no Processo Seletivo em cada linha, ou remova a linha em branco.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const anosInscricao = formInscricoes.map((l) => l.ano_letivo)
+    if (new Set(anosInscricao).size !== anosInscricao.length) {
+      toast({
+        title: 'Ano Letivo duplicado',
+        description:
+          'O mesmo Ano Letivo não pode aparecer mais de uma vez na inscrição do profissional.',
         variant: 'destructive',
       })
       return
@@ -1504,6 +1588,16 @@ export default function Profissionais() {
                   </>
                 )}
               </div>
+
+              {/* Inscrição no Processo Seletivo por Ano Letivo — card POR ÚLTIMO no formulário,
+                  após a Especialidade(s). Opcional e repetível. */}
+              <InscricoesAnoProfissionalSection
+                linhas={formInscricoes}
+                onAdicionar={handleAdicionarInscricaoAno}
+                onRemover={handleRemoverInscricaoAno}
+                onAlterar={handleAlterarInscricaoAno}
+                disabled={saving}
+              />
             </div>
 
             <DialogFooter className="pt-4 border-t border-slate-200">
@@ -1658,6 +1752,31 @@ export default function Profissionais() {
                           {esp.especializacao?.nome || esp.especializacao_id}
                         </span>
                       ))}
+                    </div>
+                  )}
+                </div>
+                <div className="col-span-2">
+                  <span className="text-slate-400 uppercase font-semibold text-[10px] block">
+                    Inscrição no Processo Seletivo
+                  </span>
+                  {(viewingProfissional.inscricoes_ano || []).length === 0 ? (
+                    <span className="text-slate-400 italic text-xs">Nenhuma informada</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {[...viewingProfissional.inscricoes_ano!]
+                        .sort((a, b) => a.ano_letivo - b.ano_letivo)
+                        .map((i) => (
+                          <span
+                            key={i.id || i.ano_letivo}
+                            className={`inline-flex items-center gap-1 text-xs font-medium rounded-sm px-2 py-0.5 border ${
+                              i.inscrito
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                : 'bg-slate-100 text-slate-700 border-slate-200'
+                            }`}
+                          >
+                            Ano {i.ano_letivo}: {i.inscrito ? 'Sim' : 'Não'}
+                          </span>
+                        ))}
                     </div>
                   )}
                 </div>
