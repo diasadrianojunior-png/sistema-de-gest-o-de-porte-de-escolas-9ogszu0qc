@@ -28,7 +28,12 @@ import {
   StatusOcupacaoVaga,
   TipoAtendimentoUnidade,
 } from '@/types/gestao-escolar'
-import { VagaCalculadaMemoria, ConfiguracaoVagasRh, LinhaConfigVagas } from '@/types/gestao-escolar'
+import {
+  VagaCalculadaMemoria,
+  ConfiguracaoVagasRh,
+  LinhaConfigVagas,
+  ResolucaoConfiguracaoRh,
+} from '@/types/gestao-escolar'
 
 const TABELA = 'vaga' as const
 
