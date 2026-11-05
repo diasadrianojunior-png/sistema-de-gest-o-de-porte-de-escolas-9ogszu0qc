@@ -4,6 +4,7 @@ import {
   ProfissionalVaga,
   VagaReal,
   ClasseProfissional,
+  TipoVinculoVaga,
 } from '@/types/gestao-escolar'
 import { registrarAuditoria } from './auditoria'
 
@@ -13,6 +14,7 @@ export interface VinculoVagaInput {
   vaga_id: string
   titular: boolean
   cargo_id?: string | null
+  tipo_vinculo?: TipoVinculoVaga // 'CARGO' | 'FUNCAO'
 }
 
 export interface SalvarProfissionalInput {
@@ -23,6 +25,7 @@ export interface SalvarProfissionalInput {
   data_admissao?: string | null
   data_nascimento?: string | null
   classe?: ClasseProfissional | string | null
+  classificacao_concurso?: string | null
   vagas?: VinculoVagaInput[]
 }
 
@@ -75,7 +78,9 @@ export async function getProfissionais(): Promise<Profissional[]> {
           turma:turmas(*),
           configuracao_rh_linha:configuracao_rh_linha(
             *,
-            cargos:configuracao_rh_linha_cargo(*, cargo:cargos(*))
+            cargos:configuracao_rh_linha_cargo(*, cargo:cargos(*)),
+            funcao:funcoes(*),
+            cargo:cargos(*)
           )
         )
       )
@@ -111,7 +116,9 @@ export async function getProfissionalPorId(id: string): Promise<Profissional | n
           turma:turmas(*),
           configuracao_rh_linha:configuracao_rh_linha(
             *,
-            cargos:configuracao_rh_linha_cargo(*, cargo:cargos(*))
+            cargos:configuracao_rh_linha_cargo(*, cargo:cargos(*)),
+            funcao:funcoes(*),
+            cargo:cargos(*)
           )
         )
       )
@@ -147,6 +154,18 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
   const dataAdmissaoNormalizada = input.data_admissao ? input.data_admissao.trim() : null
   const dataNascimentoNormalizada = input.data_nascimento ? input.data_nascimento.trim() : null
 
+  // Validação de negócio: Classificação no Concurso é obrigatória quando a classe for "Novos na Rede"
+  // e opcional quando for "Antigos na Rede".
+  const classificacaoConcursoNormalizada = input.classificacao_concurso
+    ? input.classificacao_concurso.trim()
+    : null
+  const classeEfetiva = (input.classe || classeCalculada) as ClasseProfissional | string
+  if (classeEfetiva === 'Novos na Rede' && !classificacaoConcursoNormalizada) {
+    throw new Error(
+      'Classificação no Concurso obrigatória: profissionais classificados como "Novos na Rede" devem ter a Classificação no Concurso informada.',
+    )
+  }
+
   // 1. Inserir ou atualizar na tabela 'profissionais'
   let profissionalSalvo: Profissional
 
@@ -160,6 +179,7 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
         data_admissao: dataAdmissaoNormalizada,
         data_nascimento: dataNascimentoNormalizada,
         classe: classeCalculada,
+        classificacao_concurso: classificacaoConcursoNormalizada,
         updated_at: new Date().toISOString(),
       })
       .eq('id', input.id)
@@ -181,6 +201,7 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
         data_admissao: dataAdmissaoNormalizada,
         data_nascimento: dataNascimentoNormalizada,
         classe: classeCalculada,
+        classificacao_concurso: classificacaoConcursoNormalizada,
       })
       .select('*, unidade_escolar:unidades_escolares(*)')
       .single()
@@ -230,7 +251,8 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
     const rows = novosVinculos.map((nv) => ({
       profissional_id: profissionalId,
       vaga_id: nv.vaga_id,
-      titular: Boolean(nv.titular),
+      // Regra de negócio: vínculo de FUNÇÃO nunca é titular (função só tem ocupante, sem titular)
+      titular: nv.tipo_vinculo === 'FUNCAO' ? false : Boolean(nv.titular),
       cargo_id: nv.cargo_id || null,
       updated_at: new Date().toISOString(),
     }))
@@ -256,7 +278,9 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
     // Buscar dados atuais da vaga
     const { data: vagaAtual } = await db
       .from('vaga')
-      .select('id, codigo, funcao, status, servidor_id, nome_ocupante')
+      .select(
+        'id, codigo, funcao, status, servidor_id, nome_ocupante, configuracao_rh_linha(tipo_linha)',
+      )
       .eq('id', nv.vaga_id)
       .maybeSingle()
 
@@ -305,6 +329,9 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
           vaga_id: nv.vaga_id,
           vaga_codigo: vagaAtual.codigo,
           vaga_funcao: vagaAtual.funcao,
+          vaga_tipo:
+            (vagaAtual as any).configuracao_rh_linha?.tipo_linha === 'CARGO' ? 'Cargo' : 'Função',
+          tipo_vinculo: nv.tipo_vinculo || null,
           profissional_anterior_id: ocupanteAnteriorId,
           profissional_anterior_nome: profAnteriorData?.nome || ocupanteAnteriorNome,
           profissional_anterior_codigo: profAnteriorData?.codigo || null,
@@ -361,6 +388,7 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
         data_admissao: profissionalAnterior.data_admissao || null,
         data_nascimento: profissionalAnterior.data_nascimento || null,
         classe: profissionalAnterior.classe || null,
+        classificacao_concurso: profissionalAnterior.classificacao_concurso || null,
         vagas_vinculadas: (profissionalAnterior.vagas_vinculadas || []).map((v) => ({
           vaga_id: v.vaga_id,
           titular: v.titular,
@@ -378,6 +406,7 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
     data_admissao: profissionalSalvo.data_admissao || null,
     data_nascimento: profissionalSalvo.data_nascimento || null,
     classe: profissionalSalvo.classe || null,
+    classificacao_concurso: profissionalSalvo.classificacao_concurso || null,
     vagas_vinculadas: novosVinculos,
   }
 
@@ -386,8 +415,8 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
     acao: isEdicao ? 'Edição' : 'Criação',
     registro_codigo: profissionalSalvo.codigo || null,
     descricao: isEdicao
-      ? `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) atualizado. Classe: "${profissionalSalvo.classe}". Vagas vinculadas: ${novosVinculos.length}.`
-      : `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) cadastrado com sucesso. Classe: "${profissionalSalvo.classe}". Vagas vinculadas: ${novosVinculos.length}.`,
+      ? `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) atualizado. Classe: "${profissionalSalvo.classe}". Classificação no Concurso: "${profissionalSalvo.classificacao_concurso || '-'}". Vagas vinculadas: ${novosVinculos.length}.`
+      : `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) cadastrado com sucesso. Classe: "${profissionalSalvo.classe}". Classificação no Concurso: "${profissionalSalvo.classificacao_concurso || '-'}". Vagas vinculadas: ${novosVinculos.length}.`,
     detalhes: {
       profissional_id: profissionalId,
       nome: profissionalSalvo.nome,
@@ -396,6 +425,7 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
       data_admissao: profissionalSalvo.data_admissao,
       data_nascimento: profissionalSalvo.data_nascimento,
       classe: profissionalSalvo.classe,
+      classificacao_concurso: profissionalSalvo.classificacao_concurso,
       valores_antigos: valoresAntigos,
       valores_novos: valoresNovos,
       vagas_vinculadas: novosVinculos,
@@ -483,7 +513,9 @@ export async function getVagasPorUnidade(
       turma:turmas(*),
       configuracao_rh_linha:configuracao_rh_linha(
         *,
-        cargos:configuracao_rh_linha_cargo(*, cargo:cargos(*))
+        cargos:configuracao_rh_linha_cargo(*, cargo:cargos(*)),
+        funcao:funcoes(*),
+        cargo:cargos(*)
       )
     `,
     )
@@ -497,4 +529,20 @@ export async function getVagasPorUnidade(
   }
 
   return (data as VagaReal[]) || []
+}
+
+/**
+ * Determina o tipo de vínculo da vaga com base na linha da Configuração de RH:
+ * linhas do tipo CARGO geram vagas de cargo; linhas do tipo FUNCAO geram vagas de função.
+ * Fallback: quando o tipo da linha não está disponível, usa a presença de cargo_id
+ * predefinido na linha como indicador.
+ */
+export function determinarTipoVinculoVaga(vaga: VagaReal | null | undefined): TipoVinculoVaga {
+  const linha = vaga?.configuracao_rh_linha
+  if (linha?.tipo_linha === 'CARGO') return 'CARGO'
+  if (linha?.tipo_linha === 'FUNCAO') return 'FUNCAO'
+  if (linha) {
+    return !linha.funcao_id && !!linha.cargo_id ? 'CARGO' : 'FUNCAO'
+  }
+  return 'FUNCAO'
 }

@@ -574,6 +574,8 @@ export interface ProfissionalVaga {
 
 export type ClasseProfissional = 'Antigos na Rede' | 'Novos na Rede'
 
+export type TipoVinculoVaga = 'CARGO' | 'FUNCAO'
+
 export interface Profissional {
   id: string
   codigo?: string // PRO-0001
@@ -583,6 +585,7 @@ export interface Profissional {
   data_admissao?: string | null
   data_nascimento?: string | null
   classe?: ClasseProfissional | string | null
+  classificacao_concurso?: string | null
   created_at?: string
   updated_at?: string
   // Relações expandidas

@@ -47,6 +47,8 @@ import {
   Sparkles,
   Info,
   AlertTriangle,
+  GraduationCap,
+  Layers,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
@@ -56,6 +58,7 @@ import {
   deleteProfissional,
   getVagasPorUnidade,
   calcularClasseProfissional,
+  determinarTipoVinculoVaga,
   VinculoVagaInput,
 } from '@/services/profissionais'
 import { getUnidadesEscolares } from '@/services/unidades-escolares'
@@ -66,6 +69,7 @@ import {
   Cargo,
   VagaReal,
   ClasseProfissional,
+  TipoVinculoVaga,
 } from '@/types/gestao-escolar'
 
 interface LinhaVinculoForm {
@@ -73,6 +77,7 @@ interface LinhaVinculoForm {
   vaga_id: string
   titular: boolean
   cargo_id: string
+  tipo_vinculo: TipoVinculoVaga // 'CARGO' | 'FUNCAO'
 }
 
 export default function Profissionais() {
@@ -86,6 +91,7 @@ export default function Profissionais() {
   const [search, setSearch] = useState('')
   const [filtroUnidade, setFiltroUnidade] = useState<string>('todas')
   const [filtroClasse, setFiltroClasse] = useState<string>('todas')
+  const [filtroClassificacao, setFiltroClassificacao] = useState<string>('todas')
   const [paginaAtual, setPaginaAtual] = useState<number>(1)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -97,6 +103,7 @@ export default function Profissionais() {
   const [formDataAdmissao, setFormDataAdmissao] = useState('')
   const [formDataNascimento, setFormDataNascimento] = useState('')
   const [formClasse, setFormClasse] = useState<ClasseProfissional>('Antigos na Rede')
+  const [formClassificacaoConcurso, setFormClassificacaoConcurso] = useState('')
   const [formUnidadeId, setFormUnidadeId] = useState<string>('')
   const [formAtivo, setFormAtivo] = useState(true)
   const [formVinculos, setFormVinculos] = useState<LinhaVinculoForm[]>([])
@@ -210,6 +217,7 @@ export default function Profissionais() {
     setFormDataAdmissao('')
     setFormDataNascimento('')
     setFormClasse('Antigos na Rede')
+    setFormClassificacaoConcurso('')
     setFormUnidadeId('')
     setFormAtivo(true)
     setFormVinculos([])
@@ -227,15 +235,21 @@ export default function Profissionais() {
     const classeDerivada =
       (prof.classe as ClasseProfissional) || calcularClasseProfissional(dataAdm)
     setFormClasse(classeDerivada)
+    setFormClassificacaoConcurso(prof.classificacao_concurso || '')
     setFormUnidadeId(prof.unidade_escolar_id)
     setFormAtivo(prof.ativo)
 
-    const linhasIniciais: LinhaVinculoForm[] = (prof.vagas_vinculadas || []).map((v) => ({
-      idTemp: v.id || Math.random().toString(),
-      vaga_id: v.vaga_id,
-      titular: Boolean(v.titular),
-      cargo_id: v.cargo_id || '',
-    }))
+    const linhasIniciais: LinhaVinculoForm[] = (prof.vagas_vinculadas || []).map((v) => {
+      const tipo = determinarTipoVinculoVaga(v.vaga)
+      return {
+        idTemp: v.id || Math.random().toString(),
+        vaga_id: v.vaga_id,
+        // Função não tem titular, só ocupante
+        titular: tipo === 'FUNCAO' ? false : Boolean(v.titular),
+        cargo_id: v.cargo_id || '',
+        tipo_vinculo: tipo,
+      }
+    })
 
     setFormVinculos(linhasIniciais)
     setOpenDialog(true)
@@ -265,6 +279,7 @@ export default function Profissionais() {
         vaga_id: '',
         titular: true,
         cargo_id: '',
+        tipo_vinculo: 'CARGO',
       },
     ])
   }
@@ -272,6 +287,25 @@ export default function Profissionais() {
   // Remover linha de vínculo
   const handleRemoverVinculo = (index: number) => {
     setFormVinculos((prev) => prev.filter((_, idx) => idx !== index))
+  }
+
+  // Alterar o tipo da vaga (Cargo/Função) de uma linha.
+  // Dependência dinâmica: ao trocar o tipo, a vaga selecionada e o cargo são limpos
+  // para impedir vínculos inválidos (vaga de cargo misturada com escolha de função e vice-versa).
+  const handleAlterarTipoVinculoLinha = (index: number, novoTipo: TipoVinculoVaga) => {
+    setFormVinculos((prev) =>
+      prev.map((item, idx) => {
+        if (idx !== index) return item
+        if (item.tipo_vinculo === novoTipo) return item
+        return {
+          ...item,
+          tipo_vinculo: novoTipo,
+          vaga_id: '',
+          cargo_id: '',
+          titular: novoTipo === 'FUNCAO' ? false : item.titular,
+        }
+      }),
+    )
   }
 
   // Alterar seleção de vaga de uma linha
@@ -345,6 +379,7 @@ export default function Profissionais() {
         data_admissao: formDataAdmissao,
         data_nascimento: formDataNascimento,
         classe: formClasse,
+        classificacao_concurso: formClassificacaoConcurso,
         vagas: vinculosFinal,
       })
 
@@ -411,6 +446,18 @@ export default function Profissionais() {
       return
     }
 
+    // Classificação no Concurso: obrigatória quando a Classe for "Novos na Rede",
+    // opcional quando for "Antigos na Rede"
+    if (formClasse === 'Novos na Rede' && !formClassificacaoConcurso.trim()) {
+      toast({
+        title: 'Classificação no Concurso obrigatória',
+        description:
+          'Para profissionais classificados como "Novos na Rede", a Classificação no Concurso é de preenchimento obrigatório.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     if (!formUnidadeId) {
       toast({
         title: 'Unidade Escolar obrigatória',
@@ -435,12 +482,13 @@ export default function Profissionais() {
       return
     }
 
-    // Montar vínculos validados
+    // Montar vínculos validados (função nunca é titular: função não tem titular, só ocupante)
     const vinculosFinal: VinculoVagaInput[] = formVinculos
       .filter((v) => Boolean(v.vaga_id && v.vaga_id.trim()))
       .map((v) => ({
         vaga_id: v.vaga_id,
-        titular: Boolean(v.titular),
+        tipo_vinculo: v.tipo_vinculo,
+        titular: v.tipo_vinculo === 'FUNCAO' ? false : Boolean(v.titular),
         cargo_id: v.cargo_id && v.cargo_id.trim() ? v.cargo_id : null,
       }))
 
@@ -486,7 +534,8 @@ export default function Profissionais() {
       .filter((v) => Boolean(v.vaga_id && v.vaga_id.trim()))
       .map((v) => ({
         vaga_id: v.vaga_id,
-        titular: Boolean(v.titular),
+        tipo_vinculo: v.tipo_vinculo,
+        titular: v.tipo_vinculo === 'FUNCAO' ? false : Boolean(v.titular),
         cargo_id: v.cargo_id && v.cargo_id.trim() ? v.cargo_id : null,
       }))
 
@@ -532,6 +581,13 @@ export default function Profissionais() {
       })
     }
 
+    if (filtroClassificacao && filtroClassificacao !== 'todas') {
+      lista = lista.filter((p) => {
+        const val = (p.classificacao_concurso || '').trim()
+        return filtroClassificacao === 'sem_classificacao' ? !val : val === filtroClassificacao
+      })
+    }
+
     if (search.trim()) {
       const term = search.toLowerCase()
       lista = lista.filter((p) => {
@@ -539,17 +595,29 @@ export default function Profissionais() {
         const nome = (p.nome || '').toLowerCase()
         const unidadeNome = (p.unidade_escolar?.nome || '').toLowerCase()
         const classe = (p.classe || 'antigos na rede').toLowerCase()
+        const classificacao = (p.classificacao_concurso || '').toLowerCase()
         return (
           codigo.includes(term) ||
           nome.includes(term) ||
           unidadeNome.includes(term) ||
-          classe.includes(term)
+          classe.includes(term) ||
+          classificacao.includes(term)
         )
       })
     }
 
     return lista
-  }, [profissionais, filtroUnidade, filtroClasse, search])
+  }, [profissionais, filtroUnidade, filtroClasse, filtroClassificacao, search])
+
+  // Valores distintos de Classificação no Concurso para o filtro
+  const classificacoesDisponiveis = useMemo(() => {
+    const valores = new Set<string>()
+    profissionais.forEach((p) => {
+      const v = (p.classificacao_concurso || '').trim()
+      if (v) valores.add(v)
+    })
+    return Array.from(valores).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }, [profissionais])
 
   // Paginação 10 registros por página (padrão PaginacaoTabela)
   const itensPorPagina = ITENS_POR_PAGINA_PADRAO
@@ -564,7 +632,7 @@ export default function Profissionais() {
   // Resetar página quando filtros mudarem
   useEffect(() => {
     setPaginaAtual(1)
-  }, [search, filtroUnidade, filtroClasse])
+  }, [search, filtroUnidade, filtroClasse, filtroClassificacao])
 
   // Obter cargos permitidos para uma vaga específica (baseado na configuracao_rh_linha_cargo)
   const getCargosPermitidosParaVaga = (vagaId: string): Cargo[] => {
@@ -626,10 +694,10 @@ export default function Profissionais() {
       <Card className="border-slate-200 shadow-xs">
         <CardContent className="p-4 sm:p-5">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-            <div className="relative md:col-span-6">
+            <div className="relative md:col-span-4">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <Input
-                placeholder="Buscar por identificador (PRO-0001), nome, escola ou classe..."
+                placeholder="Buscar por identificador (PRO-0001), nome, escola, classe ou classificação..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 bg-white"
@@ -652,7 +720,7 @@ export default function Profissionais() {
               </Select>
             </div>
 
-            <div className="md:col-span-3">
+            <div className="md:col-span-2">
               <Select value={filtroClasse} onValueChange={setFiltroClasse}>
                 <SelectTrigger className="bg-white">
                   <SelectValue placeholder="Todas as classes" />
@@ -661,6 +729,23 @@ export default function Profissionais() {
                   <SelectItem value="todas">Todas as Classes</SelectItem>
                   <SelectItem value="Antigos na Rede">Antigos na Rede</SelectItem>
                   <SelectItem value="Novos na Rede">Novos na Rede</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="md:col-span-3">
+              <Select value={filtroClassificacao} onValueChange={setFiltroClassificacao}>
+                <SelectTrigger className="bg-white">
+                  <SelectValue placeholder="Todas as classificações" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as Classificações</SelectItem>
+                  {classificacoesDisponiveis.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="sem_classificacao">Sem Classificação no Concurso</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -704,6 +789,7 @@ export default function Profissionais() {
                     <th className="py-3 px-4 w-28">Identificador</th>
                     <th className="py-3 px-4">Nome do Profissional</th>
                     <th className="py-3 px-4 w-36">Classe</th>
+                    <th className="py-3 px-4 w-44">Classificação no Concurso</th>
                     <th className="py-3 px-4">Unidade Escolar</th>
                     <th className="py-3 px-4">Vagas Vinculadas</th>
                     <th className="py-3 px-4 w-20 text-center">Status</th>
@@ -740,6 +826,15 @@ export default function Profissionais() {
                           </Badge>
                         </td>
                         <td className="py-3 px-4 text-slate-700">
+                          {p.classificacao_concurso ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium bg-violet-50 text-violet-800 border border-violet-200 rounded-sm px-2 py-0.5">
+                              {p.classificacao_concurso}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 italic text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-slate-700">
                           <div className="flex items-center gap-1.5">
                             <Building className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                             <span>{p.unidade_escolar?.nome || '—'}</span>
@@ -760,8 +855,11 @@ export default function Profissionais() {
                                 <span
                                   key={vin.id}
                                   className="text-[11px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded-sm border border-slate-200 truncate max-w-[180px]"
-                                  title={`${vin.vaga?.funcao || 'Vaga'}${vin.titular ? ' (Titular)' : ' (Suplente)'}`}
+                                  title={`${vin.vaga && determinarTipoVinculoVaga(vin.vaga) === 'FUNCAO' ? 'Função' : 'Cargo'}: ${vin.vaga?.funcao || 'Vaga'}${vin.titular ? ' (Titular)' : ' (Ocupante)'}`}
                                 >
+                                  {vin.vaga && determinarTipoVinculoVaga(vin.vaga) === 'FUNCAO'
+                                    ? '[F] '
+                                    : '[C] '}
                                   {vin.vaga?.funcao || 'Vaga'} {vin.titular ? '(Titular)' : ''}
                                 </span>
                               ))}
@@ -958,6 +1056,36 @@ export default function Profissionais() {
                 </p>
               </div>
 
+              {/* 4. Classificação no Concurso (logo após a Classe do Profissional).
+                  Obrigatória quando a Classe for "Novos na Rede" e opcional quando for "Antigos na Rede". */}
+              <div>
+                <Label
+                  htmlFor="classificacao_concurso"
+                  className="text-xs font-semibold text-slate-700 flex items-center gap-1.5"
+                >
+                  <GraduationCap className="w-3.5 h-3.5 text-violet-600" />
+                  Classificação no Concurso{' '}
+                  {formClasse === 'Novos na Rede' ? (
+                    <span className="text-rose-500">*</span>
+                  ) : (
+                    <span className="text-slate-400 font-normal">(opcional)</span>
+                  )}
+                </Label>
+                <Input
+                  id="classificacao_concurso"
+                  value={formClassificacaoConcurso}
+                  onChange={(e) => setFormClassificacaoConcurso(e.target.value)}
+                  placeholder="Ex.: 1º lugar, 15ª classificação..."
+                  className="mt-1 bg-white"
+                  required={formClasse === 'Novos na Rede'}
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {formClasse === 'Novos na Rede'
+                    ? 'Obrigatória para profissionais "Novos na Rede": informe a classificação obtida no concurso.'
+                    : 'Opcional para profissionais "Antigos na Rede": preencha somente se houver classificação em concurso.'}
+                </p>
+              </div>
+
               {/* Unidade Escolar do Profissional */}
               <div>
                 <Label htmlFor="unidade" className="text-xs font-semibold text-slate-700">
@@ -1051,6 +1179,11 @@ export default function Profissionais() {
                   <div className="space-y-3">
                     {formVinculos.map((item, index) => {
                       const cargosPermitidos = getCargosPermitidosParaVaga(item.vaga_id)
+                      // Vagas compatíveis com o tipo escolhido nesta linha (dependência dinâmica:
+                      // só aparecem opções do cadastro escolhido — Cargo ou Função)
+                      const vagasFiltradasPorTipo = vagasDaUnidade.filter(
+                        (v) => determinarTipoVinculoVaga(v) === item.tipo_vinculo,
+                      )
                       return (
                         <div
                           key={item.idTemp || index}
@@ -1073,20 +1206,66 @@ export default function Profissionais() {
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {/* Seleção da Vaga */}
+                            {/* 1ª pergunta: a vaga a vincular é de um CARGO ou de uma FUNÇÃO? */}
+                            <div className="sm:col-span-2">
+                              <Label className="text-xs font-semibold text-slate-700">
+                                A vaga a vincular é de um Cargo ou de uma Função?{' '}
+                                <span className="text-rose-500">*</span>
+                              </Label>
+                              <div className="mt-1 grid grid-cols-2 rounded-md border border-slate-200 bg-slate-100 p-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleAlterarTipoVinculoLinha(index, 'CARGO')}
+                                  className={`flex items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-xs font-semibold transition-colors ${
+                                    item.tipo_vinculo === 'CARGO'
+                                      ? 'bg-white text-blue-700 shadow-sm border border-blue-200'
+                                      : 'text-slate-500 hover:text-slate-700'
+                                  }`}
+                                >
+                                  <Layers className="w-3.5 h-3.5" />
+                                  Vaga de Cargo
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleAlterarTipoVinculoLinha(index, 'FUNCAO')}
+                                  className={`flex items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-xs font-semibold transition-colors ${
+                                    item.tipo_vinculo === 'FUNCAO'
+                                      ? 'bg-white text-violet-700 shadow-sm border border-violet-200'
+                                      : 'text-slate-500 hover:text-slate-700'
+                                  }`}
+                                >
+                                  <Briefcase className="w-3.5 h-3.5" />
+                                  Vaga de Função
+                                </button>
+                              </div>
+                              <p className="text-[10px] text-slate-400 mt-1">
+                                A escolha determina de qual cadastro virão as opções de vaga. Trocar
+                                a escolha limpa a vaga selecionada.
+                              </p>
+                            </div>
+
+                            {/* Seleção da Vaga — lista SOMENTE vagas do tipo escolhido acima */}
                             <div className="sm:col-span-2">
                               <Label className="text-xs font-medium text-slate-700">
-                                Selecione a Vaga <span className="text-rose-500">*</span>
+                                Selecione a Vaga{' '}
+                                {item.tipo_vinculo === 'CARGO' ? 'de Cargo' : 'de Função'}{' '}
+                                <span className="text-rose-500">*</span>
                               </Label>
                               <Select
                                 value={item.vaga_id}
                                 onValueChange={(val) => handleAlterarVagaLinha(index, val)}
                               >
                                 <SelectTrigger className="mt-1 bg-white">
-                                  <SelectValue placeholder="Escolha a vaga disponível..." />
+                                  <SelectValue
+                                    placeholder={
+                                      item.tipo_vinculo === 'CARGO'
+                                        ? 'Escolha uma vaga de cargo disponível...'
+                                        : 'Escolha uma vaga de função disponível...'
+                                    }
+                                  />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {vagasDaUnidade.map((vg) => {
+                                  {vagasFiltradasPorTipo.map((vg) => {
                                     const jaOcupada =
                                       vg.status === 'OCUPADA' &&
                                       vg.servidor_id !== editingProfissional?.id
@@ -1101,6 +1280,13 @@ export default function Profissionais() {
                                       </SelectItem>
                                     )
                                   })}
+                                  {vagasFiltradasPorTipo.length === 0 && (
+                                    <div className="px-3 py-2 text-xs text-slate-400 italic">
+                                      {item.tipo_vinculo === 'CARGO'
+                                        ? 'Nenhuma vaga de cargo disponível nesta unidade.'
+                                        : 'Nenhuma vaga de função disponível nesta unidade.'}
+                                    </div>
+                                  )}
                                 </SelectContent>
                               </Select>
 
@@ -1137,49 +1323,63 @@ export default function Profissionais() {
                               })()}
                             </div>
 
-                            {/* Pergunta: É titular da vaga? */}
-                            <div className="p-2.5 bg-white rounded-md border border-slate-200 flex items-center justify-between">
+                            {/* Pergunta: É titular da vaga?
+                                FUNÇÃO não tem titular, só ocupante: o switch fica desligado e desabilitado. */}
+                            <div
+                              className={`p-2.5 rounded-md border flex items-center justify-between ${
+                                item.tipo_vinculo === 'FUNCAO'
+                                  ? 'bg-slate-100 border-slate-200 opacity-75'
+                                  : 'bg-white border-slate-200'
+                              }`}
+                            >
                               <div className="space-y-0.5">
                                 <Label className="text-xs font-semibold text-slate-800">
                                   Titular da Vaga?
                                 </Label>
                                 <p className="text-[10px] text-slate-500">
-                                  {item.titular ? 'Sim, titular desta vaga' : 'Não, suplente/outra'}
+                                  {item.tipo_vinculo === 'FUNCAO'
+                                    ? 'Indisponível: função não tem titular, só ocupante'
+                                    : item.titular
+                                      ? 'Sim, titular desta vaga'
+                                      : 'Não, suplente/outra'}
                                 </p>
                               </div>
                               <Switch
-                                checked={item.titular}
+                                checked={item.tipo_vinculo === 'FUNCAO' ? false : item.titular}
+                                disabled={item.tipo_vinculo === 'FUNCAO'}
                                 onCheckedChange={(val) => handleAlterarTitularLinha(index, val)}
                               />
                             </div>
 
-                            {/* Ocupação / Cargo */}
-                            <div className="space-y-1">
-                              <Label className="text-xs font-medium text-slate-700">
-                                Ocupação (Cargo ocupado na vaga)
-                              </Label>
-                              <Select
-                                value={item.cargo_id || 'nenhum'}
-                                onValueChange={(val) =>
-                                  handleAlterarCargoLinha(index, val === 'nenhum' ? '' : val)
-                                }
-                              >
-                                <SelectTrigger className="bg-white">
-                                  <SelectValue placeholder="Selecione o cargo..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="nenhum">Nenhum cargo específico</SelectItem>
-                                  {cargosPermitidos.map((cg) => (
-                                    <SelectItem key={cg.id} value={cg.id}>
-                                      {cg.nome}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <p className="text-[10px] text-slate-400">
-                                Cargos compatíveis com a função da vaga na Configuração de RH.
-                              </p>
-                            </div>
+                            {/* Ocupação / Cargo — apenas para vínculos de CARGO */}
+                            {item.tipo_vinculo === 'CARGO' && (
+                              <div className="space-y-1">
+                                <Label className="text-xs font-medium text-slate-700">
+                                  Ocupação (Cargo ocupado na vaga)
+                                </Label>
+                                <Select
+                                  value={item.cargo_id || 'nenhum'}
+                                  onValueChange={(val) =>
+                                    handleAlterarCargoLinha(index, val === 'nenhum' ? '' : val)
+                                  }
+                                >
+                                  <SelectTrigger className="bg-white">
+                                    <SelectValue placeholder="Selecione o cargo..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="nenhum">Nenhum cargo específico</SelectItem>
+                                    {cargosPermitidos.map((cg) => (
+                                      <SelectItem key={cg.id} value={cg.id}>
+                                        {cg.nome}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <p className="text-[10px] text-slate-400">
+                                  Cargos compatíveis com a função da vaga na Configuração de RH.
+                                </p>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )
@@ -1304,6 +1504,19 @@ export default function Profissionais() {
                 </div>
                 <div className="col-span-2">
                   <span className="text-slate-400 uppercase font-semibold text-[10px] block">
+                    Classificação no Concurso
+                  </span>
+                  {viewingProfissional.classificacao_concurso ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-violet-50 text-violet-800 border border-violet-200 rounded-sm px-2 py-0.5 mt-1">
+                      <GraduationCap className="w-3 h-3" />
+                      {viewingProfissional.classificacao_concurso}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 italic text-xs">Não informada</span>
+                  )}
+                </div>
+                <div className="col-span-2">
+                  <span className="text-slate-400 uppercase font-semibold text-[10px] block">
                     Unidade Escolar
                   </span>
                   <span className="font-medium text-slate-800">
@@ -1343,12 +1556,18 @@ export default function Profissionais() {
 
                           <Badge
                             className={
-                              v.titular
-                                ? 'bg-blue-100 text-blue-800 border-blue-200 text-[10px]'
-                                : 'bg-slate-100 text-slate-700 text-[10px]'
+                              v.vaga && determinarTipoVinculoVaga(v.vaga) === 'FUNCAO'
+                                ? 'bg-violet-100 text-violet-800 border-violet-200 text-[10px]'
+                                : v.titular
+                                  ? 'bg-blue-100 text-blue-800 border-blue-200 text-[10px]'
+                                  : 'bg-slate-100 text-slate-700 text-[10px]'
                             }
                           >
-                            {v.titular ? 'Titular' : 'Não Titular'}
+                            {v.vaga && determinarTipoVinculoVaga(v.vaga) === 'FUNCAO'
+                              ? 'Função · Ocupante'
+                              : v.titular
+                                ? 'Cargo · Titular'
+                                : 'Cargo · Não Titular'}
                           </Badge>
                         </div>
 
@@ -1433,6 +1652,22 @@ export default function Profissionais() {
                   Nascimento.
                 </li>
                 <li>
+                  <strong>Classificação no Concurso:</strong> Campo posicionado logo após a Classe
+                  do Profissional, com obrigatoriedade <strong>condicional</strong>:
+                  <ul className="list-disc list-inside pl-3 mt-1 space-y-0.5">
+                    <li>
+                      Classe <em>"Antigos na Rede"</em> → campo <strong>opcional</strong>.
+                    </li>
+                    <li>
+                      Classe <em>"Novos na Rede"</em> → campo <strong>obrigatório</strong> (o
+                      salvamento é bloqueado com aviso amigável se ficar vazio). A obrigatoriedade
+                      se reajusta dinamicamente quando a classe muda, inclusive pela classificação
+                      automática da Data de Admissão; mudar a classe para "Antigos na Rede" não
+                      apaga o valor digitado, apenas deixa de exigi-lo.
+                    </li>
+                  </ul>
+                </li>
+                <li>
                   <strong>Unidade Escolar:</strong> Escola ou CMEI de lotação do profissional
                   (obrigatório).
                 </li>
@@ -1502,6 +1737,42 @@ export default function Profissionais() {
               </ul>
             </div>
 
+            {/* Bloco 3.1: Escolha Cargo ou Função antes da vaga */}
+            <div className="p-4 rounded-xl border border-violet-200 bg-violet-50/60 space-y-2">
+              <h4 className="font-semibold text-violet-950 flex items-center gap-2">
+                <Briefcase className="w-4 h-4 text-violet-700" /> Vínculo de Vagas: Cargo ou Função
+              </h4>
+              <p className="text-xs text-violet-900 font-medium">
+                Ao adicionar uma vaga da unidade escolar, <strong>antes de escolher a vaga</strong>{' '}
+                o sistema pergunta se a vaga a vincular é de um <strong>Cargo</strong> ou de uma{' '}
+                <strong>Função</strong>:
+              </p>
+              <ul className="text-xs list-disc list-inside space-y-1.5 text-slate-700 pl-1">
+                <li>
+                  <strong>Vaga de Cargo:</strong> o combobox lista somente as vagas geradas a partir
+                  das linhas de <strong>Cargo</strong> da Configuração de Vagas por Nível.
+                </li>
+                <li>
+                  <strong>Vaga de Função:</strong> o combobox lista somente as vagas geradas a
+                  partir das linhas de <strong>Função</strong>.
+                </li>
+                <li>
+                  <strong>Dependência dinâmica:</strong> trocar a escolha limpa a vaga selecionada e
+                  recarrega as opções do cadastro correspondente — nunca é possível misturar vagas
+                  de cargo com vínculo de função (e vice-versa).
+                </li>
+                <li>
+                  <strong>Titularidade:</strong> se a escolha for <em>Função</em>, a marcação de
+                  titularidade fica <strong>sempre desligada e desabilitada</strong>, porque função
+                  não tem titular — <strong>só ocupante</strong>. Se a escolha for <em>Cargo</em>, a
+                  titularidade continua marcável como antes (Titular/Suplente).
+                </li>
+                <li>
+                  O cargo ocupado na vaga só é solicitado para vínculos de <strong>Cargo</strong>.
+                </li>
+              </ul>
+            </div>
+
             {/* Bloco 4: Vínculos com Vagas e Rastreabilidade */}
             <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/50 space-y-2">
               <h4 className="font-semibold text-emerald-950 flex items-center gap-2">
@@ -1510,11 +1781,17 @@ export default function Profissionais() {
               <ul className="text-xs list-disc list-inside space-y-1 text-slate-700 pl-1">
                 <li>
                   O profissional pode ser vinculado a uma ou mais vagas da sua unidade escolar, com
-                  definição de titularidade (Titular/Suplente) e cargo ocupado.
+                  definição de titularidade (apenas para vagas de <strong>Cargo</strong>) e cargo
+                  ocupado.
+                </li>
+                <li>
+                  A listagem e o detalhe indicam se cada vaga vinculada é de <em>Cargo</em> ou de{' '}
+                  <em>Função</em>; vínculos de função aparecem sempre como <strong>Ocupante</strong>
+                  .
                 </li>
                 <li>
                   Ao salvar a alocação, a vaga fica com o status <strong>OCUPADA</strong>, nome do
-                  ocupante preenchido e cargo gravado.
+                  ocupante preenchido e cargo gravado (quando aplicável).
                 </li>
                 <li>
                   Ao desvincular uma vaga ou excluir o profissional, a vaga retorna automaticamente
@@ -1523,7 +1800,9 @@ export default function Profissionais() {
                 </li>
                 <li>
                   Todas as operações de criação, edição, substituição e exclusão registram na{' '}
-                  <strong>Auditoria</strong> os valores completos, garantindo rastreabilidade
+                  <strong>Auditoria</strong> os valores completos — inclusive a{' '}
+                  <strong>Classificação no Concurso</strong> (valor antigo e novo) e o{' '}
+                  <strong>tipo da vaga (Cargo/Função)</strong> — garantindo rastreabilidade
                   histórica.
                 </li>
               </ul>
