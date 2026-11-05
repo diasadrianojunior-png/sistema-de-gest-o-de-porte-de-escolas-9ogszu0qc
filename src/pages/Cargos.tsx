@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Plus, Edit2, Trash2, Loader2, Search, Briefcase } from 'lucide-react'
+import { BotaoAjudaModulo } from '@/components/BotaoAjudaModulo'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
 import { getCargos, createCargo, updateCargo, deleteCargo } from '@/services/apoio'
@@ -139,18 +140,21 @@ export default function Cargos() {
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
-      <div>
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-700 mb-1">
-          <span>Cadastros de Apoio</span>
-          <span>&rsaquo;</span>
-          <span>Cargos</span>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-700 mb-1">
+            <span>Cadastros de Apoio</span>
+            <span>&rsaquo;</span>
+            <span>Cargos</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+            Cadastro de Cargos
+          </h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Gerenciamento e manutenção dos cargos do sistema de gestão escolar
+          </p>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-          Cadastro de Cargos
-        </h1>
-        <p className="text-sm text-slate-600 mt-1">
-          Gerenciamento e manutenção dos cargos do sistema de gestão escolar
-        </p>
+        <BotaoAjudaModulo menuKey="cargos" />
       </div>
 
       <Card>

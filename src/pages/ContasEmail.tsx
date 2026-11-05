@@ -42,6 +42,7 @@ import {
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
+import { BotaoAjudaModulo } from '@/components/BotaoAjudaModulo'
 import {
   getContasEmail,
   salvarContaEmail,
@@ -357,6 +358,7 @@ export default function ContasEmail() {
         </div>
 
         <div className="flex items-center gap-3">
+          <BotaoAjudaModulo menuKey="contas_email" />
           {canEditContasEmail && (
             <Button
               type="button"

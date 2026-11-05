@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { School, Database, ArrowRight, Clock, Layers, Briefcase, CheckCircle2 } from 'lucide-react'
+import { BotaoAjudaModulo } from '@/components/BotaoAjudaModulo'
 import { getUnidadesEscolares } from '@/services/unidades-escolares'
 import { getCargos } from '@/services/apoio'
 import { UnidadeEscolar, Cargo, normalizarNivelPorte } from '@/types/gestao-escolar'
@@ -55,6 +56,7 @@ export default function Painel() {
             Gerencie os dados cadastrais da rede de ensino.
           </p>
         </div>
+        <BotaoAjudaModulo menuKey="painel" />
       </div>
 
       {/* Cards de Atalhos Principais */}

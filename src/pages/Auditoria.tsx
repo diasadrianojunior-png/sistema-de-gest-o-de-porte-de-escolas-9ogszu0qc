@@ -41,6 +41,7 @@ import {
 import { getRegistrosAuditoria } from '@/services/auditoria'
 import { RegistroAuditoria } from '@/types/gestao-escolar'
 import { toast } from '@/hooks/use-toast'
+import { BotaoAjudaModulo } from '@/components/BotaoAjudaModulo'
 
 export default function Auditoria() {
   const [registros, setRegistros] = useState<RegistroAuditoria[]>([])
@@ -233,6 +234,7 @@ export default function Auditoria() {
         </div>
 
         <div className="flex items-center gap-2">
+          <BotaoAjudaModulo menuKey="auditoria" />
           <Button
             size="sm"
             onClick={() => carregarAuditoria(true)}
