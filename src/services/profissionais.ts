@@ -30,6 +30,13 @@ export interface SalvarProfissionalInput {
   vagas?: VinculoVagaInput[]
   /** Especialidade(s) do Profissional: ids das Especializações (opcional, multi-seleção) */
   especialidades?: string[]
+  /** Inscrições no Processo Seletivo por Ano Letivo (opcional, lista repetível; um registro por ano) */
+  inscricoes_ano?: InscricaoAnoInput[]
+}
+
+export interface InscricaoAnoInput {
+  ano_letivo: number
+  inscrito: boolean
 }
 
 /**
@@ -90,7 +97,8 @@ export async function getProfissionais(): Promise<Profissional[]> {
       especialidades:profissional_especializacoes(
         *,
         especializacao:especializacoes(*)
-      )
+      ),
+      inscricoes_ano:profissional_ano_inscricoes(*)
     `,
     )
     .order('created_at', { ascending: false })
@@ -132,7 +140,8 @@ export async function getProfissionalPorId(id: string): Promise<Profissional | n
       especialidades:profissional_especializacoes(
         *,
         especializacao:especializacoes(*)
-      )
+      ),
+      inscricoes_ano:profissional_ano_inscricoes(*)
     `,
     )
     .eq('id', id)
@@ -174,6 +183,14 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
   if (classeEfetiva === 'Novos na Rede' && !classificacaoConcursoNormalizada) {
     throw new Error(
       'Classificação no Concurso obrigatória: profissionais classificados como "Novos na Rede" devem ter a Classificação no Concurso informada.',
+    )
+  }
+
+  // Validação: não pode haver dois registros para o mesmo Ano Letivo no mesmo profissional
+  const anosInscricaoInformados = (input.inscricoes_ano || []).map((i) => i.ano_letivo)
+  if (new Set(anosInscricaoInformados).size !== anosInscricaoInformados.length) {
+    throw new Error(
+      'Ano Letivo duplicado: cada profissional pode ter apenas uma inscrição por ano letivo.',
     )
   }
 
@@ -271,6 +288,38 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
     nomesEspecialidadesSalvas = ((espRows || []) as Pick<Especializacao, 'id' | 'nome'>[])
       .filter((e) => idsEspecialidadesNormalizados.includes(e.id))
       .map((e) => e.nome)
+  }
+
+  // 2.0 Inscrições no Processo Seletivo por Ano Letivo (opcional): substituição completa
+  const inscricoesNormalizadas: InscricaoAnoInput[] = (input.inscricoes_ano || [])
+    .filter((i) => Number.isInteger(i.ano_letivo))
+    .map((i) => ({ ano_letivo: i.ano_letivo, inscrito: Boolean(i.inscrito) }))
+
+  if (isEdicao) {
+    const { error: errDelIns } = await db
+      .from('profissional_ano_inscricoes')
+      .delete()
+      .eq('profissional_id', profissionalId)
+
+    if (errDelIns) {
+      console.error('Erro ao limpar inscrições por ano letivo anteriores:', errDelIns)
+      throw errDelIns
+    }
+  }
+
+  if (inscricoesNormalizadas.length > 0) {
+    const { error: errInsIns } = await db.from('profissional_ano_inscricoes').insert(
+      inscricoesNormalizadas.map((i) => ({
+        profissional_id: profissionalId,
+        ano_letivo: i.ano_letivo,
+        inscrito: i.inscrito,
+      })),
+    )
+
+    if (errInsIns) {
+      console.error('Erro ao inserir inscrições por ano letivo:', errInsIns)
+      throw errInsIns
+    }
   }
 
   // 2.1 Tratar vínculos de vagas
@@ -454,6 +503,7 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
         especialidades: (profissionalAnterior.especialidades || []).map(
           (e) => e.especializacao?.nome || e.especializacao_id,
         ),
+        inscricoes_ano: resumoInscricoes(profissionalAnterior),
       }
     : null
 
@@ -469,6 +519,7 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
     classificacao_concurso: profissionalSalvo.classificacao_concurso || null,
     vagas_vinculadas: novosVinculos,
     especialidades: nomesEspecialidadesSalvas,
+    inscricoes_ano: inscricoesNormalizadas,
   }
 
   await registrarAuditoria({
@@ -490,6 +541,8 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
       valores_antigos: valoresAntigos,
       valores_novos: valoresNovos,
       especialidades: nomesEspecialidadesSalvas,
+      inscricoes_ano_anteriores: resumoInscricoes(profissionalAnterior),
+      inscricoes_ano_novas: inscricoesNormalizadas,
       especialidades_anteriores: (profissionalAnterior?.especialidades || []).map(
         (e) => e.especializacao?.nome || e.especializacao_id,
       ),
@@ -562,6 +615,18 @@ export async function deleteProfissional(id: string): Promise<void> {
  */
 function nomeProfissionalLabel(prof: Profissional): string {
   return prof.nome || 'Profissional'
+}
+
+/**
+ * Lista as inscrições por Ano Letivo já gravadas no profissional (ordenadas por ano)
+ */
+function resumoInscricoes(prof: Profissional | null): InscricaoAnoInput[] {
+  const rows =
+    (prof as unknown as { inscricoes_ano?: InscricaoAnoInput[] | null } | null)?.inscricoes_ano ||
+    []
+  return rows
+    .map((r) => ({ ano_letivo: r.ano_letivo, inscrito: Boolean(r.inscrito) }))
+    .sort((a, b) => a.ano_letivo - b.ano_letivo)
 }
 
 /**
