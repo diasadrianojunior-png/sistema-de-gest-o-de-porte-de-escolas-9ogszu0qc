@@ -143,6 +143,14 @@ export const MENUS_SISTEMA_PADRAO: Array<{
     ordem: 15,
     categoria: 'Administração do Sistema',
   },
+  {
+    key: 'central_ajuda',
+    label: 'Central de Ajuda',
+    path: '/central-ajuda',
+    suporta_edicao: false,
+    ordem: 16,
+    categoria: 'Central de Ajuda',
+  },
 ]
 
 /**
@@ -269,6 +277,14 @@ export const getPermissoesPadraoOperador = (): PermissaoItemForm[] => {
       pode_editar: false,
       suporta_edicao: true,
       ordem: 15,
+    },
+    {
+      menu_key: 'central_ajuda',
+      menu_label: 'Central de Ajuda',
+      pode_ver: true,
+      pode_editar: false,
+      suporta_edicao: false,
+      ordem: 16,
     },
   ]
 }

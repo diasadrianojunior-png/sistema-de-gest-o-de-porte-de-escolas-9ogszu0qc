@@ -22,6 +22,7 @@ import Administracao from './pages/Administracao'
 import ContasEmail from './pages/ContasEmail'
 import Auditoria from './pages/Auditoria'
 import LimpezaBancoPage from './pages/LimpezaBanco'
+import CentralAjuda from './pages/CentralAjuda'
 import { RouteGuard } from './components/RouteGuard'
 import NotFound from './pages/NotFound'
 import Layout from './components/Layout'
@@ -212,6 +213,16 @@ const App = () => (
               element={<Navigate to="/administracao/usuarios" replace />}
             />
           </Route>
+
+          {/* Central de Ajuda — último item do Menu Principal */}
+          <Route
+            path="/central-ajuda"
+            element={
+              <RouteGuard menuKey="central_ajuda">
+                <CentralAjuda />
+              </RouteGuard>
+            }
+          />
 
           {/* Rota 404 */}
           <Route path="*" element={<NotFound />} />

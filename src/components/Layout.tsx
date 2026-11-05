@@ -27,6 +27,7 @@ import {
   UserCheck,
   Trash2,
   Sparkles,
+  LifeBuoy,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -106,6 +107,7 @@ export default function Layout() {
   const isLimpezaBancoActive = location.pathname === '/administracao/limpeza-banco'
   const isAdministracaoActive =
     location.pathname.startsWith('/administracao') || isAuditoriaActive || isLimpezaBancoActive
+  const isCentralAjudaActive = location.pathname === '/central-ajuda'
 
   // Permissões de visualização por item de menu
   const canViewPainel = canView('painel')
@@ -125,6 +127,7 @@ export default function Layout() {
   const canViewContasEmail = canView('contas_email')
   const canViewAuditoria = canView('auditoria')
   const canViewLimpezaBanco = canView('limpeza_banco')
+  const canViewCentralAjuda = canView('central_ajuda')
 
   // Seções agrupadas têm visibilidade se pelo menos um submenu puder ser visto
   const showCadastrosMestres =
@@ -1033,6 +1036,48 @@ export default function Layout() {
                       )}
                     </div>
                   ))}
+
+                {/* Item 5: Central de Ajuda — sempre o ÚLTIMO item do Menu Principal */}
+                {canViewCentralAjuda &&
+                  (collapsed ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <NavLink
+                          to="/central-ajuda"
+                          title="Central de Ajuda"
+                          aria-label="Central de Ajuda"
+                          className={`flex items-center justify-center w-11 h-11 mx-auto rounded-lg transition-colors ${
+                            isCentralAjudaActive
+                              ? 'bg-primary/10 text-primary shadow-xs ring-1 ring-primary/25'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                          }`}
+                        >
+                          <LifeBuoy
+                            className={`w-5 h-5 ${isCentralAjudaActive ? 'text-primary' : 'text-slate-600'}`}
+                          />
+                        </NavLink>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="text-xs font-medium">
+                        Central de Ajuda
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <NavLink
+                      to="/central-ajuda"
+                      onClick={() => isMobile && setMobileSidebarOpen(false)}
+                      title="Central de Ajuda"
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                        isCentralAjudaActive
+                          ? 'bg-primary/10 text-primary font-semibold shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                      }`}
+                    >
+                      <LifeBuoy
+                        className={`w-5 h-5 shrink-0 ${isCentralAjudaActive ? 'text-primary' : 'text-slate-500'}`}
+                      />
+                      <span>Central de Ajuda</span>
+                    </NavLink>
+                  ))}
               </nav>
             </div>
           </div>
@@ -1259,6 +1304,9 @@ export default function Layout() {
                   </span>
                 </>
               )}{' '}
+              {isCentralAjudaActive && (
+                <span className="text-slate-900 font-semibold">Central de Ajuda</span>
+              )}
             </div>
           </div>
 
