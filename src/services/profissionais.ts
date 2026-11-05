@@ -5,6 +5,7 @@ import {
   VagaReal,
   ClasseProfissional,
   TipoVinculoVaga,
+  Especializacao,
 } from '@/types/gestao-escolar'
 import { registrarAuditoria } from './auditoria'
 
@@ -27,6 +28,8 @@ export interface SalvarProfissionalInput {
   classe?: ClasseProfissional | string | null
   classificacao_concurso?: string | null
   vagas?: VinculoVagaInput[]
+  /** Especialidade(s) do Profissional: ids das Especializações (opcional, multi-seleção) */
+  especialidades?: string[]
 }
 
 /**
@@ -83,6 +86,10 @@ export async function getProfissionais(): Promise<Profissional[]> {
             cargo:cargos(*)
           )
         )
+      ),
+      especialidades:profissional_especializacoes(
+        *,
+        especializacao:especializacoes(*)
       )
     `,
     )
@@ -121,6 +128,10 @@ export async function getProfissionalPorId(id: string): Promise<Profissional | n
             cargo:cargos(*)
           )
         )
+      ),
+      especialidades:profissional_especializacoes(
+        *,
+        especializacao:especializacoes(*)
       )
     `,
     )
@@ -214,9 +225,55 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
   }
 
   const profissionalId = profissionalSalvo.id
-  const nomeProfissional = profissionalSalvo.nome
+  const nomeProfissional = nomeProfissionalLabel(profissionalSalvo)
 
-  // 2. Tratar vínculos de vagas
+  // 2. Especialidade(s) do Profissional (opcional, N:N com especializacoes)
+  //    Substituição completa: limpa os vínculos anteriores e grava a seleção atual.
+  const idsEspecialidadesNormalizados = Array.from(
+    new Set((input.especialidades || []).map((eId) => (eId || '').trim()).filter(Boolean)),
+  )
+
+  if (isEdicao) {
+    const { error: errDelEsp } = await db
+      .from('profissional_especializacoes')
+      .delete()
+      .eq('profissional_id', profissionalId)
+
+    if (errDelEsp) {
+      console.error('Erro ao limpar vínculos antigos de especialidades:', errDelEsp)
+      throw errDelEsp
+    }
+  }
+
+  let nomesEspecialidadesSalvas: string[] = []
+  if (idsEspecialidadesNormalizados.length > 0) {
+    const { error: errInsEsp } = await db.from('profissional_especializacoes').insert(
+      idsEspecialidadesNormalizados.map((espId) => ({
+        profissional_id: profissionalId,
+        especializacao_id: espId,
+      })),
+    )
+
+    if (errInsEsp) {
+      console.error('Erro ao inserir especialidades do profissional:', errInsEsp)
+      throw errInsEsp
+    }
+
+    // Resolver os nomes das especialidades escolhidas para a auditoria
+    const { data: espRows, error: errEsp } = await db
+      .from('especializacoes')
+      .select('id, nome')
+      .in('id', idsEspecialidadesNormalizados)
+
+    if (errEsp) {
+      console.error('Erro ao buscar nomes das especialidades:', errEsp)
+    }
+    nomesEspecialidadesSalvas = ((espRows || []) as Pick<Especializacao, 'id' | 'nome'>[])
+      .filter((e) => idsEspecialidadesNormalizados.includes(e.id))
+      .map((e) => e.nome)
+  }
+
+  // 2.1 Tratar vínculos de vagas
   // IDs de vagas anteriormente vinculadas
   const vagasAnterioresIds = new Set(
     (profissionalAnterior?.vagas_vinculadas || []).map((v) => v.vaga_id),
@@ -394,6 +451,9 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
           titular: v.titular,
           cargo_id: v.cargo_id,
         })),
+        especialidades: (profissionalAnterior.especialidades || []).map(
+          (e) => e.especializacao?.nome || e.especializacao_id,
+        ),
       }
     : null
 
@@ -408,6 +468,7 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
     classe: profissionalSalvo.classe || null,
     classificacao_concurso: profissionalSalvo.classificacao_concurso || null,
     vagas_vinculadas: novosVinculos,
+    especialidades: nomesEspecialidadesSalvas,
   }
 
   await registrarAuditoria({
@@ -415,8 +476,8 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
     acao: isEdicao ? 'Edição' : 'Criação',
     registro_codigo: profissionalSalvo.codigo || null,
     descricao: isEdicao
-      ? `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) atualizado. Classe: "${profissionalSalvo.classe}". Classificação no Concurso: "${profissionalSalvo.classificacao_concurso || '-'}". Vagas vinculadas: ${novosVinculos.length}.`
-      : `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) cadastrado com sucesso. Classe: "${profissionalSalvo.classe}". Classificação no Concurso: "${profissionalSalvo.classificacao_concurso || '-'}". Vagas vinculadas: ${novosVinculos.length}.`,
+      ? `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) atualizado. Classe: "${profissionalSalvo.classe}". Classificação no Concurso: "${profissionalSalvo.classificacao_concurso || '-'}". Vagas vinculadas: ${novosVinculos.length}. Especialidades: ${nomesEspecialidadesSalvas.length > 0 ? nomesEspecialidadesSalvas.join(', ') : 'nenhuma'}.`
+      : `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) cadastrado com sucesso. Classe: "${profissionalSalvo.classe}". Classificação no Concurso: "${profissionalSalvo.classificacao_concurso || '-'}". Vagas vinculadas: ${novosVinculos.length}. Especialidades: ${nomesEspecialidadesSalvas.length > 0 ? nomesEspecialidadesSalvas.join(', ') : 'nenhuma'}.`,
     detalhes: {
       profissional_id: profissionalId,
       nome: profissionalSalvo.nome,
@@ -428,6 +489,10 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
       classificacao_concurso: profissionalSalvo.classificacao_concurso,
       valores_antigos: valoresAntigos,
       valores_novos: valoresNovos,
+      especialidades: nomesEspecialidadesSalvas,
+      especialidades_anteriores: (profissionalAnterior?.especialidades || []).map(
+        (e) => e.especializacao?.nome || e.especializacao_id,
+      ),
       vagas_vinculadas: novosVinculos,
       vagas_liberadas: vagasParaLiberar,
       substituicoes_ocupantes: substituicoesOcupantes,
@@ -490,6 +555,13 @@ export async function deleteProfissional(id: string): Promise<void> {
       vagas_liberadas: vagasVinculadasIds,
     },
   })
+}
+
+/**
+ * Nome de exibição do profissional (fallback seguro quando o nome vem vazio)
+ */
+function nomeProfissionalLabel(prof: Profissional): string {
+  return prof.nome || 'Profissional'
 }
 
 /**

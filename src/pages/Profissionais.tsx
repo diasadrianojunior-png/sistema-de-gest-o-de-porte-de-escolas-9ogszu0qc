@@ -49,6 +49,7 @@ import {
   AlertTriangle,
   GraduationCap,
   Layers,
+  Award,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
@@ -63,6 +64,7 @@ import {
 } from '@/services/profissionais'
 import { getUnidadesEscolares } from '@/services/unidades-escolares'
 import { getCargos } from '@/services/apoio'
+import { getEspecializacoes } from '@/services/especializacoes'
 import {
   Profissional,
   UnidadeEscolar,
@@ -70,6 +72,7 @@ import {
   VagaReal,
   ClasseProfissional,
   TipoVinculoVaga,
+  Especializacao,
 } from '@/types/gestao-escolar'
 
 interface LinhaVinculoForm {
@@ -87,6 +90,8 @@ export default function Profissionais() {
   const [profissionais, setProfissionais] = useState<Profissional[]>([])
   const [unidades, setUnidades] = useState<UnidadeEscolar[]>([])
   const [cargos, setCargos] = useState<Cargo[]>([])
+  // Especializações do cadastro de apoio (Cadastros de Apoio › Especializações)
+  const [especializacoes, setEspecializacoes] = useState<Especializacao[]>([])
 
   const [search, setSearch] = useState('')
   const [filtroUnidade, setFiltroUnidade] = useState<string>('todas')
@@ -107,6 +112,8 @@ export default function Profissionais() {
   const [formUnidadeId, setFormUnidadeId] = useState<string>('')
   const [formAtivo, setFormAtivo] = useState(true)
   const [formVinculos, setFormVinculos] = useState<LinhaVinculoForm[]>([])
+  // Especialidade(s) do Profissional: opcional, múltipla (ids das Especializações)
+  const [formEspecialidades, setFormEspecialidades] = useState<string[]>([])
 
   // Modal de Ajuda e Regras
   const [openAjuda, setOpenAjuda] = useState(false)
@@ -136,14 +143,16 @@ export default function Profissionais() {
   const carregarDadosIniciais = async () => {
     try {
       setLoading(true)
-      const [profsData, unidadesData, cargosData] = await Promise.all([
+      const [profsData, unidadesData, cargosData, especializacoesData] = await Promise.all([
         getProfissionais(),
         getUnidadesEscolares(),
         getCargos(),
+        getEspecializacoes(),
       ])
       setProfissionais(profsData)
       setUnidades(unidadesData)
       setCargos(cargosData)
+      setEspecializacoes(especializacoesData)
     } catch (err: any) {
       toast({
         title: 'Erro ao carregar dados',
@@ -221,6 +230,7 @@ export default function Profissionais() {
     setFormUnidadeId('')
     setFormAtivo(true)
     setFormVinculos([])
+    setFormEspecialidades([])
     setVagasDaUnidade([])
     setOpenDialog(true)
   }
@@ -238,6 +248,12 @@ export default function Profissionais() {
     setFormClassificacaoConcurso(prof.classificacao_concurso || '')
     setFormUnidadeId(prof.unidade_escolar_id)
     setFormAtivo(prof.ativo)
+    // Especialidade(s) do Profissional: recarrega os vínculos salvos (N:N)
+    setFormEspecialidades(
+      (prof.especialidades || [])
+        .map((e) => e.especializacao_id)
+        .filter((idEsp): idEsp is string => Boolean(idEsp)),
+    )
 
     const linhasIniciais: LinhaVinculoForm[] = (prof.vagas_vinculadas || []).map((v) => {
       const tipo = determinarTipoVinculoVaga(v.vaga)
@@ -367,6 +383,15 @@ export default function Profissionais() {
     )
   }
 
+  // Alternar uma especialidade na multi-seleção (adiciona se ausente, remove se presente)
+  const handleToggleEspecialidade = (especializacaoId: string) => {
+    setFormEspecialidades((prev) =>
+      prev.includes(especializacaoId)
+        ? prev.filter((idEsp) => idEsp !== especializacaoId)
+        : [...prev, especializacaoId],
+    )
+  }
+
   // Executar a gravação final do profissional e seus vínculos
   const executarGravacaoProfissional = async (vinculosFinal: VinculoVagaInput[]) => {
     try {
@@ -381,6 +406,7 @@ export default function Profissionais() {
         classe: formClasse,
         classificacao_concurso: formClassificacaoConcurso,
         vagas: vinculosFinal,
+        especialidades: formEspecialidades,
       })
 
       toast({
@@ -790,6 +816,7 @@ export default function Profissionais() {
                     <th className="py-3 px-4">Nome do Profissional</th>
                     <th className="py-3 px-4 w-36">Classe</th>
                     <th className="py-3 px-4 w-44">Classificação no Concurso</th>
+                    <th className="py-3 px-4">Especialidade(s)</th>
                     <th className="py-3 px-4">Unidade Escolar</th>
                     <th className="py-3 px-4">Vagas Vinculadas</th>
                     <th className="py-3 px-4 w-20 text-center">Status</th>
@@ -832,6 +859,29 @@ export default function Profissionais() {
                             </span>
                           ) : (
                             <span className="text-slate-400 italic text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          {(p.especialidades || []).length === 0 ? (
+                            <span className="text-slate-400 italic text-xs">—</span>
+                          ) : (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {p.especialidades!.slice(0, 2).map((esp) => (
+                                <span
+                                  key={esp.id || esp.especializacao_id}
+                                  className="inline-flex items-center gap-1 text-[11px] font-medium bg-teal-50 text-teal-800 border border-teal-200 rounded-sm px-2 py-0.5"
+                                  title={esp.especializacao?.classificacao || undefined}
+                                >
+                                  <Award className="w-3 h-3 text-teal-600 shrink-0" />
+                                  {esp.especializacao?.nome || esp.especializacao_id}
+                                </span>
+                              ))}
+                              {(p.especialidades || []).length > 2 && (
+                                <span className="text-[10px] text-slate-400">
+                                  +{(p.especialidades || []).length - 2} mais
+                                </span>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="py-3 px-4 text-slate-700">
@@ -1387,6 +1437,73 @@ export default function Profissionais() {
                   </div>
                 )}
               </div>
+
+              {/* Especialidade(s) do Profissional — card POR ÚLTIMO no formulário,
+                  após todos os demais atributos (inclusive Classificação no Concurso).
+                  Opcional e de múltipla seleção, com opções do cadastro de Especializações. */}
+              <div className="pt-2 border-t border-slate-200 space-y-2">
+                <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5 text-teal-600" />
+                  Especialidade(s) do Profissional{' '}
+                  <span className="text-slate-400 font-normal">(opcional)</span>
+                </Label>
+                <p className="text-[11px] text-slate-500">
+                  Selecione uma ou mais especialidades — a lista vem dinamicamente do cadastro
+                  &quot;Especializações&quot; (Cadastros de Apoio). Clique para adicionar ou
+                  remover.
+                </p>
+
+                {especializacoes.length === 0 ? (
+                  <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800">
+                    Nenhuma especialização cadastrada. Cadastre em &quot;Cadastros de Apoio ›
+                    Especializações&quot; para que as opções apareçam aqui.
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      {especializacoes.map((esp) => {
+                        const selecionada = formEspecialidades.includes(esp.id)
+                        return (
+                          <button
+                            key={esp.id}
+                            type="button"
+                            onClick={() => handleToggleEspecialidade(esp.id)}
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                              selecionada
+                                ? 'bg-teal-600 border-teal-600 text-white hover:bg-teal-700'
+                                : 'bg-white border-slate-300 text-slate-700 hover:bg-teal-50 hover:border-teal-300'
+                            }`}
+                            title={
+                              selecionada
+                                ? 'Clique para remover esta especialidade'
+                                : 'Clique para adicionar esta especialidade'
+                            }
+                          >
+                            {selecionada ? (
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            ) : (
+                              <Plus className="w-3.5 h-3.5" />
+                            )}
+                            {esp.nome}
+                            <span
+                              className={`text-[10px] font-normal ${
+                                selecionada ? 'text-teal-100' : 'text-slate-400'
+                              }`}
+                            >
+                              ({esp.classificacao})
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      {formEspecialidades.length === 0
+                        ? 'Nenhuma especialidade selecionada (campo opcional).'
+                        : `${formEspecialidades.length} especialidade(s) selecionada(s).`}
+                    </p>
+                  </>
+                )}
+              </div>
             </div>
 
             <DialogFooter className="pt-4 border-t border-slate-200">
@@ -1522,6 +1639,27 @@ export default function Profissionais() {
                   <span className="font-medium text-slate-800">
                     {viewingProfissional.unidade_escolar?.nome || '—'}
                   </span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-slate-400 uppercase font-semibold text-[10px] block">
+                    Especialidade(s) do Profissional
+                  </span>
+                  {(viewingProfissional.especialidades || []).length === 0 ? (
+                    <span className="text-slate-400 italic text-xs">Nenhuma informada</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {viewingProfissional.especialidades!.map((esp) => (
+                        <span
+                          key={esp.id || esp.especializacao_id}
+                          className="inline-flex items-center gap-1 text-xs font-medium bg-teal-50 text-teal-800 border border-teal-200 rounded-sm px-2 py-0.5"
+                          title={esp.especializacao?.classificacao || undefined}
+                        >
+                          <Award className="w-3 h-3 text-teal-600" />
+                          {esp.especializacao?.nome || esp.especializacao_id}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1671,6 +1809,17 @@ export default function Profissionais() {
                   <strong>Unidade Escolar:</strong> Escola ou CMEI de lotação do profissional
                   (obrigatório).
                 </li>
+                <li>
+                  <strong>Especialidade(s) do Profissional:</strong> Campo posicionado{' '}
+                  <strong>por último</strong> no formulário (após todos os demais atributos,
+                  incluindo a Classificação no Concurso), de preenchimento <strong>opcional</strong>{' '}
+                  e que aceita <strong>mais de uma especialidade</strong>. As opções vêm
+                  dinamicamente do cadastro <em>Especializações</em> (Cadastros de Apoio) e podem
+                  ser adicionadas/removidas livremente; deixar sem nenhuma especialidade é
+                  permitido. Uma especialização que esteja vinculada a algum profissional{' '}
+                  <strong>não pode ser excluída</strong> no cadastro de apoio — o sistema bloqueia a
+                  exclusão com aviso.
+                </li>
               </ol>
             </div>
 
@@ -1801,7 +1950,8 @@ export default function Profissionais() {
                 <li>
                   Todas as operações de criação, edição, substituição e exclusão registram na{' '}
                   <strong>Auditoria</strong> os valores completos — inclusive a{' '}
-                  <strong>Classificação no Concurso</strong> (valor antigo e novo) e o{' '}
+                  <strong>Classificação no Concurso</strong>, as{' '}
+                  <strong>Especialidade(s) do Profissional</strong> (lista antiga → nova) e o{' '}
                   <strong>tipo da vaga (Cargo/Função)</strong> — garantindo rastreabilidade
                   histórica.
                 </li>

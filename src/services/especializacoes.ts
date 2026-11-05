@@ -24,12 +24,22 @@ export interface SalvarEspecializacaoInput {
 }
 
 /**
- * Nenhuma tabela do sistema referencia especializações ainda.
- * A exclusão é direta (com confirmação na tela); o contador fica disponível
- * para quando surgir a primeira tabela de referência.
+ * Conta quantas referências existem para a especialização em outras tabelas.
+ * Atualmente a única tabela que referencia é profissional_especializacoes
+ * (Especialidade(s) do Profissional, no Cadastro de Profissionais).
+ * Regra permanente do sistema: exclusão bloqueada quando há referência.
  */
-export async function contarReferenciasEspecializacao(_id: string): Promise<number> {
-  return 0
+export async function contarReferenciasEspecializacao(id: string): Promise<number> {
+  const { count, error } = await (supabase as any)
+    .from('profissional_especializacoes')
+    .select('id', { count: 'exact', head: true })
+    .eq('especializacao_id', id)
+
+  if (error) {
+    console.error('Erro ao contar referências da especialização:', error)
+    throw error
+  }
+  return count ?? 0
 }
 
 function validar(input: SalvarEspecializacaoInput): string | null {
@@ -128,6 +138,15 @@ export async function salvarEspecializacao(
 }
 
 export async function deleteEspecializacao(id: string): Promise<void> {
+  // Regra permanente: bloquear a exclusão quando a especialização está
+  // vinculada a algum profissional (Especialidade(s) do Profissional).
+  const referencias = await contarReferenciasEspecializacao(id)
+  if (referencias > 0) {
+    throw new Error(
+      `Esta especialização não pode ser excluída porque está vinculada a ${referencias} profissional(is) no Cadastro de Profissionais. Remova o vínculo antes de excluir.`,
+    )
+  }
+
   // Capturar o registro antes da exclusão para a auditoria
   const { data: anterior, error: erroAnterior } = await (supabase as any)
     .from('especializacoes')

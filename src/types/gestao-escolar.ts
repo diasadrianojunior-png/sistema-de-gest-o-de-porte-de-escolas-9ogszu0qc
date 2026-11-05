@@ -587,6 +587,16 @@ export type ClasseProfissional = 'Antigos na Rede' | 'Novos na Rede'
 
 export type TipoVinculoVaga = 'CARGO' | 'FUNCAO'
 
+// Vínculo N:N entre Profissional e Especialização (Especialidade(s) do Profissional)
+export interface ProfissionalEspecializacao {
+  id: string
+  profissional_id: string
+  especializacao_id: string
+  created_at?: string
+  // Relação expandida
+  especializacao?: Especializacao | null
+}
+
 export interface Profissional {
   id: string
   codigo?: string // PRO-0001
@@ -602,6 +612,7 @@ export interface Profissional {
   // Relações expandidas
   unidade_escolar?: UnidadeEscolar | null
   vagas_vinculadas?: ProfissionalVaga[]
+  especialidades?: ProfissionalEspecializacao[]
 }
 
 // ==========================================
