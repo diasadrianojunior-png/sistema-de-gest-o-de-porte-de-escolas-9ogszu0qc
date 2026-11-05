@@ -11,6 +11,7 @@ import Cargos from './pages/Cargos'
 import Funcoes from './pages/Funcoes'
 import Etapas from './pages/Etapas'
 import AnosSeries from './pages/AnosSeries'
+import Especializacoes from './pages/Especializacoes'
 import ConfigRhNivelPage from './pages/ConfigRhNivel'
 import VagasPage from './pages/Vagas'
 import CadastrosMestres from './pages/CadastrosMestres'
@@ -154,6 +155,14 @@ const App = () => (
               element={
                 <RouteGuard menuKey="anos_series">
                   <AnosSeries />
+                </RouteGuard>
+              }
+            />
+            <Route
+              path="/cadastros-apoio/especializacoes"
+              element={
+                <RouteGuard menuKey="especializacoes">
+                  <Especializacoes />
                 </RouteGuard>
               }
             />

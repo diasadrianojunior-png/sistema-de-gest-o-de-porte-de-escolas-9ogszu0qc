@@ -68,6 +68,15 @@ export interface AnoSerie {
   updated_at?: string
 }
 
+export interface Especializacao {
+  id: string
+  codigo?: string
+  nome: string
+  classificacao: string
+  created_at?: string
+  updated_at?: string
+}
+
 export interface Turma {
   id: string
   codigo?: string
@@ -290,6 +299,7 @@ export type EntidadeAuditoria =
   | 'Contas de E-mail'
   | 'Permissões'
   | 'Autenticação'
+  | 'Especializações'
 
 export type SistemaMenuKey =
   | 'painel'
@@ -301,6 +311,7 @@ export type SistemaMenuKey =
   | 'funcoes'
   | 'etapas'
   | 'anos_series'
+  | 'especializacoes'
   | 'configuracao_rh'
   | 'vagas'
   | 'usuarios'

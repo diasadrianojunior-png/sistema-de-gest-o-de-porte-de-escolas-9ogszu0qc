@@ -26,6 +26,7 @@ import {
   SlidersHorizontal,
   UserCheck,
   Trash2,
+  Sparkles,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -93,6 +94,7 @@ export default function Layout() {
   const isFuncoesActive = location.pathname === '/cadastros-apoio/funcoes'
   const isEtapasActive = location.pathname === '/cadastros-apoio/etapas'
   const isAnosSeriesActive = location.pathname === '/cadastros-apoio/anos-series'
+  const isEspecializacoesActive = location.pathname === '/cadastros-apoio/especializacoes'
   const isApoioActive =
     location.pathname.startsWith('/cadastros-apoio') && !isConfigRhActive && !isVagasActive
 
@@ -115,6 +117,7 @@ export default function Layout() {
   const canViewFuncoes = canView('funcoes')
   const canViewEtapas = canView('etapas')
   const canViewAnosSeries = canView('anos_series')
+  const canViewEspecializacoes = canView('especializacoes')
   const canViewConfigRh = canView('configuracao_rh')
   const canViewVagas = canView('vagas')
 
@@ -131,7 +134,8 @@ export default function Layout() {
     canViewPorteEscola ||
     canViewConfigRh ||
     canViewVagas
-  const showCadastrosApoio = canViewCargos || canViewFuncoes || canViewEtapas || canViewAnosSeries
+  const showCadastrosApoio =
+    canViewCargos || canViewFuncoes || canViewEtapas || canViewAnosSeries || canViewEspecializacoes
   const showAdministracao =
     canViewUsuarios || canViewContasEmail || canViewAuditoria || canViewLimpezaBanco
 
@@ -379,9 +383,26 @@ export default function Layout() {
                               }`}
                             >
                               <BookOpen
-                                className={`w-4 h-4 shrink-0 ${isAnosSeriesActive ? 'text-white' : 'text-slate-500'}`}
+                                className={`w-3.5 h-3.5 shrink-0 ${isAnosSeriesActive ? 'text-white' : 'text-slate-500'}`}
                               />
                               <span>Ano/Série</span>
+                            </NavLink>
+                          )}
+
+                          {canViewEspecializacoes && (
+                            <NavLink
+                              to="/cadastros-apoio/especializacoes"
+                              onClick={() => setApoioPopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                isEspecializacoesActive
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Sparkles
+                                className={`w-4 h-4 shrink-0 ${isEspecializacoesActive ? 'text-white' : 'text-slate-500'}`}
+                              />
+                              <span>Especializações</span>
                             </NavLink>
                           )}
                         </div>
@@ -485,6 +506,24 @@ export default function Layout() {
                                 className={`w-3.5 h-3.5 shrink-0 ${isAnosSeriesActive ? 'text-white' : 'text-slate-400'}`}
                               />
                               <span className="truncate">Ano/Série</span>
+                            </NavLink>
+                          )}
+
+                          {canViewEspecializacoes && (
+                            <NavLink
+                              to="/cadastros-apoio/especializacoes"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Especializações"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isEspecializacoesActive
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Sparkles
+                                className={`w-3.5 h-3.5 shrink-0 ${isEspecializacoesActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Especializações</span>
                             </NavLink>
                           )}
                         </div>
@@ -1180,7 +1219,9 @@ export default function Layout() {
                         ? 'Etapas'
                         : isFuncoesActive
                           ? 'Funções'
-                          : 'Cargos'}
+                          : isEspecializacoesActive
+                            ? 'Especializações'
+                            : 'Cargos'}
                   </span>{' '}
                 </>
               )}
