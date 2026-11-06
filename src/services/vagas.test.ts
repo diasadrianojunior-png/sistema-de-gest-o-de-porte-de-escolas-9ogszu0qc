@@ -22,6 +22,8 @@ import {
   ConfirmarGeracaoResultado,
   MigracaoAnoLetivoResultado,
   ResumoVagasAnoOrigem,
+  isUuidValido,
+  sanitizarFiltroTexto,
 } from './vagas'
 import {
   ConfiguracaoRhCompleta,
@@ -959,5 +961,30 @@ describe('Testes Unitários da Etapa 2 — Regras do Usuário', () => {
       amostraVagas: [],
     }
     expect(resumoFake.totalVagas).toBe(15)
+  })
+
+  // Teste 11: Validação de UUID e sanitização de sentinelas TODOS/TODAS
+  it('isUuidValido rejeita sentinelas TODOS/TODAS e aceita UUIDs legítimos', () => {
+    expect(isUuidValido('TODOS')).toBe(false)
+    expect(isUuidValido('TODAS')).toBe(false)
+    expect(isUuidValido('todos')).toBe(false)
+    expect(isUuidValido('todas')).toBe(false)
+    expect(isUuidValido('')).toBe(false)
+    expect(isUuidValido(null)).toBe(false)
+    expect(isUuidValido(undefined)).toBe(false)
+    expect(isUuidValido('123')).toBe(false)
+    expect(isUuidValido('c1111111-1111-1111-1111-111111111111')).toBe(true)
+    expect(isUuidValido('0ab8d0bc-954a-489c-94d6-7c817e696e4a')).toBe(true)
+  })
+
+  it('sanitizarFiltroTexto remove sentinelas TODOS/TODAS retornando null', () => {
+    expect(sanitizarFiltroTexto('TODOS')).toBeNull()
+    expect(sanitizarFiltroTexto('TODAS')).toBeNull()
+    expect(sanitizarFiltroTexto('todos')).toBeNull()
+    expect(sanitizarFiltroTexto('todas')).toBeNull()
+    expect(sanitizarFiltroTexto('')).toBeNull()
+    expect(sanitizarFiltroTexto(null)).toBeNull()
+    expect(sanitizarFiltroTexto('Professor')).toBe('Professor')
+    expect(sanitizarFiltroTexto('ABERTA')).toBe('ABERTA')
   })
 })

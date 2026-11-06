@@ -297,6 +297,7 @@ export async function getVagasAnoUnidade(
   anoLetivo: number,
   unidadeEscolarId: string,
 ): Promise<VagaCompleta[]> {
+  if (!isUuidValido(unidadeEscolarId)) return []
   const { data, error } = await supabase
     .from(TABELA)
     .select(SELECT_COMPLETO)
@@ -311,6 +312,7 @@ export async function contarVagasAnoUnidade(
   anoLetivo: number,
   unidadeEscolarId: string,
 ): Promise<number> {
+  if (!isUuidValido(unidadeEscolarId)) return 0
   const { count, error } = await supabase
     .from(TABELA)
     .select('id', { count: 'exact', head: true })
@@ -320,11 +322,27 @@ export async function contarVagasAnoUnidade(
   return count ?? 0
 }
 
+/** Verifica se uma string possui formato válido de UUID para evitar erros de sintaxe no Postgres */
+export function isUuidValido(valor: unknown): valor is string {
+  if (typeof valor !== 'string') return false
+  const str = valor.trim().toLowerCase()
+  if (!str || str === 'todos' || str === 'todas' || str === 'all' || str === 'sem') return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
+}
+
+/** Limpa valores sentinela de filtros ('TODOS', 'TODAS', vazio) retornando null se for sentinela */
+export function sanitizarFiltroTexto(valor?: string | null): string | null {
+  if (!valor) return null
+  const limpo = valor.trim()
+  if (!limpo || limpo.toUpperCase() === 'TODOS' || limpo.toUpperCase() === 'TODAS') return null
+  return limpo
+}
+
 export async function listarVagasFiltradas(filtros: FiltrosVagasListagem): Promise<VagaCompleta[]> {
   let query = supabase.from(TABELA).select(SELECT_COMPLETO)
   if (filtros.anoLetivo) query = query.eq('ano_letivo', filtros.anoLetivo)
   const uid = filtros.unidadeEscolarId || filtros.unidadeId
-  if (uid) query = query.eq('unidade_escolar_id', uid)
+  if (uid && isUuidValido(uid)) query = query.eq('unidade_escolar_id', uid)
   if (
     filtros.somenteExcedentes ||
     filtros.vagaExcedente === true ||
@@ -334,14 +352,23 @@ export async function listarVagasFiltradas(filtros: FiltrosVagasListagem): Promi
   } else if (filtros.vagaExcedente === false || filtros.vagaExcedente === 'false') {
     query = query.eq('vaga_excedente', false)
   }
-  if (filtros.cargoId) query = query.eq('cargo_id', filtros.cargoId)
-  if (filtros.funcao) query = query.eq('funcao', filtros.funcao)
-  if (filtros.modalidade) query = query.eq('modalidade', filtros.modalidade)
-  if (filtros.status) query = query.eq('status', filtros.status)
+  if (filtros.cargoId && isUuidValido(filtros.cargoId)) {
+    query = query.eq('cargo_id', filtros.cargoId)
+  }
+  const funcaoFiltro = sanitizarFiltroTexto(filtros.funcao)
+  if (funcaoFiltro) query = query.eq('funcao', funcaoFiltro)
+
+  const modalidadeFiltro = sanitizarFiltroTexto(filtros.modalidade)
+  if (modalidadeFiltro) query = query.eq('modalidade', modalidadeFiltro)
+
+  const statusFiltro = sanitizarFiltroTexto(filtros.status)
+  if (statusFiltro) query = query.eq('status', statusFiltro)
+
   if (filtros.periodo) {
-    if (filtros.periodo === 'GERAL' || filtros.periodo === 'SEM') {
+    const periodoUpper = filtros.periodo.toUpperCase()
+    if (periodoUpper === 'GERAL' || periodoUpper === 'SEM') {
       query = query.is('periodo', null)
-    } else {
+    } else if (periodoUpper !== 'TODOS' && periodoUpper !== 'TODAS') {
       query = query.eq('periodo', filtros.periodo)
     }
   }
@@ -809,6 +836,7 @@ export async function getUnidadeEscolarAno(
   unidadeEscolarId: string,
   anoLetivo: number,
 ): Promise<Record<string, any> | null> {
+  if (!isUuidValido(unidadeEscolarId)) return null
   const { data, error } = await supabase
     .from('porte_escola_ano')
     .select('*')
@@ -949,6 +977,38 @@ export async function calcularPreviaGeracao(
   } else {
     unidadeId = unidadeIdOuPayload.unidadesEscolaresIds[0] || ''
     anoLetivo = unidadeIdOuPayload.anoLetivo
+  }
+
+  // Se a unidade fornecida não for um UUID válido (ex: 'TODOS', 'TODAS', vazia)
+  if (!isUuidValido(unidadeId)) {
+    return {
+      ok: false,
+      mensagem: 'Selecione uma Unidade Escolar específica para visualizar o resumo e gerar vagas.',
+      vagasPorUnidade: [],
+      totalVagas: 0,
+      resumo: [],
+      bloqueadoPorFaltaDados: {
+        mensagem:
+          'Selecione uma Unidade Escolar específica para resgatar dados de porte e gerar vagas.',
+      },
+      configuracaoUsada: null,
+      nivelEncontradoCodigo: '',
+      nivelFaixaDescricao: '',
+      unidadeAno: null,
+      resumoTexto: 'Todas as Unidades Escolares selecionadas.',
+      totalVagasCalculadas: 0,
+      vagasLinhas: [],
+      escola: {
+        id: unidadeId,
+        nome: 'Todas as Unidades Escolares',
+        tipo_atendimento: 'Múltiplos Atendimentos',
+        codigo: undefined,
+      },
+      porteEscola: null,
+      turmasCadastradas: [],
+      contagemTurmasPorEtapa: {},
+      vagasExistentes: [],
+    }
   }
 
   // 1. Carregar unidade escolar
@@ -1295,7 +1355,7 @@ export async function obterResumoVagasAnoOrigem(
   }
 
   let query = supabase.from(TABELA).select(SELECT_COMPLETO).eq('ano_letivo', anoOrigem)
-  if (unidadeId) query = query.eq('unidade_escolar_id', unidadeId)
+  if (unidadeId && isUuidValido(unidadeId)) query = query.eq('unidade_escolar_id', unidadeId)
   const { data, error } = await query
   if (error) throw error
 
@@ -1358,7 +1418,7 @@ export async function migrarVagasAnoLetivo(
   const usuario = await getUsuarioAtualParaAuditoria()
 
   let query = supabase.from(TABELA).select('*').eq('ano_letivo', params.anoOrigem)
-  if (params.unidadeEscolarId) {
+  if (params.unidadeEscolarId && isUuidValido(params.unidadeEscolarId)) {
     query = query.eq('unidade_escolar_id', params.unidadeEscolarId)
   }
   const { data: origem, error } = await query

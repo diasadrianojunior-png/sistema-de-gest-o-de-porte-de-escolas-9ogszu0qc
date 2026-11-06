@@ -124,10 +124,12 @@ export const UnidadeVagasDrilldown: React.FC<UnidadeVagasDrilldownProps> = ({
   const carregarDadosUnidade = async () => {
     setCarregando(true)
     try {
+      const isTodasUnidades = !unidade.id || unidade.id === 'TODOS' || unidade.id === 'TODAS'
+
       const [listaVagas, unidadeAnoData, listaCargos] = await Promise.all([
         listarVagasCompletas({
           anoLetivo,
-          unidadeEscolarId: unidade.id,
+          unidadeEscolarId: isTodasUnidades ? undefined : unidade.id,
           funcao: funcaoFiltro,
           cargoId: cargoFiltro,
           periodo: periodoFiltro,
@@ -136,7 +138,7 @@ export const UnidadeVagasDrilldown: React.FC<UnidadeVagasDrilldownProps> = ({
           vagaExcedente: vagaExcedenteFiltro,
           buscaTexto,
         }),
-        getUnidadeEscolarAno(unidade.id, anoLetivo),
+        isTodasUnidades ? Promise.resolve(null) : getUnidadeEscolarAno(unidade.id, anoLetivo),
         cargosGeraisProp && cargosGeraisProp.length > 0
           ? Promise.resolve(cargosGeraisProp)
           : getCargos(),

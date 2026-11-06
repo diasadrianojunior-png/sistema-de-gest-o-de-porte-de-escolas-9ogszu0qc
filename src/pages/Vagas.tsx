@@ -249,14 +249,23 @@ export const VagasPage: React.FC = () => {
     setCarregandoResumo(true)
 
     try {
-      // 1. Calcular resumo automático e prévia da unidade selecionada
-      const previaRes = await calcularPreviaGeracao(unidadeSelecionadaId, anoLetivo)
-      setDadosResumo(previaRes)
+      const isTodasUnidades =
+        unidadeSelecionadaId === 'TODAS' ||
+        unidadeSelecionadaId === 'TODOS' ||
+        unidadeSelecionadaId === ''
 
-      // 2. Listar vagas cadastradas com filtros
+      // 1. Calcular resumo automático e prévia da unidade selecionada
+      if (isTodasUnidades) {
+        setDadosResumo(null)
+      } else {
+        const previaRes = await calcularPreviaGeracao(unidadeSelecionadaId, anoLetivo)
+        setDadosResumo(previaRes)
+      }
+
+      // 2. Listar vagas cadastradas com filtros (com 'TODAS' / 'TODOS', traz todas as vagas do ano)
       const listaVagas = await listarVagasCompletas({
         anoLetivo,
-        unidadeEscolarId: unidadeSelecionadaId,
+        unidadeEscolarId: isTodasUnidades ? undefined : unidadeSelecionadaId,
         funcao: funcaoFiltro,
         cargoId: cargoFiltro,
         periodo: periodoFiltro,
@@ -788,7 +797,7 @@ export const VagasPage: React.FC = () => {
             onClick={() =>
               exportarVagasExcel(
                 vagas,
-                `vagas-${unidadeAtual?.codigo || 'escola'}-${anoLetivo}.csv`,
+                `vagas-${unidadeAtual?.codigo || (unidadeSelecionadaId === 'TODAS' || unidadeSelecionadaId === 'TODOS' ? 'todas' : 'escola')}-${anoLetivo}.csv`,
               )
             }
             disabled={vagas.length === 0}
@@ -804,7 +813,10 @@ export const VagasPage: React.FC = () => {
             onClick={() =>
               exportarVagasPDF(vagas, {
                 anoLetivo,
-                escolaNome: unidadeAtual?.nome || 'Unidade Escolar',
+                escolaNome:
+                  unidadeSelecionadaId === 'TODAS' || unidadeSelecionadaId === 'TODOS'
+                    ? 'Todas as Unidades Escolares'
+                    : unidadeAtual?.nome || 'Unidade Escolar',
                 totalGeral: resumoEstatistico.total,
                 totalOcupadas: resumoEstatistico.ocupadas,
                 totalAbertas: resumoEstatistico.abertas,
@@ -867,6 +879,9 @@ export const VagasPage: React.FC = () => {
                   <SelectValue placeholder="Selecione uma Unidade Escolar" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="TODAS" className="font-semibold text-blue-700">
+                    Todas as Unidades Escolares
+                  </SelectItem>
                   {escolas.map((e) => (
                     <SelectItem key={e.id} value={e.id}>
                       {e.nome} ({e.codigo || 'S/C'}) —{' '}
@@ -900,7 +915,12 @@ export const VagasPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <Button
                 onClick={handleClicarGerarVagas}
-                className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm font-semibold text-xs h-9"
+                disabled={
+                  !unidadeSelecionadaId ||
+                  unidadeSelecionadaId === 'TODAS' ||
+                  unidadeSelecionadaId === 'TODOS'
+                }
+                className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm font-semibold text-xs h-9 disabled:opacity-50"
               >
                 <PlayCircle className="w-4 h-4 mr-1.5" />
                 Gerar Vagas
@@ -915,8 +935,22 @@ export const VagasPage: React.FC = () => {
               <RefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-600 mb-2" />
               Resgatando dados do Porte da Escola, Turmas e Configuração...
             </div>
-          ) : !dadosResumo ? (
-            <p className="text-xs text-slate-500">Selecione uma unidade para resgatar os dados.</p>
+          ) : !dadosResumo ||
+            unidadeSelecionadaId === 'TODAS' ||
+            unidadeSelecionadaId === 'TODOS' ? (
+            <div className="p-4 bg-slate-100/80 border border-slate-200 rounded-lg text-xs text-slate-600 flex items-center justify-between">
+              <div>
+                <p className="font-semibold text-slate-800">
+                  {unidadeSelecionadaId === 'TODAS' || unidadeSelecionadaId === 'TODOS'
+                    ? 'Visualização global: todas as unidades escolares listadas abaixo.'
+                    : 'Nenhuma unidade escolar selecionada.'}
+                </p>
+                <p className="text-slate-500 mt-0.5">
+                  Para gerar vagas ou inspecionar o porte de atendimento e turmas vinculadas,
+                  selecione uma unidade específica no campo acima.
+                </p>
+              </div>
+            </div>
           ) : (
             <div className="space-y-4">
               {/* Aviso se Porte não está cadastrado */}
@@ -1281,7 +1315,9 @@ export const VagasPage: React.FC = () => {
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-slate-800">
-              Vagas de {unidadeAtual?.nome || 'Unidade'} ({anoLetivo})
+              {unidadeSelecionadaId === 'TODAS' || unidadeSelecionadaId === 'TODOS'
+                ? `Vagas de Todas as Unidades Escolares (${anoLetivo})`
+                : `Vagas de ${unidadeAtual?.nome || 'Unidade'} (${anoLetivo})`}
             </span>
             <Badge
               variant="secondary"
@@ -1345,7 +1381,9 @@ export const VagasPage: React.FC = () => {
                 <TableRow>
                   <TableCell colSpan={12} className="h-36 text-center text-slate-500">
                     <p className="font-semibold text-slate-700 text-sm">
-                      Nenhuma vaga cadastrada para {unidadeAtual?.nome} em {anoLetivo}
+                      {unidadeSelecionadaId === 'TODAS' || unidadeSelecionadaId === 'TODOS'
+                        ? `Nenhuma vaga cadastrada para o Ano Letivo ${anoLetivo}`
+                        : `Nenhuma vaga cadastrada para ${unidadeAtual?.nome || 'esta unidade'} em ${anoLetivo}`}
                     </p>
                     <p className="text-xs text-slate-400 mt-1">
                       Utilize o botão "Gerar Vagas" no topo para dimensionar automaticamente ou
