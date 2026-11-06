@@ -266,7 +266,7 @@ export const VagasPage: React.FC = () => {
         vagaExcedente: vagaExcedenteFiltro,
         buscaTexto,
       })
-      setVagas(listaVagas)
+      setVagas(listaVagas as unknown as VagaReal[])
     } catch (err: any) {
       console.error('Erro ao carregar dados da unidade:', err)
       toast({
@@ -391,7 +391,7 @@ export const VagasPage: React.FC = () => {
     async function carregarResumoOrigem() {
       setCarregandoResumoMigracao(true)
       try {
-        const resumo = await obterResumoVagasAnoOrigem(unidadeSelecionadaId, anoOrigemMigracao!)
+        const resumo = await obterResumoVagasAnoOrigem(anoOrigemMigracao!, unidadeSelecionadaId)
         if (!cancelado) {
           setResumoMigracao(resumo)
         }
@@ -1410,7 +1410,7 @@ export const VagasPage: React.FC = () => {
                     <TableCell className="text-slate-800 font-semibold max-w-[200px] truncate">
                       {v.tipo_vinculo === 'CARGO'
                         ? v.cargo?.nome || v.funcao || 'Cargo'
-                        : v.funcao_rel?.nome || v.funcao || 'Função'}
+                        : v.funcao_objeto?.nome || v.funcao || 'Função'}
                     </TableCell>
                     {/* 6. Período */}
                     <TableCell className="text-slate-600">
@@ -2449,7 +2449,7 @@ export const VagasPage: React.FC = () => {
                     <SelectItem value="nenhum">Nenhum / Sem Titular</SelectItem>
                     {profissionaisGerais.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.nome} {p.matricula ? `(Matrícula: ${p.matricula})` : ''}
+                        {p.nome} {p.codigo ? `(${p.codigo})` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -2480,7 +2480,7 @@ export const VagasPage: React.FC = () => {
                     <SelectItem value="nenhum">Nenhum / Sem Ocupante</SelectItem>
                     {profissionaisGerais.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.nome} {p.matricula ? `(Matrícula: ${p.matricula})` : ''}
+                        {p.nome} {p.codigo ? `(${p.codigo})` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>

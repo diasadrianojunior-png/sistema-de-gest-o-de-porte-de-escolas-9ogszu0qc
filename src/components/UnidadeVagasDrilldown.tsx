@@ -142,8 +142,8 @@ export const UnidadeVagasDrilldown: React.FC<UnidadeVagasDrilldownProps> = ({
           : getCargos(),
       ])
 
-      setVagas(listaVagas)
-      setDadosAno(unidadeAnoData)
+      setVagas(listaVagas as unknown as VagaReal[])
+      setDadosAno(unidadeAnoData as unknown as UnidadeEscolarAno)
       setCargos(listaCargos)
     } catch (err: any) {
       console.error(err)
