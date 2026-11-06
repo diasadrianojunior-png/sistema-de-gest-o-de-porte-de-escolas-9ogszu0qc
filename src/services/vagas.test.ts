@@ -1,6 +1,28 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { calcularVagasPorNivel, ResultadoCalculoVagas } from './configuracao-rh-calculo'
-import { expandirSlotsIndividuais, normalizarTurmasPorEtapaDicionario } from './vagas'
+import {
+  expandirSlotsIndividuais,
+  normalizarTurmasPorEtapaDicionario,
+  validarVagaManual,
+  ValidacaoVagaError,
+  calcularStatusPorOcupacao,
+  rotuloPeriodoVaga,
+  rotuloModalidadeVaga,
+  rotuloStatusVagaReal,
+  rotuloTipoVinculoVaga,
+  PERIODOS_VAGA,
+  MODALIDADES_VAGA,
+  calcularPreviaGeracao,
+  confirmarGeracaoVagas,
+  migrarVagasAnoLetivo,
+  obterResumoVagasAnoOrigem,
+  editarVaga,
+  inserirVagaManual,
+  PreviaGeracaoResultado,
+  ConfirmarGeracaoResultado,
+  MigracaoAnoLetivoResultado,
+  ResumoVagasAnoOrigem,
+} from './vagas'
 import {
   ConfiguracaoRhCompleta,
   ConfiguracaoRhLinha,
@@ -681,5 +703,261 @@ describe('Testes Unitários da Etapa 2 — Regras do Usuário', () => {
     expect(migradas[0].vaga_excedente).toBe(false)
     expect(migradas[1].vaga_excedente).toBe(true)
     expect(migradas[2].vaga_excedente).toBe(false)
+  })
+
+  // Teste 8: Validação dos 9 atributos e dependência dinâmica no serviço de vagas
+  it('validarVagaManual valida campos obrigatórios, dependências e modalidade itinerante', () => {
+    // Falta Unidade
+    expect(() =>
+      validarVagaManual({
+        anoLetivo: 2026,
+        tipoVinculo: 'CARGO',
+        cargoId: 'c1',
+        periodo: 'MANHA',
+        modalidade: 'FIXO',
+      }),
+    ).toThrow(ValidacaoVagaError)
+
+    // Falta Ano Letivo
+    expect(() =>
+      validarVagaManual({
+        unidadeEscolarId: 'u1',
+        tipoVinculo: 'CARGO',
+        cargoId: 'c1',
+        periodo: 'MANHA',
+        modalidade: 'FIXO',
+      }),
+    ).toThrow(ValidacaoVagaError)
+
+    // Tipo de vínculo inválido
+    expect(() =>
+      validarVagaManual({
+        unidadeEscolarId: 'u1',
+        anoLetivo: 2026,
+        tipoVinculo: 'OUTRO',
+        periodo: 'MANHA',
+        modalidade: 'FIXO',
+      }),
+    ).toThrow(ValidacaoVagaError)
+
+    // Tipo CARGO sem cargoId
+    expect(() =>
+      validarVagaManual({
+        unidadeEscolarId: 'u1',
+        anoLetivo: 2026,
+        tipoVinculo: 'CARGO',
+        cargoId: '',
+        periodo: 'MANHA',
+        modalidade: 'FIXO',
+      }),
+    ).toThrow('Vaga de Cargo: selecione o Cargo da Vaga.')
+
+    // Tipo FUNCAO sem funcaoId
+    expect(() =>
+      validarVagaManual({
+        unidadeEscolarId: 'u1',
+        anoLetivo: 2026,
+        tipoVinculo: 'FUNCAO',
+        funcaoId: '',
+        periodo: 'MANHA',
+        modalidade: 'FIXO',
+      }),
+    ).toThrow('Vaga de Função: selecione a Função da Vaga.')
+
+    // Falta Período
+    expect(() =>
+      validarVagaManual({
+        unidadeEscolarId: 'u1',
+        anoLetivo: 2026,
+        tipoVinculo: 'CARGO',
+        cargoId: 'c1',
+        periodo: null,
+        modalidade: 'FIXO',
+      }),
+    ).toThrow('Selecione o Período da vaga.')
+
+    // Falta Modalidade
+    expect(() =>
+      validarVagaManual({
+        unidadeEscolarId: 'u1',
+        anoLetivo: 2026,
+        tipoVinculo: 'CARGO',
+        cargoId: 'c1',
+        periodo: 'MANHA',
+        modalidade: '',
+      }),
+    ).toThrow('Selecione a Modalidade da vaga.')
+
+    // Modalidade ITINERANTE com dias inválidos
+    expect(() =>
+      validarVagaManual({
+        unidadeEscolarId: 'u1',
+        anoLetivo: 2026,
+        tipoVinculo: 'CARGO',
+        cargoId: 'c1',
+        periodo: 'MANHA',
+        modalidade: 'ITINERANTE',
+        diasSemana: 0,
+      }),
+    ).toThrow('Dias na Semana deve ficar entre 1 e 5 para vaga Itinerante.')
+
+    expect(() =>
+      validarVagaManual({
+        unidadeEscolarId: 'u1',
+        anoLetivo: 2026,
+        tipoVinculo: 'CARGO',
+        cargoId: 'c1',
+        periodo: 'MANHA',
+        modalidade: 'ITINERANTE',
+        diasSemana: 6,
+      }),
+    ).toThrow('Dias na Semana deve ficar entre 1 e 5 para vaga Itinerante.')
+
+    // Vaga de Cargo válida
+    expect(() =>
+      validarVagaManual({
+        unidadeEscolarId: 'u1',
+        anoLetivo: 2026,
+        tipoVinculo: 'CARGO',
+        cargoId: 'c1',
+        periodo: 'MANHA',
+        modalidade: 'FIXO',
+      }),
+    ).not.toThrow()
+
+    // Vaga de Função válida com Itinerante 3 dias
+    expect(() =>
+      validarVagaManual({
+        unidadeEscolarId: 'u1',
+        anoLetivo: 2026,
+        tipoVinculo: 'FUNCAO',
+        funcaoId: 'f1',
+        periodo: 'SEM',
+        modalidade: 'ITINERANTE',
+        diasSemana: 3,
+      }),
+    ).not.toThrow()
+  })
+
+  // Teste 9: Coerência do Status com Ocupação e rótulos
+  it('calcularStatusPorOcupacao e rotulos do novo modelo', () => {
+    // Com profissional ocupante => PREENCHIDA
+    expect(calcularStatusPorOcupacao('prof-123')).toBe('PREENCHIDA')
+    // Sem profissional ocupante => ABERTA
+    expect(calcularStatusPorOcupacao(null)).toBe('ABERTA')
+    expect(calcularStatusPorOcupacao(undefined)).toBe('ABERTA')
+    expect(calcularStatusPorOcupacao('')).toBe('ABERTA')
+    // Se status informado for EXCEDENTE preserva
+    expect(calcularStatusPorOcupacao('prof-123', 'EXCEDENTE')).toBe('EXCEDENTE')
+
+    // Rótulos de período
+    expect(rotuloPeriodoVaga('SEM')).toBe('Geral / Sem Período')
+    expect(rotuloPeriodoVaga('GERAL')).toBe('Geral / Sem Período')
+    expect(rotuloPeriodoVaga(null)).toBe('Geral / Sem Período')
+    expect(rotuloPeriodoVaga('MANHA')).toBe('Manhã')
+    expect(rotuloPeriodoVaga('TARDE')).toBe('Tarde')
+    expect(rotuloPeriodoVaga('INTEGRAL')).toBe('Integral')
+    expect(rotuloPeriodoVaga('NOITE')).toBe('Noite')
+
+    // Rótulos de modalidade
+    expect(rotuloModalidadeVaga('FIXO')).toBe('Fixo')
+    expect(rotuloModalidadeVaga('ITINERANTE')).toBe('Itinerante')
+
+    // Rótulos de status
+    expect(rotuloStatusVagaReal('ABERTA')).toBe('Aberta')
+    expect(rotuloStatusVagaReal('PREENCHIDA')).toBe('Preenchida')
+    expect(rotuloStatusVagaReal('OCUPADA')).toBe('Preenchida')
+    expect(rotuloStatusVagaReal('EXCEDENTE')).toBe('Excedente')
+
+    // Rótulos de tipo de vínculo
+    expect(rotuloTipoVinculoVaga('CARGO')).toBe('Cargo')
+    expect(rotuloTipoVinculoVaga('FUNCAO')).toBe('Função')
+
+    // Lista de opções padrão
+    expect(PERIODOS_VAGA.map((p) => p.valor)).toEqual([
+      'SEM',
+      'MANHA',
+      'TARDE',
+      'INTEGRAL',
+      'NOITE',
+    ])
+    expect(MODALIDADES_VAGA.map((m) => m.valor)).toEqual(['FIXO', 'ITINERANTE'])
+  })
+
+  // Teste 10: Assinaturas e contratos de retorno das funções do serviço
+  it('exporta funções e estruturas alinhadas com as telas e drilldown', () => {
+    expect(typeof calcularPreviaGeracao).toBe('function')
+    expect(typeof confirmarGeracaoVagas).toBe('function')
+    expect(typeof migrarVagasAnoLetivo).toBe('function')
+    expect(typeof obterResumoVagasAnoOrigem).toBe('function')
+    expect(typeof editarVaga).toBe('function')
+    expect(typeof inserirVagaManual).toBe('function')
+
+    // Contrato de PreviaGeracaoResultado esperado por Vagas.tsx e UnidadeVagasDrilldown.tsx
+    const previaFake: PreviaGeracaoResultado = {
+      ok: true,
+      mensagem: undefined,
+      vagasPorUnidade: [],
+      totalVagas: 12,
+      resumo: [{ unidade: 'Escola Modelo', total: 12 }],
+      bloqueadoPorFaltaDados: null,
+      configuracaoUsada: { id: 'cfg-1', status: 'VIGENTE' },
+      nivelEncontradoCodigo: 'V',
+      nivelFaixaDescricao: 'Faixa: 301 a 350 alunos',
+      unidadeAno: { qtd_alunos: 320, qtd_turmas: 14, periodos: ['MANHA', 'TARDE'] },
+      resumoTexto: 'Resumo da prévia',
+      totalVagasCalculadas: 12,
+      vagasLinhas: [],
+      escola: { id: 'u1', nome: 'Escola Modelo', tipo_atendimento: 'Ensino Fundamental' },
+      porteEscola: { quantidade_alunos: 320, nivel_faixa: 'Nível V' },
+      turmasCadastradas: [],
+      contagemTurmasPorEtapa: {},
+      vagasExistentes: [],
+    }
+    expect(previaFake.nivelEncontradoCodigo).toBe('V')
+    expect(previaFake.totalVagasCalculadas).toBe(12)
+
+    // Contrato de ConfirmarGeracaoResultado
+    const confirmFake: ConfirmarGeracaoResultado = {
+      escolaNome: 'Escola Modelo',
+      nivelCodigo: 'V',
+      totalVagasFinais: 12,
+      novasCriadas: 12,
+      abertasRemovidas: 0,
+      excedentesMarcadas: 0,
+      geradas: 12,
+    }
+    expect(confirmFake.geradas).toBe(12)
+
+    // Contrato de MigracaoAnoLetivoResultado
+    const migracaoFake: MigracaoAnoLetivoResultado = {
+      escolaNome: 'Escola Modelo',
+      migradasCriadas: 10,
+      anoOrigem: 2025,
+      anoDestino: 2026,
+      totalDestinoFinal: 10,
+      copiadas: 10,
+      ignoradasOcupadas: 0,
+      totalOrigem: 10,
+    }
+    expect(migracaoFake.copiadas).toBe(10)
+
+    // Contrato de ResumoVagasAnoOrigem
+    const resumoFake: ResumoVagasAnoOrigem = {
+      anoOrigem: 2025,
+      unidadeId: 'u1',
+      total: 15,
+      totalVagas: 15,
+      abertas: 5,
+      ocupadas: 10,
+      excedentes: 2,
+      funcoesDistintas: ['Diretor Escolar', 'Professor Regente'],
+      porFuncao: [
+        { funcao: 'Diretor Escolar', total: 1, ocupadas: 1, abertas: 0 },
+        { funcao: 'Professor Regente', total: 14, ocupadas: 9, abertas: 5 },
+      ],
+      amostraVagas: [],
+    }
+    expect(resumoFake.totalVagas).toBe(15)
   })
 })

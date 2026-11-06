@@ -2628,41 +2628,46 @@ export const VagasPage: React.FC = () => {
           <div className="space-y-4 text-xs text-slate-700 py-2 leading-relaxed">
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <h4 className="font-bold text-blue-900 text-sm mb-1">
-                1. Novo Modelo do Cadastro de Vagas (10 Atributos Oficiais)
+                1. Novo Modelo de Atributos da Vaga
               </h4>
               <p className="mb-2">
-                O formulário de cadastro e edição de vagas segue estritamente a ordem e as regras do
-                sistema:
+                O formulário de cadastro e edição de vagas segue estritamente os atributos e regras
+                do sistema:
               </p>
               <ol className="list-decimal pl-5 space-y-1 text-slate-800">
                 <li>
-                  <strong>Identificação:</strong> gerada automaticamente pelo sistema com formato
-                  único padronizado.
+                  <strong>Identificação:</strong> gerada automaticamente pelo sistema em padrão
+                  sequencial (ex.: VAG-0001 ou VAGP-0001), somente leitura e preservada na edição.
                 </li>
                 <li>
-                  <strong>Ano Letivo:</strong> obrigatório, combobox com anos de 2020 a 2040.
+                  <strong>Ano Letivo:</strong> obrigatório, combobox padrão do sistema (2020 a
+                  2040).
                 </li>
                 <li>
                   <strong>Unidade Escolar:</strong> obrigatória, vinculada com integridade
-                  referencial ao Cadastro de Unidades.
+                  referencial ao Cadastro de Unidades Escolares.
                 </li>
                 <li>
-                  <strong>Pergunta Cargo ou Função:</strong> escolha dinâmica exclusiva entre Cargo
-                  e Função.
+                  <strong>Pergunta Cargo ou Função:</strong> pergunta se a vaga é de "Cargo" ou
+                  "Função", acionando dependência dinâmica estrita.
                 </li>
                 <li>
-                  <strong>Cargo da Vaga ou Função da Vaga:</strong> campo obrigatório dinâmico
-                  exibido conforme a escolha anterior (limpa incompatíveis).
+                  <strong>Cargo da Vaga / Função da Vaga:</strong> obrigatórios conforme a escolha
+                  anterior — ao selecionar "Cargo", solicita o Cargo vinculado ao Cadastro de
+                  Cargos; ao selecionar "Função", solicita a Função vinculada ao Cadastro de
+                  Funções. A troca limpa o campo anterior.
                 </li>
                 <li>
-                  <strong>Período:</strong> obrigatório com 5 opções (Geral / Sem Período, Manhã,
-                  Tarde, Integral, Noite).
+                  <strong>Período:</strong> obrigatório com as opções "Geral / Sem Período",
+                  "Manhã", "Tarde", "Integral" e "Noite".
                 </li>
                 <li>
-                  <strong>Modalidade:</strong> obrigatória (Fixo ou Itinerante).
+                  <strong>Modalidade:</strong> obrigatória com opções "Fixo" e "Itinerante" (para
+                  itinerante, permite informar a quantidade de dias na semana).
                 </li>
                 <li>
-                  <strong>Status da Vaga do Ocupante:</strong> opcional (Aberta ou Preenchida).
+                  <strong>Status da Vaga do Ocupante:</strong> opcional com opções "Aberta" e
+                  "Preenchida" (mantendo coerência direta com o preenchimento de ocupante).
                 </li>
                 <li>
                   <strong>Profissional Titular:</strong> opcional, vinculado ao Cadastro de
@@ -2670,7 +2675,12 @@ export const VagasPage: React.FC = () => {
                 </li>
                 <li>
                   <strong>Profissional Ocupante:</strong> opcional, vinculado ao Cadastro de
-                  Profissionais (o mesmo profissional pode ser titular e ocupante).
+                  Profissionais, podendo ser o mesmo profissional o titular e o ocupante da mesma
+                  vaga.
+                </li>
+                <li>
+                  <strong>Vaga Excedente:</strong> atributo automático ("Não" quando a vaga é gerada
+                  automaticamente, "Sim" quando inserida manualmente).
                 </li>
               </ol>
             </div>
