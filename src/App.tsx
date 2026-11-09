@@ -14,6 +14,7 @@ import AnosSeries from './pages/AnosSeries'
 import Especializacoes from './pages/Especializacoes'
 import ConfigRhNivelPage from './pages/ConfigRhNivel'
 import VagasPage from './pages/Vagas'
+import GeraListaVagasAbertas from './pages/GeraListaVagasAbertas'
 import CadastrosMestres from './pages/CadastrosMestres'
 import Turmas from './pages/Turmas'
 import Profissionais from './pages/Profissionais'
@@ -103,6 +104,15 @@ const App = () => (
               element={
                 <RouteGuard menuKey="vagas">
                   <VagasPage />
+                </RouteGuard>
+              }
+            />
+            {/* Gera Lista de Vagas Abertas (último item do grupo Cadastros Mestres) */}
+            <Route
+              path="/cadastros-mestres/gera-lista-vagas-abertas"
+              element={
+                <RouteGuard menuKey="gera_lista_vagas_abertas">
+                  <GeraListaVagasAbertas />
                 </RouteGuard>
               }
             />

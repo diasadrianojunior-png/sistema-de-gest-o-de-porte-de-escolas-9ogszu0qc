@@ -28,6 +28,7 @@ import {
   Trash2,
   Sparkles,
   LifeBuoy,
+  ListChecks,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -88,6 +89,8 @@ export default function Layout() {
     location.pathname.startsWith('/cadastros-mestres/vagas/') ||
     location.pathname === '/cadastros-apoio/vagas' ||
     location.pathname.startsWith('/cadastros-apoio/vagas/')
+  const isGeraListaVagasAbertasActive =
+    location.pathname === '/cadastros-mestres/gera-lista-vagas-abertas'
   const isMestresActive =
     location.pathname.startsWith('/cadastros-mestres') || isConfigRhActive || isVagasActive
 
@@ -122,6 +125,7 @@ export default function Layout() {
   const canViewEspecializacoes = canView('especializacoes')
   const canViewConfigRh = canView('configuracao_rh')
   const canViewVagas = canView('vagas')
+  const canViewGeraListaVagasAbertas = canView('gera_lista_vagas_abertas')
 
   const canViewUsuarios = canView('usuarios')
   const canViewContasEmail = canView('contas_email')
@@ -136,7 +140,8 @@ export default function Layout() {
     canViewProfissionais ||
     canViewPorteEscola ||
     canViewConfigRh ||
-    canViewVagas
+    canViewVagas ||
+    canViewGeraListaVagasAbertas
   const showCadastrosApoio =
     canViewCargos || canViewFuncoes || canViewEtapas || canViewAnosSeries || canViewEspecializacoes
   const showAdministracao =
@@ -674,6 +679,22 @@ export default function Layout() {
                               <span>Cadastro de Vagas</span>
                             </NavLink>
                           )}
+                          {canViewGeraListaVagasAbertas && (
+                            <NavLink
+                              to="/cadastros-mestres/gera-lista-vagas-abertas"
+                              onClick={() => setMestresPopoverOpen(false)}
+                              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                                isGeraListaVagasAbertasActive
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <ListChecks
+                                className={`w-4 h-4 shrink-0 ${isGeraListaVagasAbertasActive ? 'text-white' : 'text-slate-500'}`}
+                              />
+                              <span>Gera Lista de Vagas Abertas</span>
+                            </NavLink>
+                          )}
                         </div>
                       </PopoverContent>
                     </Popover>
@@ -807,6 +828,23 @@ export default function Layout() {
                                 className={`w-3.5 h-3.5 shrink-0 ${isVagasActive ? 'text-white' : 'text-slate-400'}`}
                               />
                               <span className="truncate">Cadastro de Vagas</span>
+                            </NavLink>
+                          )}
+                          {canViewGeraListaVagasAbertas && (
+                            <NavLink
+                              to="/cadastros-mestres/gera-lista-vagas-abertas"
+                              onClick={() => isMobile && setMobileSidebarOpen(false)}
+                              title="Gera Lista de Vagas Abertas"
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                isGeraListaVagasAbertasActive
+                                  ? 'bg-primary text-white font-semibold shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                              }`}
+                            >
+                              <ListChecks
+                                className={`w-3.5 h-3.5 shrink-0 ${isGeraListaVagasAbertasActive ? 'text-white' : 'text-slate-400'}`}
+                              />
+                              <span className="truncate">Gera Lista de Vagas Abertas</span>
                             </NavLink>
                           )}
                         </div>

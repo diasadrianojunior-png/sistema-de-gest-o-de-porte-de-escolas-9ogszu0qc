@@ -1,5 +1,16 @@
 import { VagaReal } from '@/types/gestao-escolar'
 
+/** Linha da Lista de Vagas Abertas (módulo "Gera Lista de Vagas Abertas") */
+export interface LinhaListaVagasAbertas {
+  anoLetivo: number
+  unidadeEscolar: string
+  cargo: string
+  periodo: string
+  modalidade: string
+  vagaDeTitular: boolean
+  vagaDeOcupacao: boolean
+}
+
 /**
  * Exporta a listagem de vagas para formato CSV/Excel compatível com caracteres UTF-8
  */
@@ -213,6 +224,145 @@ export function exportarVagasPDF(
         </thead>
         <tbody>
           ${linhasHtml}
+        </tbody>
+      </table>
+    </body>
+    </html>
+  `
+
+  janela.document.open()
+  janela.document.write(docHtml)
+  janela.document.close()
+}
+
+/**
+ * Exporta a Lista de Vagas Abertas (módulo "Gera Lista de Vagas Abertas") para CSV/Excel UTF-8.
+ */
+export function exportarListaVagasAbertasExcel(
+  linhas: LinhaListaVagasAbertas[],
+  anoLetivo: number,
+  nomeArquivo = `lista-vagas-abertas-${anoLetivo}.csv`,
+) {
+  const colunas = [
+    'Ano Letivo',
+    'Unidade Escolar',
+    'Cargo',
+    'Período',
+    'Modalidade',
+    'Vaga de Titular',
+    'Vaga de Ocupação',
+  ]
+
+  const esc = (valor: string | number | boolean) => `"${String(valor).replace(/"/g, '""')}"`
+
+  const corpo = linhas.map((l) =>
+    [
+      l.anoLetivo,
+      esc(l.unidadeEscolar),
+      esc(l.cargo),
+      esc(l.periodo),
+      esc(l.modalidade),
+      l.vagaDeTitular ? 'Sim' : 'Não',
+      l.vagaDeOcupacao ? 'Sim' : 'Não',
+    ].join(';'),
+  )
+
+  const csvContent = '\uFEFF' + [colunas.join(';'), ...corpo].join('\r\n')
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.setAttribute('href', url)
+  link.setAttribute('download', nomeArquivo)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * Abre janela de impressão formatada em PDF/A4 para a Lista de Vagas Abertas.
+ */
+export function exportarListaVagasAbertasPDF(linhas: LinhaListaVagasAbertas[], anoLetivo: number) {
+  const janela = window.open('', '_blank', 'width=1100,height=800')
+  if (!janela) {
+    alert('Por favor, permita pop-ups para gerar a visualização do relatório em PDF/impressão.')
+    return
+  }
+
+  const totalTitular = linhas.filter((l) => l.vagaDeTitular).length
+  const totalOcupacao = linhas.filter((l) => l.vagaDeOcupacao).length
+
+  const linhasHtml = linhas
+    .map(
+      (l, idx) => `
+      <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${l.anoLetivo}</td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; font-weight: 500;">${l.unidadeEscolar}</td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${l.cargo}</td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${l.periodo}</td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${l.modalidade}</td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center;">${l.vagaDeTitular ? 'Sim' : 'Não'}</td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center;">${l.vagaDeOcupacao ? 'Sim' : 'Não'}</td>
+      </tr>
+    `,
+    )
+    .join('')
+
+  const docHtml = `
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+      <meta charset="utf-8">
+      <title>Lista de Vagas Abertas - Ano Letivo ${anoLetivo}</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 12px; color: #1e293b; margin: 20px; }
+        h1 { font-size: 18px; margin: 0 0 4px 0; color: #0f172a; }
+        .sub { font-size: 12px; color: #64748b; margin-bottom: 16px; }
+        .resumo-box { display: flex; gap: 16px; margin-bottom: 20px; padding: 12px; background: #f1f5f9; border-radius: 6px; border: 1px solid #cbd5e1; }
+        .resumo-item { flex: 1; }
+        .resumo-item strong { display: block; font-size: 16px; color: #0f172a; }
+        .resumo-item span { font-size: 11px; text-transform: uppercase; color: #475569; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #e2e8f0; color: #1e293b; font-size: 11px; font-weight: 600; text-transform: uppercase; padding: 8px; border: 1px solid #cbd5e1; text-align: left; }
+        @media print {
+          @page { size: A4 landscape; margin: 12mm; }
+          body { margin: 0; }
+          .no-print { display: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="no-print" style="margin-bottom: 16px; display: flex; gap: 10px;">
+        <button onclick="window.print()" style="padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">Imprimir / Salvar PDF</button>
+        <button onclick="window.close()" style="padding: 8px 16px; background: #e2e8f0; color: #334155; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">Fechar</button>
+      </div>
+
+      <h1>Sistema de Gestão de Porte de Escolas — Lista de Vagas Abertas</h1>
+      <div class="sub">
+        Ano Letivo: <strong>${anoLetivo}</strong> |
+        Data de emissão: ${new Date().toLocaleString('pt-BR')}
+      </div>
+
+      <div class="resumo-box">
+        <div class="resumo-item"><span>Total de Vagas</span><strong>${linhas.length}</strong></div>
+        <div class="resumo-item"><span>Vagas de Titular</span><strong style="color: #1d4ed8;">${totalTitular}</strong></div>
+        <div class="resumo-item"><span>Vagas de Ocupação</span><strong style="color: #15803d;">${totalOcupacao}</strong></div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 80px;">Ano Letivo</th>
+            <th>Unidade Escolar</th>
+            <th>Cargo</th>
+            <th style="width: 100px;">Período</th>
+            <th style="width: 90px;">Modalidade</th>
+            <th style="width: 100px; text-align: center;">Vaga de Titular</th>
+            <th style="width: 110px; text-align: center;">Vaga de Ocupação</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${linhasHtml || '<tr><td colspan="7" style="padding: 12px; text-align: center; color: #64748b;">Nenhuma vaga encontrada.</td></tr>'}
         </tbody>
       </table>
     </body>

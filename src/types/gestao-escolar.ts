@@ -315,6 +315,7 @@ export type SistemaMenuKey =
   | 'especializacoes'
   | 'configuracao_rh'
   | 'vagas'
+  | 'gera_lista_vagas_abertas'
   | 'usuarios'
   | 'contas_email'
   | 'auditoria'
