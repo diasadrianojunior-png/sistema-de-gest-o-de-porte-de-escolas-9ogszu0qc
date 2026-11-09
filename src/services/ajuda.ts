@@ -501,6 +501,62 @@ export const AJUDAS_MODULOS: AjudaModulo[] = [
     ],
   },
   {
+    menuKey: 'gera_lista_vagas_abertas',
+    titulo: 'Gera Lista de Vagas Abertas',
+    categoria: 'Cadastros Mestres',
+    path: '/cadastros-mestres/gera-lista-vagas-abertas',
+    resumo:
+      'Gera a lista de vagas abertas de um Ano Letivo para apoiar a gestão de porte das unidades escolares.',
+    secoes: [
+      {
+        titulo: 'Objetivo',
+        itens: [
+          'Gerar a lista de vagas abertas de um Ano Letivo, reunindo em um único relatório todas as vagas cadastradas, para subsidiar a gestão de porte das unidades escolares.',
+          'Módulo somente de consulta: não cria, altera ou exclui vagas — apenas lista as vagas já registradas no Cadastro de Vagas.',
+        ],
+      },
+      {
+        titulo: 'Como gerar a lista',
+        itens: [
+          'Selecione o "Ano Letivo" no combobox padrão do sistema (anos de 2020 a 2040).',
+          'Clique em "Gerar Lista": o sistema consulta as vagas do ano selecionado e exibe o resultado em tabela, com paginação.',
+          'A lista pode ser refeita quantas vezes necessário, trocando o Ano Letivo e gerando novamente.',
+        ],
+      },
+      {
+        titulo: 'Colunas da lista',
+        itens: [
+          '"Ano Letivo": ano ao qual a vaga pertence.',
+          '"Unidade Escolar": nome da unidade à qual a vaga está vinculada.',
+          '"Cargo": mostra o cargo da vaga quando o tipo de vínculo é "Cargo", ou a função quando o tipo de vínculo é "Função", conforme o tipo de vínculo da vaga.',
+          '"Período": Geral / Sem Período, Manhã, Tarde, Integral ou Noite.',
+          '"Modalidade": Fixo ou Itinerante.',
+          '"Vaga de Titular" e "Vaga de Ocupação": flags calculadas (ver regras abaixo).',
+        ],
+      },
+      {
+        titulo: 'Regras das flags',
+        itens: [
+          '"Vaga de Titular" = Sim quando o atributo "Profissional Titular" da vaga está vazio (a vaga não possui titular); caso contrário, Não.',
+          '"Vaga de Ocupação" = Sim quando o "Profissional Ocupante" está vazio E o "Status da Vaga do Ocupante" está "Aberta"; caso contrário, Não.',
+        ],
+      },
+      {
+        titulo: 'Exportação e auditoria',
+        itens: [
+          'A lista gerada pode ser exportada para planilha Excel (formato CSV UTF-8) e para relatório em PDF, no mesmo padrão dos demais módulos.',
+          'Cada geração de lista é registrada na Auditoria (entidade VAGA, ação Consulta), com o Ano Letivo e a quantidade de vagas listadas.',
+        ],
+      },
+      {
+        titulo: 'Permissões',
+        itens: [
+          'Acesso controlado pela matriz de permissões (Pode Ver / Pode Editar), como último item do grupo Cadastros Mestres.',
+        ],
+      },
+    ],
+  },
+  {
     menuKey: 'usuarios',
     titulo: 'Usuários',
     categoria: 'Administração do Sistema',

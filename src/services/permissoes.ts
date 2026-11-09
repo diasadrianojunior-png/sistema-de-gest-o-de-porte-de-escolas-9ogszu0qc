@@ -112,6 +112,14 @@ export const MENUS_SISTEMA_PADRAO: Array<{
     categoria: 'Cadastros Mestres',
   },
   {
+    key: 'gera_lista_vagas_abertas',
+    label: 'Gera Lista de Vagas Abertas',
+    path: '/cadastros-mestres/gera-lista-vagas-abertas',
+    suporta_edicao: true,
+    ordem: 11,
+    categoria: 'Cadastros Mestres',
+  },
+  {
     key: 'usuarios',
     label: 'Usuários',
     path: '/administracao/usuarios',
@@ -241,6 +249,14 @@ export const getPermissoesPadraoOperador = (): PermissaoItemForm[] => {
     {
       menu_key: 'vagas',
       menu_label: 'Cadastro de Vagas',
+      pode_ver: true,
+      pode_editar: true,
+      suporta_edicao: true,
+      ordem: 11,
+    },
+    {
+      menu_key: 'gera_lista_vagas_abertas',
+      menu_label: 'Gera Lista de Vagas Abertas',
       pode_ver: true,
       pode_editar: true,
       suporta_edicao: true,
