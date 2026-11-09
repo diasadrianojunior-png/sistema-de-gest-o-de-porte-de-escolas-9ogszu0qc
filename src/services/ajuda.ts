@@ -478,7 +478,7 @@ export const AJUDAS_MODULOS: AjudaModulo[] = [
         titulo: 'Modalidades de Geração de Vagas',
         itens: [
           '1. Geração Simples: calculada automaticamente a partir da Configuração de Vagas por Nível vigente para o tipo de atendimento da unidade e ano letivo, considerando o porte (quantidade de alunos) e turmas cadastradas. Apresenta modal de prévia com resumo antes da gravação definitiva. Preserva integralmente vagas já ocupadas e transforma excedentes em status EXCEDENTE, sem perda de dados.',
-          '2. Geração por "Migração de Ano Letivo": copia as vagas de um ano letivo de origem para o ano letivo de destino. O operador escolhe o ano de origem por combobox e visualiza o resumo detalhado das vagas antes de confirmar. Não copia a ocupação: toda vaga migrada nasce com status ABERTA e sem ocupante. A migração nunca apaga nem duplica vagas existentes no destino e mantém a numeração sequencial das vagas.',
+          '2. Geração por "Migração de Ano Letivo": copia as vagas de um ano letivo de origem para o ano letivo de destino. O operador escolhe o ano de origem por combobox e visualiza o resumo detalhado das vagas antes de confirmar. Copia também o Profissional Titular e o Profissional Ocupante da origem: vaga com ocupante nasce com status PREENCHIDA (e nome do ocupante preenchido); vaga sem ocupante nasce ABERTA. A migração nunca apaga nem duplica vagas existentes no destino e mantém a numeração sequencial das vagas.',
         ],
       },
       {

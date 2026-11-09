@@ -639,7 +639,7 @@ describe('Testes Unitários da Etapa 2 — Regras do Usuário', () => {
   })
 
   // Teste 7: Regras de Migração de Vagas de Ano Letivo
-  it('regras de migração limpam ocupante, definem status ABERTA e preservam vaga_excedente', () => {
+  it('regras de migração copiam titular e ocupante, PREENCHIDA com ocupante, ABERTA sem ocupante e preservam vaga_excedente', () => {
     const vagasOrigem = [
       {
         id: 'v1',
@@ -649,7 +649,8 @@ describe('Testes Unitários da Etapa 2 — Regras do Usuário', () => {
         modalidade: 'FIXO',
         dias_semana: null,
         cargo_id: 'c1',
-        servidor_id: 's1',
+        profissional_titular_id: 'p1',
+        profissional_ocupante_id: 'p2',
         nome_ocupante: 'João Silva',
         status: 'OCUPADA',
         vaga_excedente: false, // gerada automaticamente
@@ -662,7 +663,8 @@ describe('Testes Unitários da Etapa 2 — Regras do Usuário', () => {
         modalidade: 'FIXO',
         dias_semana: null,
         cargo_id: 'c1',
-        servidor_id: null,
+        profissional_titular_id: null,
+        profissional_ocupante_id: null,
         nome_ocupante: null,
         status: 'ABERTA',
         vaga_excedente: true, // manual excedente
@@ -675,31 +677,47 @@ describe('Testes Unitários da Etapa 2 — Regras do Usuário', () => {
         modalidade: 'FIXO',
         dias_semana: null,
         cargo_id: null,
-        servidor_id: 's2',
-        nome_ocupante: 'Maria Souza',
+        profissional_titular_id: 'p3',
+        profissional_ocupante_id: null,
+        nome_ocupante: null,
         status: 'EXCEDENTE',
         vaga_excedente: false,
       },
     ]
 
-    // Simulação da transformação de migração
-    const migradas = vagasOrigem.map((vo) => ({
-      funcao: vo.funcao,
-      numero_sequencial: vo.numero_sequencial,
-      periodo: vo.periodo,
-      modalidade: vo.modalidade,
-      dias_semana: vo.dias_semana,
-      cargo_id: vo.cargo_id,
-      servidor_id: null,
-      nome_ocupante: null,
-      status: 'ABERTA',
-      vaga_excedente: Boolean(vo.vaga_excedente),
-    }))
+    // Simulação da transformação de migração — MESMA regra do serviço migrarVagasAnoLetivo
+    const migradas = vagasOrigem.map((vo) => {
+      const titularId = vo.profissional_titular_id ?? null
+      const ocupanteId = vo.profissional_ocupante_id ?? null
+      return {
+        funcao: vo.funcao,
+        numero_sequencial: vo.numero_sequencial,
+        periodo: vo.periodo,
+        modalidade: vo.modalidade,
+        dias_semana: vo.dias_semana,
+        cargo_id: vo.cargo_id,
+        profissional_titular_id: titularId,
+        profissional_ocupante_id: ocupanteId,
+        nome_ocupante: ocupanteId ? (vo.nome_ocupante ?? null) : null,
+        status: ocupanteId ? 'PREENCHIDA' : 'ABERTA',
+        vaga_excedente: Boolean(vo.vaga_excedente),
+      }
+    })
 
-    // Toda vaga migrada deve nascer sem ocupante e com status ABERTA
-    expect(migradas.every((v) => v.servidor_id === null)).toBe(true)
-    expect(migradas.every((v) => v.nome_ocupante === null)).toBe(true)
-    expect(migradas.every((v) => v.status === 'ABERTA')).toBe(true)
+    // Titular e ocupante da origem são levados para o ano destino
+    expect(migradas[0].profissional_titular_id).toBe('p1')
+    expect(migradas[0].profissional_ocupante_id).toBe('p2')
+    expect(migradas[0].nome_ocupante).toBe('João Silva')
+    expect(migradas[0].status).toBe('PREENCHIDA')
+    expect(migradas[2].profissional_titular_id).toBe('p3')
+    expect(migradas[2].profissional_ocupante_id).toBe(null)
+    expect(migradas[2].status).toBe('ABERTA')
+
+    // Vaga sem titular e sem ocupante nasce ABERTA
+    expect(migradas[1].profissional_titular_id).toBe(null)
+    expect(migradas[1].profissional_ocupante_id).toBe(null)
+    expect(migradas[1].nome_ocupante).toBe(null)
+    expect(migradas[1].status).toBe('ABERTA')
 
     // Vaga excedente manual preserva true, vaga gerada preserva false
     expect(migradas[0].vaga_excedente).toBe(false)
@@ -941,8 +959,13 @@ describe('Testes Unitários da Etapa 2 — Regras do Usuário', () => {
       copiadas: 10,
       ignoradasOcupadas: 0,
       totalOrigem: 10,
+      comTitular: 7,
+      comOcupante: 4,
+      semOcupante: 6,
     }
     expect(migracaoFake.copiadas).toBe(10)
+    expect(migracaoFake.comOcupante + migracaoFake.semOcupante).toBe(migracaoFake.copiadas)
+    expect(migracaoFake.comTitular <= migracaoFake.copiadas).toBe(true)
 
     // Contrato de ResumoVagasAnoOrigem
     const resumoFake: ResumoVagasAnoOrigem = {

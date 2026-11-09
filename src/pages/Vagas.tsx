@@ -462,7 +462,7 @@ export const VagasPage: React.FC = () => {
 
       toast({
         title: 'Migração concluída com sucesso!',
-        description: `${res.escolaNome}: ${res.migradasCriadas} vagas copiadas de ${res.anoOrigem} para ${res.anoDestino} (todas ABERTAS, sem ocupante). Total final: ${res.totalDestinoFinal} vagas.`,
+        description: `${res.escolaNome}: ${res.migradasCriadas} vagas copiadas de ${res.anoOrigem} para ${res.anoDestino} (${res.comOcupante} preenchidas com ocupante, ${res.semOcupante} abertas). Total final: ${res.totalDestinoFinal} vagas.`,
       })
 
       setModalConfirmarMigracaoAberto(false)
@@ -1652,7 +1652,7 @@ export const VagasPage: React.FC = () => {
                   </p>
                 </div>
                 <span className="text-[11px] font-semibold text-blue-700 mt-2 block">
-                  Cópia sem ocupante (todas ABERTAS)
+                  Cópia com titular e ocupante (com ocupante nasce Preenchida)
                 </span>
               </button>
             </div>
@@ -1774,9 +1774,11 @@ export const VagasPage: React.FC = () => {
                           Regras de Migração e Integridade:
                         </p>
                         <p className="text-[11px] leading-relaxed text-blue-900">
-                          • <strong>Ocupação NÃO é copiada:</strong> todas as {resumoMigracao.total}{' '}
-                          vagas migradas nascerão no ano {anoLetivo}{' '}
-                          <strong>SEM ocupante (status ABERTA)</strong>.
+                          • <strong>Titular e ocupante SÃO copiados:</strong> todas as{' '}
+                          {resumoMigracao.total} vagas migradas levam o mesmo titular da origem;
+                          vagas com ocupante na origem ({resumoMigracao.ocupadas}) nascem no ano{' '}
+                          {anoLetivo} <strong>PREENCHIDAS</strong>, e as sem ocupante (
+                          {resumoMigracao.abertas}) nascem <strong>ABERTAS</strong>.
                         </p>
                         <p className="text-[11px] leading-relaxed text-blue-900">
                           • <strong>Vaga Excedente:</strong> vagas de geração anterior nascem como
@@ -1909,7 +1911,8 @@ export const VagasPage: React.FC = () => {
               <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900">
                 A unidade não possui nenhuma vaga cadastrada no ano letivo {anoLetivo}. Serão
                 criadas <strong>{resumoMigracao?.total || 0} vagas</strong> copiadas de{' '}
-                {anoOrigemMigracao}, todas ABERTAS e sem ocupante.
+                {anoOrigemMigracao}, com o mesmo titular e ocupante da origem (com ocupante nascem
+                Preenchidas; sem ocupante, Abertas).
               </div>
             )}
 
@@ -1922,11 +1925,15 @@ export const VagasPage: React.FC = () => {
               </div>
               <div className="flex items-center justify-between">
                 <span>Status ao nascer no ano {anoLetivo}:</span>
-                <strong className="text-blue-700">ABERTA (sem ocupante)</strong>
+                <strong className="text-blue-700">
+                  Preenchida (com ocupante) / Aberta (sem ocupante)
+                </strong>
               </div>
               <div className="flex items-center justify-between">
                 <span>Atributos preservados:</span>
-                <span className="text-slate-600">Função, Cargo, Período, Modalidade</span>
+                <span className="text-slate-600">
+                  Função, Cargo, Período, Modalidade, Titular, Ocupante
+                </span>
               </div>
             </div>
           </div>
@@ -2799,12 +2806,14 @@ export const VagasPage: React.FC = () => {
                     <li>
                       <strong>O que é copiado:</strong> Função, Cargo vinculado, Período, Modalidade
                       (Fixo/Itinerante com dias de semana), Turma equivalente (se existir turma de
-                      mesmo nome no ano destino).
+                      mesmo nome no ano destino), <strong>Profissional Titular</strong> e{' '}
+                      <strong>Profissional Ocupante</strong> (com o nome do ocupante).
                     </li>
                     <li>
-                      <strong>O que NÃO é copiado:</strong> Ocupante, cargo do ocupante e status de
-                      ocupada. Toda vaga migrada nasce estritamente <strong>SEM ocupante</strong> e
-                      com status <strong>ABERTA</strong>.
+                      <strong>Regra de Status na migração:</strong> vaga de origem{' '}
+                      <strong>com ocupante</strong> nasce no ano destino com status{' '}
+                      <strong>PREENCHIDA</strong> (e o nome do ocupante preenchido); vaga de origem{' '}
+                      <strong>sem ocupante</strong> nasce com status <strong>ABERTA</strong>.
                     </li>
                     <li>
                       <strong>Regra de Vaga Excedente na migração:</strong> vagas migradas

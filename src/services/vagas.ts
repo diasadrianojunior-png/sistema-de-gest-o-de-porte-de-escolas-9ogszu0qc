@@ -1311,6 +1311,12 @@ export interface MigracaoAnoLetivoResultado {
   copiadas: number
   ignoradasOcupadas: number
   totalOrigem: number
+  /** Quantidade de vagas migradas que levaram o titular da origem. */
+  comTitular: number
+  /** Quantidade de vagas migradas que levaram o ocupante da origem (status PREENCHIDA). */
+  comOcupante: number
+  /** Quantidade de vagas migradas sem ocupante (status ABERTA). */
+  semOcupante: number
 }
 
 export interface ResumoVagasPorFuncao {
@@ -1436,10 +1442,21 @@ export async function migrarVagasAnoLetivo(
 
   const listaOrigem = (origem || []) as any[]
   let copiadas = 0
+  let comTitular = 0
+  let comOcupante = 0
+  let semOcupante = 0
 
   for (const vaga of listaOrigem) {
     const sequencial = await gerarProximoSequencial(vaga.unidade_escolar_id, params.anoDestino)
     const codigo = await gerarProximoCodigo()
+
+    // Nova regra do usuário: copiar também titular e ocupante da vaga de origem.
+    // IDs de profissional são globais (FK para profissionais), válidos entre anos letivos.
+    // Com ocupante => status PREENCHIDA; sem ocupante => ABERTA.
+    const titularId = vaga.profissional_titular_id ?? null
+    const ocupanteId = vaga.profissional_ocupante_id ?? null
+    const nomeOcupante = ocupanteId ? (vaga.nome_ocupante ?? null) : null
+    const statusDestino = ocupanteId ? 'PREENCHIDA' : 'ABERTA'
 
     const payload: Record<string, unknown> = {
       codigo,
@@ -1452,19 +1469,22 @@ export async function migrarVagasAnoLetivo(
       periodo: vaga.periodo,
       modalidade: vaga.modalidade,
       dias_semana: vaga.dias_semana ?? null,
-      status: 'ABERTA',
+      status: statusDestino,
       vaga_excedente: Boolean(vaga.vaga_excedente),
       numero_sequencial: sequencial,
       configuracao_rh_id: vaga.configuracao_rh_id ?? null,
       observacao: vaga.observacao ?? null,
-      profissional_titular_id: null,
-      profissional_ocupante_id: null,
-      nome_ocupante: null,
+      profissional_titular_id: titularId,
+      profissional_ocupante_id: ocupanteId,
+      nome_ocupante: nomeOcupante,
     }
 
     const { error: insErr } = await supabase.from(TABELA).insert(payload as any)
     if (insErr) throw insErr
     copiadas += 1
+    if (titularId) comTitular += 1
+    if (ocupanteId) comOcupante += 1
+    else semOcupante += 1
   }
 
   let totalDestinoFinal = copiadas
@@ -1477,12 +1497,15 @@ export async function migrarVagasAnoLetivo(
     usuario_email: params.usuarioEmail || usuario?.email || '',
     entidade: 'Vaga',
     acao: 'Criação',
-    descricao: `Migração de vagas de ${params.anoOrigem} para ${params.anoDestino} (${escolaNome}): ${copiadas} vaga(s) copiada(s) como ABERTA.`,
+    descricao: `Migração de vagas de ${params.anoOrigem} para ${params.anoDestino} (${escolaNome}): ${copiadas} vaga(s) copiada(s), ${comTitular} com titular, ${comOcupante} com ocupante (PREENCHIDA) e ${semOcupante} sem ocupante (ABERTA).`,
     detalhes: {
       ano_origem: params.anoOrigem,
       ano_destino: params.anoDestino,
       unidade_id: params.unidadeEscolarId ?? 'todas',
       copiadas,
+      com_titular: comTitular,
+      com_ocupante: comOcupante,
+      sem_ocupante: semOcupante,
       totalDestinoFinal,
     },
   })
@@ -1496,6 +1519,9 @@ export async function migrarVagasAnoLetivo(
     copiadas,
     ignoradasOcupadas: 0,
     totalOrigem: listaOrigem.length,
+    comTitular,
+    comOcupante,
+    semOcupante,
   }
 }
 
