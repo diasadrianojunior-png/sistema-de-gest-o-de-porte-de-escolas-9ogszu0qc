@@ -1452,12 +1452,12 @@ export async function migrarVagasAnoLetivo(
 
     // Nova regra do usuário: copiar também titular e ocupante da vaga de origem.
     // IDs de profissional são globais (FK para profissionais), válidos entre anos letivos.
-    // Com ocupante => status PREENCHIDA; sem ocupante => ABERTA.
+    // Com ocupante => status OCUPADA (exibido como "Preenchida"); sem ocupante => ABERTA.
+    // (O banco grava "Preenchida" como OCUPADA — ver vaga_status_check.)
     const titularId = vaga.profissional_titular_id ?? null
     const ocupanteId = vaga.profissional_ocupante_id ?? null
     const nomeOcupante = ocupanteId ? (vaga.nome_ocupante ?? null) : null
-    const statusDestino = ocupanteId ? 'PREENCHIDA' : 'ABERTA'
-
+    const statusDestino = ocupanteId ? 'OCUPADA' : 'ABERTA'
     const payload: Record<string, unknown> = {
       codigo,
       unidade_escolar_id: vaga.unidade_escolar_id,
@@ -1497,7 +1497,7 @@ export async function migrarVagasAnoLetivo(
     usuario_email: params.usuarioEmail || usuario?.email || '',
     entidade: 'Vaga',
     acao: 'Criação',
-    descricao: `Migração de vagas de ${params.anoOrigem} para ${params.anoDestino} (${escolaNome}): ${copiadas} vaga(s) copiada(s), ${comTitular} com titular, ${comOcupante} com ocupante (PREENCHIDA) e ${semOcupante} sem ocupante (ABERTA).`,
+    descricao: `Migração de vagas de ${params.anoOrigem} para ${params.anoDestino} (${escolaNome}): ${copiadas} vaga(s) copiada(s), ${comTitular} com titular, ${comOcupante} com ocupante (Preenchida) e ${semOcupante} sem ocupante (Aberta).`,
     detalhes: {
       ano_origem: params.anoOrigem,
       ano_destino: params.anoDestino,

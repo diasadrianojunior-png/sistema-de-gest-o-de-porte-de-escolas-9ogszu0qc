@@ -699,16 +699,17 @@ describe('Testes Unitários da Etapa 2 — Regras do Usuário', () => {
         profissional_titular_id: titularId,
         profissional_ocupante_id: ocupanteId,
         nome_ocupante: ocupanteId ? (vo.nome_ocupante ?? null) : null,
-        status: ocupanteId ? 'PREENCHIDA' : 'ABERTA',
+        // Mesma regra do serviço: banco grava "Preenchida" como OCUPADA
+        status: ocupanteId ? 'OCUPADA' : 'ABERTA',
         vaga_excedente: Boolean(vo.vaga_excedente),
       }
     })
 
-    // Titular e ocupante da origem são levados para o ano destino
+    // Titular e ocupante da origem são levados para o ano destino (OCUPADA = exibido como Preenchida)
     expect(migradas[0].profissional_titular_id).toBe('p1')
     expect(migradas[0].profissional_ocupante_id).toBe('p2')
     expect(migradas[0].nome_ocupante).toBe('João Silva')
-    expect(migradas[0].status).toBe('PREENCHIDA')
+    expect(migradas[0].status).toBe('OCUPADA')
     expect(migradas[2].profissional_titular_id).toBe('p3')
     expect(migradas[2].profissional_ocupante_id).toBe(null)
     expect(migradas[2].status).toBe('ABERTA')
