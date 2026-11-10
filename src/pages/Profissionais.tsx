@@ -59,11 +59,13 @@ import {
   getProfissionais,
   salvarProfissional,
   deleteProfissional,
+  detectarVinculosVagaProfissional,
   getVagasPorUnidade,
   calcularClasseProfissional,
   determinarTipoVinculoVaga,
   validarEmailProfissional,
   VinculoVagaInput,
+  VinculoVagaProfissional,
   InscricaoAnoInput,
 } from '@/services/profissionais'
 import { exportarProfissionaisExcel } from '@/services/profissionais-export'
@@ -91,6 +93,13 @@ interface LinhaVinculoForm {
   titular: boolean
   cargo_id: string
   tipo_vinculo: TipoVinculoVaga // 'CARGO' | 'FUNCAO'
+}
+
+/** Rótulo amigável do papel do profissional na vaga (titular/ocupante). */
+const rotuloPapelVinculoExclusao = (papel: VinculoVagaProfissional['papel']): string => {
+  if (papel === 'TITULAR') return 'Titular'
+  if (papel === 'OCUPANTE') return 'Ocupante'
+  return 'Titular e Ocupante'
 }
 
 export default function Profissionais() {
@@ -144,6 +153,9 @@ export default function Profissionais() {
 
   // Modal de Exclusão
   const [deletingProfissional, setDeletingProfissional] = useState<Profissional | null>(null)
+  // Vínculos do profissional com vagas (titular/ocupante), detectados ANTES da exclusão
+  const [vinculosExclusao, setVinculosExclusao] = useState<VinculoVagaProfissional[]>([])
+  const [carregandoVinculosExclusao, setCarregandoVinculosExclusao] = useState(false)
 
   // Modal de Confirmação de Substituição de Vaga Ocupada
   const [modalSubstituicaoOpen, setModalSubstituicaoOpen] = useState(false)
@@ -686,6 +698,29 @@ export default function Profissionais() {
     await executarGravacaoProfissional(vinculosFinal)
   }
 
+  // Clique em "Excluir": detecta os vínculos do profissional com vagas (titular/ocupante)
+  // ANTES de abrir a confirmação, para oferecer a conduta correta ao usuário.
+  const handleSolicitarExclusao = async (prof: Profissional) => {
+    setDeletingProfissional(prof)
+    setVinculosExclusao([])
+    setCarregandoVinculosExclusao(true)
+    try {
+      const vinculos = await detectarVinculosVagaProfissional(prof.id)
+      setVinculosExclusao(vinculos)
+    } catch (err: any) {
+      console.error('Erro ao detectar vínculos do profissional com vagas:', err)
+      toast({
+        title: 'Não foi possível verificar os vínculos',
+        description:
+          'Não foi possível consultar as vagas vinculadas a este profissional. Tente novamente.',
+        variant: 'destructive',
+      })
+      setDeletingProfissional(null)
+    } finally {
+      setCarregandoVinculosExclusao(false)
+    }
+  }
+
   // Confirmar exclusão
   const handleDeleteConfirm = async () => {
     if (!deletingProfissional) return
@@ -695,14 +730,21 @@ export default function Profissionais() {
       await deleteProfissional(deletingProfissional.id)
       toast({
         title: 'Removido',
-        description: 'Profissional excluído e vagas vinculadas foram liberadas.',
+        description:
+          vinculosExclusao.length > 0
+            ? `Profissional excluído e ${vinculosExclusao.length} vaga(s) liberada(s) (titular/ocupante), retornando ao status Aberta.`
+            : 'Profissional excluído.',
       })
       setDeletingProfissional(null)
       await carregarDadosIniciais()
     } catch (err: any) {
+      const msg = err?.message || ''
+      const ehErroFk = msg.includes('foreign key') || msg.includes('vaga_profissional')
       toast({
         title: 'Erro ao excluir',
-        description: err.message || 'Falha ao remover profissional.',
+        description: ehErroFk
+          ? 'Não foi possível liberar os vínculos deste profissional com as vagas. Verifique o Cadastro de Vagas e tente novamente.'
+          : msg || 'Falha ao remover profissional.',
         variant: 'destructive',
       })
     } finally {
@@ -1110,7 +1152,7 @@ export default function Profissionais() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() => setDeletingProfissional(p)}
+                                  onClick={() => handleSolicitarExclusao(p)}
                                   title="Excluir profissional"
                                   className="h-8 w-8 text-rose-600 hover:text-rose-800 hover:bg-rose-50"
                                 >
@@ -2221,9 +2263,26 @@ export default function Profissionais() {
                   ocupante preenchido e cargo gravado (quando aplicável).
                 </li>
                 <li>
-                  Ao desvincular uma vaga ou excluir o profissional, a vaga retorna automaticamente
-                  ao status <strong>ABERTA</strong>, com o nome do ocupante limpo e cargo
-                  desmarcado.
+                  Ao desvincular uma vaga, a vaga retorna automaticamente ao status{' '}
+                  <strong>ABERTA</strong>, com o nome do ocupante limpo.
+                </li>
+                <li>
+                  <strong>Exclusão de profissional com vínculos em vagas:</strong> ao clicar em
+                  excluir, o sistema verifica ANTES se o profissional é titular e/ou ocupante de
+                  vagas e exibe uma confirmação amigável listando cada vaga e o papel (Titular,
+                  Ocupante ou Titular e Ocupante). Nunca aparece o erro bruto de banco de dados.
+                </li>
+                <li>
+                  Ao confirmar a opção <strong>"Remover Vínculos e Excluir"</strong>, os vínculos
+                  são zerados (profissional titular e/ou ocupante, nome do ocupante limpo), a vaga
+                  retorna ao status <strong>ABERTA</strong> pela regra de consistência
+                  ocupante/status, a liberação é registrada na <strong>Auditoria</strong> (vaga,
+                  papel e valores antigos → novos) e, só então, o profissional é excluído. Ao
+                  cancelar, nada é alterado.
+                </li>
+                <li>
+                  Profissional <strong>sem vínculos</strong> com vagas é excluído normalmente, com a
+                  confirmação simples.
                 </li>
                 <li>
                   Todas as operações de criação, edição, substituição e exclusão registram na{' '}
@@ -2340,33 +2399,92 @@ export default function Profissionais() {
       {/* Confirmação de Exclusão */}
       <AlertDialog
         open={Boolean(deletingProfissional)}
-        onOpenChange={(open) => !open && setDeletingProfissional(null)}
+        onOpenChange={(open) => {
+          if (!open && !saving && !carregandoVinculosExclusao) setDeletingProfissional(null)
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-rose-600 flex items-center gap-2">
-              <Trash2 className="w-5 h-5" />
-              Excluir Profissional?
+            <AlertDialogTitle
+              className={`flex items-center gap-2 ${
+                vinculosExclusao.length > 0 ? 'text-amber-700' : 'text-rose-600'
+              }`}
+            >
+              {vinculosExclusao.length > 0 ? (
+                <AlertTriangle className="w-5 h-5" />
+              ) : (
+                <Trash2 className="w-5 h-5" />
+              )}
+              {vinculosExclusao.length > 0
+                ? 'Profissional Vinculado a Vagas'
+                : 'Excluir Profissional?'}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-xs text-slate-600 space-y-2">
-              <p>
-                Tem certeza que deseja excluir o cadastro do profissional{' '}
-                <strong>"{deletingProfissional?.nome}"</strong> ({deletingProfissional?.codigo})?
-              </p>
-              <p className="text-rose-700 bg-rose-50 p-2.5 rounded-md border border-rose-200">
-                Atenção: todas as vagas ocupadas por este profissional serão automaticamente
-                desvinculadas e retornarão ao status <strong>ABERTA</strong>.
-              </p>
+              {carregandoVinculosExclusao ? (
+                <p className="flex items-center gap-2 text-slate-600 py-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Verificando vínculos deste profissional com vagas...
+                </p>
+              ) : vinculosExclusao.length > 0 ? (
+                <>
+                  <p>
+                    Tem certeza que deseja excluir o cadastro do profissional{' '}
+                    <strong>"{deletingProfissional?.nome}"</strong> ({deletingProfissional?.codigo}
+                    )? Este profissional possui <strong>vínculos ativos com vagas</strong>:
+                  </p>
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                    {vinculosExclusao.map((v) => (
+                      <div
+                        key={v.vaga_id}
+                        className="p-2.5 bg-amber-50/80 rounded-md border border-amber-200 text-[11px] flex items-center justify-between gap-2"
+                      >
+                        <span className="font-semibold text-slate-800">
+                          {v.vaga_codigo ? `${v.vaga_codigo} - ` : ''}
+                          {v.vaga_funcao || 'Vaga'}
+                        </span>
+                        <span className="font-medium text-amber-800 whitespace-nowrap">
+                          {rotuloPapelVinculoExclusao(v.papel)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-rose-700 bg-rose-50 p-2.5 rounded-md border border-rose-200">
+                    Ao confirmar, os vínculos serão liberados (titular e/ou ocupante zerados, nome
+                    do ocupante limpo), as vagas retornarão ao status <strong>Aberta</strong> — pela
+                    regra de consistência ocupante/status —, a liberação será registrada na{' '}
+                    <strong>Auditoria</strong> e o profissional será excluído. Ao cancelar, nada é
+                    alterado.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    Tem certeza que deseja excluir o cadastro do profissional{' '}
+                    <strong>"{deletingProfissional?.nome}"</strong> ({deletingProfissional?.codigo}
+                    )?
+                  </p>
+                  <p className="text-emerald-700 bg-emerald-50 p-2.5 rounded-md border border-emerald-200">
+                    Este profissional não possui vínculos com vagas. A exclusão não afetará nenhuma
+                    vaga.
+                  </p>
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={saving || carregandoVinculosExclusao}>
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              disabled={saving}
+              disabled={saving || carregandoVinculosExclusao}
               className="bg-rose-600 hover:bg-rose-700 text-white"
             >
-              {saving ? 'Excluindo...' : 'Confirmar Exclusão'}
+              {saving
+                ? 'Excluindo...'
+                : vinculosExclusao.length > 0
+                  ? 'Remover Vínculos e Excluir'
+                  : 'Confirmar Exclusão'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

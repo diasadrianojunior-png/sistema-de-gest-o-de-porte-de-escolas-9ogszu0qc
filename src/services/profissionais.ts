@@ -598,9 +598,163 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
   return completo || profissionalSalvo
 }
 
+export interface VinculoVagaProfissional {
+  vaga_id: string
+  vaga_codigo: string | null
+  vaga_funcao: string | null
+  papel: 'TITULAR' | 'OCUPANTE' | 'TITULAR_E_OCUPANTE'
+  status_anterior: string | null
+  nome_ocupante_anterior: string | null
+}
+
+/**
+ * Detecta, ANTES da exclusão, em quais vagas o profissional é titular e/ou ocupante
+ * (colunas profissional_titular_id / profissional_ocupante_id da tabela vaga).
+ */
+export async function detectarVinculosVagaProfissional(
+  id: string,
+): Promise<VinculoVagaProfissional[]> {
+  const { data, error } = await db
+    .from('vaga')
+    .select('id, codigo, funcao, status, nome_ocupante')
+    .or(`profissional_titular_id.eq.${id},profissional_ocupante_id.eq.${id}`)
+
+  if (error) {
+    console.error('Erro ao detectar vínculos do profissional com vagas:', error)
+    throw error
+  }
+
+  const { data: titularRows, error: errTit } = await db
+    .from('vaga')
+    .select('id')
+    .eq('profissional_titular_id', id)
+
+  const idsSomenteTitular = new Set(((titularRows || []) as { id: string }[]).map((r) => r.id))
+
+  return (
+    (data || []) as {
+      id: string
+      codigo: string | null
+      funcao: string | null
+      status: string | null
+      nome_ocupante: string | null
+    }[]
+  ).map((v) => {
+    const ehTitular = idsSomenteTitular.has(v.id)
+    // Em `data` (OR), cada linha tem pelo menos um dos papéis; diferenciamos titular de ocupante
+    // consultando qual coluna casou: titular exclusivo => TITULAR; caso contrário, ocupante.
+    const ehOcupante = !ehTitular || Boolean(v.nome_ocupante)
+    const papel: VinculoVagaProfissional['papel'] = ehTitular
+      ? ehOcupante
+        ? 'TITULAR_E_OCUPANTE'
+        : 'TITULAR'
+      : 'OCUPANTE'
+    return {
+      vaga_id: v.id,
+      vaga_codigo: v.codigo,
+      vaga_funcao: v.funcao,
+      papel,
+      status_anterior: v.status,
+      nome_ocupante_anterior: v.nome_ocupante,
+    }
+  })
+}
+
+/**
+ * Libera os vínculos do profissional nas vagas detectadas:
+ * - zera profissional_titular_id e/ou profissional_ocupante_id (e servidor_id, espelho legado)
+ * - limpa nome_ocupante quando o papel liberado for o de ocupante
+ * - recalcula o status pela regra de consistência ocupante/status (vaga sem ocupante => ABERTA)
+ * Registra na Auditoria a liberação de cada vínculo (vaga, papel, valores antigos → novos).
+ */
+async function liberarVinculosVaga(
+  profissional: Profissional,
+  vinculos: VinculoVagaProfissional[],
+): Promise<void> {
+  for (const v of vinculos) {
+    // Estado atual da vaga (pode ter mudado desde a detecção)
+    const { data: vagaAtual } = await db
+      .from('vaga')
+      .select(
+        'id, codigo, funcao, status, servidor_id, nome_ocupante, profissional_titular_id, profissional_ocupante_id',
+      )
+      .eq('id', v.vaga_id)
+      .maybeSingle()
+
+    if (!vagaAtual) continue
+
+    const aindaTitular = vagaAtual.profissional_titular_id === profissional.id
+    const aindaOcupante =
+      vagaAtual.profissional_ocupante_id === profissional.id ||
+      vagaAtual.servidor_id === profissional.id
+
+    if (!aindaTitular && !aindaOcupante) continue
+
+    const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (aindaTitular) {
+      payload.profissional_titular_id = null
+    }
+    if (aindaOcupante) {
+      payload.profissional_ocupante_id = null
+      payload.servidor_id = null
+      payload.nome_ocupante = null
+      payload.cargo_id = null
+    }
+    // Regra de consistência: vaga sem ocupante volta a ABERTA
+    payload.status = 'ABERTA'
+
+    const { error: errLib } = await db
+      .from('vaga')
+      .update(payload as any)
+      .eq('id', v.vaga_id)
+
+    if (errLib) {
+      console.error(`Erro ao liberar vínculos da vaga ${v.vaga_id}:`, errLib)
+      throw new Error(
+        `Falha ao liberar a vaga "${vagaAtual.codigo || vagaAtual.funcao || v.vaga_id}" antes de excluir o profissional.`,
+      )
+    }
+
+    await registrarAuditoria({
+      entidade: 'Vaga',
+      acao: 'Liberação de Vínculo (Exclusão de Profissional)',
+      registro_codigo: vagaAtual.codigo || null,
+      descricao: `Vínculo liberado por exclusão do profissional "${profissional.nome}" (${profissional.codigo}). Vaga "${vagaAtual.codigo || vagaAtual.funcao || v.vaga_id}" — papel: ${aindaTitular && aindaOcupante ? 'Titular e Ocupante' : aindaTitular ? 'Titular' : 'Ocupante'}. Status: ${vagaAtual.status || '—'} → ABERTA. Titular: ${vagaAtual.profissional_titular_id || '—'} → (vazio). Ocupante: ${vagaAtual.profissional_ocupante_id || '—'} → (vazio). Nome do Ocupante: "${vagaAtual.nome_ocupante || '—'}" → (vazio).`,
+      detalhes: {
+        tipo_evento: 'liberacao_vinculo_exclusao_profissional',
+        profissional_id: profissional.id,
+        profissional_nome: profissional.nome,
+        profissional_codigo: profissional.codigo || null,
+        vaga_id: v.vaga_id,
+        vaga_codigo: vagaAtual.codigo || null,
+        vaga_funcao: vagaAtual.funcao || null,
+        papeis_liberados: {
+          titular: aindaTitular,
+          ocupante: aindaOcupante,
+        },
+        valores_antigos: {
+          status: vagaAtual.status || null,
+          profissional_titular_id: vagaAtual.profissional_titular_id || null,
+          profissional_ocupante_id: vagaAtual.profissional_ocupante_id || null,
+          servidor_id: vagaAtual.servidor_id || null,
+          nome_ocupante: vagaAtual.nome_ocupante || null,
+        },
+        valores_novos: {
+          status: 'ABERTA',
+          profissional_titular_id: null,
+          profissional_ocupante_id: null,
+          servidor_id: null,
+          nome_ocupante: null,
+        },
+      },
+    })
+  }
+}
+
 /**
  * Exclui um profissional.
- * Desvincula e libera todas as suas vagas para status ABERTA antes da exclusão.
+ * Antes de excluir, libera os vínculos detectados nas vagas (titular/ocupante),
+ * recalculando o status pela regra de consistência e registrando tudo na Auditoria.
  */
 export async function deleteProfissional(id: string): Promise<void> {
   const prof = await getProfissionalPorId(id)
@@ -608,26 +762,9 @@ export async function deleteProfissional(id: string): Promise<void> {
     throw new Error('Profissional não encontrado.')
   }
 
-  const vagasVinculadasIds = (prof.vagas_vinculadas || []).map((v) => v.vaga_id)
-
-  // 1. Liberar todas as vagas ocupadas por este profissional
-  for (const vId of vagasVinculadasIds) {
-    const { error: errLib } = await db
-      .from('vaga')
-      .update({
-        servidor_id: null,
-        profissional_ocupante_id: null,
-        nome_ocupante: null,
-        cargo_id: null,
-        status: 'ABERTA',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', vId)
-
-    if (errLib) {
-      console.error(`Erro ao liberar vaga ${vId} na exclusão do profissional:`, errLib)
-    }
-  }
+  // 1. Detectar vínculos diretos na tabela vaga (titular e/ou ocupante) e liberá-los
+  const vinculosVaga = await detectarVinculosVagaProfissional(id)
+  await liberarVinculosVaga(prof, vinculosVaga)
 
   // 2. Excluir o registro do profissional (profissional_vagas é deletada por CASCADE)
   const { error } = await db.from('profissionais').delete().eq('id', id)
@@ -642,12 +779,17 @@ export async function deleteProfissional(id: string): Promise<void> {
     entidade: 'Profissionais',
     acao: 'Exclusão',
     registro_codigo: prof.codigo || null,
-    descricao: `Profissional "${prof.nome}" (${prof.codigo}) excluído do sistema. ${vagasVinculadasIds.length} vaga(s) foram liberadas para ABERTA.`,
+    descricao: `Profissional "${prof.nome}" (${prof.codigo}) excluído do sistema. ${vinculosVaga.length} vaga(s) tiveram vínculos liberados (titular/ocupante) e retornaram ao status ABERTA.`,
     detalhes: {
       profissional_id: id,
       nome: prof.nome,
       codigo: prof.codigo,
-      vagas_liberadas: vagasVinculadasIds,
+      vagas_liberadas: vinculosVaga.map((v) => ({
+        vaga_id: v.vaga_id,
+        vaga_codigo: v.vaga_codigo,
+        papel: v.papel,
+        status_anterior: v.status_anterior,
+      })),
     },
   })
 }
