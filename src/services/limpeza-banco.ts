@@ -245,14 +245,24 @@ export const executarLimpezaBanco = async (
 
   if (error) {
     console.error('Falha ao executar limpeza do banco de dados:', error)
-    // Mensagem amigável sem texto técnico bruto
-    let mensagemAmigavel =
-      'Não foi possível concluir a limpeza do banco de dados devido a uma restrição de integridade referencial. Nenhuma alteração foi realizada.'
-    if (error.message?.includes('violates foreign key')) {
-      mensagemAmigavel =
-        'A limpeza foi abortada com segurança: existem registros vinculados em outras tabelas estruturais que impedem a exclusão.'
+    // O RPC sinaliza bloqueios com o formato estruturado:
+    // "LIMPEZA_BLOQUEIO|<causa amigável>|<detalhe técnico>"
+    // — exibimos qual vínculo/tabela impediu e o banco permanece intacto
+    // (a rotina inteira roda em uma única transação atômica no PostgreSQL).
+    const message: string = error.message ?? ''
+    if (message.includes('LIMPEZA_BLOQUEIO')) {
+      const partes = message.split('|')
+      const causa = (partes[1] ?? '').trim()
+      const detalhe = (partes[2] ?? '').trim()
+      throw new Error(
+        detalhe
+          ? `${causa || 'Nenhuma alteração foi realizada.'} Detalhe técnico: ${detalhe}`
+          : causa || 'Nenhuma alteração foi realizada.',
+      )
     }
-    throw new Error(mensagemAmigavel)
+    throw new Error(
+      'Não foi possível concluir a limpeza do banco de dados devido a uma restrição de integridade referencial. Nenhuma alteração foi realizada.',
+    )
   }
 
   const payload = data as any

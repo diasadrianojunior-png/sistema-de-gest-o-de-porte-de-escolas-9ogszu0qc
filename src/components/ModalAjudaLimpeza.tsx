@@ -136,6 +136,23 @@ export function ModalAjudaLimpeza({ open, onOpenChange }: ModalAjudaLimpezaProps
               nenhum dado é perdido.
             </p>
           </div>
+
+          {/* Diagnóstico de Falhas */}
+          <div className="space-y-2">
+            <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4 text-rose-600" />
+              5. O que acontece se a limpeza falhar?
+            </h3>
+            <p className="leading-relaxed">
+              Se alguma exclusão não puder ser concluída por integridade referencial, a rotina é
+              abortada e o banco permanece exatamente como estava — nenhum registro é excluído pela
+              metade. Nesse caso, o sistema exibe uma mensagem que indica{' '}
+              <strong>qual vínculo ou tabela impediu a limpeza</strong> (por exemplo: "não foi
+              possível excluir as funções porque ainda existem vagas ou linhas de configuração de RH
+              que as referenciam"), seguida do detalhe técnico da restrição, para facilitar o
+              diagnóstico.
+            </p>
+          </div>
         </div>
 
         <DialogFooter className="border-t pt-3">

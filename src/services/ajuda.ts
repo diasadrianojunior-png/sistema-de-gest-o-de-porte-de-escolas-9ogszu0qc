@@ -706,6 +706,13 @@ export const AJUDAS_MODULOS: AjudaModulo[] = [
           'Cada execução de limpeza é registrada na Auditoria.',
         ],
       },
+      {
+        titulo: 'O que acontece se a limpeza falhar?',
+        itens: [
+          'Se alguma exclusão não puder ser concluída por integridade referencial, a rotina é abortada e o banco permanece exatamente como estava — nenhum registro é excluído pela metade.',
+          'Nesse caso, o sistema exibe uma mensagem que indica qual vínculo ou tabela impediu a limpeza (por exemplo: "não foi possível excluir as funções porque ainda existem vagas ou linhas de configuração de RH que as referenciam"), seguida do detalhe técnico da restrição, para facilitar o diagnóstico.',
+        ],
+      },
     ],
   },
   {
