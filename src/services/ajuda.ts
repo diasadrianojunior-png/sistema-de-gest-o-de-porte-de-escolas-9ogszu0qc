@@ -475,6 +475,15 @@ export const AJUDAS_MODULOS: AjudaModulo[] = [
         ],
       },
       {
+        titulo: 'Regra de Consistência entre Profissional Ocupante e Status da Vaga',
+        itens: [
+          'A vaga, quando ocupada (com Profissional Ocupante), deve ter o status "Preenchida"; quando desocupada (sem Profissional Ocupante), deve permanecer como "Aberta".',
+          'Ao salvar uma vaga com o status incompatível com o ocupante (ocupante preenchido com status "Aberta", ou vaga sem ocupante com status "Preenchida"), o sistema emite um alerta explicando a regra e NÃO grava a vaga — o usuário deve corrigir o status antes de salvar.',
+          'Nada é gravado silenciosamente em desacordo com o que o formulário informa: o que a tela mostra como salvo está registrado no banco.',
+          'A mesma regra é aplicada aos vínculos de vaga feitos pelo Cadastro de Profissionais: vaga ocupada gravada como "Preenchida" e vínculo removido gravado como "Aberta".',
+        ],
+      },
+      {
         titulo: 'Modalidades de Geração de Vagas',
         itens: [
           '1. Geração Simples: calculada automaticamente a partir da Configuração de Vagas por Nível vigente para o tipo de atendimento da unidade e ano letivo, considerando o porte (quantidade de alunos) e turmas cadastradas. Apresenta modal de prévia com resumo antes da gravação definitiva. Preserva integralmente vagas já ocupadas e transforma excedentes em status EXCEDENTE, sem perda de dados.',

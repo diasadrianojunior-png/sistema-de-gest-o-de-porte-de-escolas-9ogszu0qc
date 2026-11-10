@@ -71,11 +71,38 @@ export const rotuloTipoVinculoVaga = (tipo: string | null | undefined): string =
 
 /** Status coerente com a ocupação: com ocupante => PREENCHIDA / OCUPADA; sem => ABERTA. */
 export const calcularStatusPorOcupacao = (
-  ocupanteId: string | null | undefined,
+  ocupanteId: string | boolean | null | undefined,
   statusInformado?: string | null,
 ): string => {
   if (statusInformado === 'EXCEDENTE') return 'EXCEDENTE'
   return ocupanteId ? 'PREENCHIDA' : 'ABERTA'
+}
+
+/** Mensagem oficial da regra de consistência entre Profissional Ocupante e Status da Vaga. */
+export const MENSAGEM_REGRA_CONSISTENCIA_STATUS =
+  'A vaga, quando ocupada (com Profissional Ocupante), deve ter o status "Preenchida"; ' +
+  'quando desocupada (sem Profissional Ocupante), deve permanecer como "Aberta".'
+
+/**
+ * Regra de consistência entre ocupante e status:
+ * retorna a mensagem de inconsistência quando o par (ocupante, status) for inválido
+ * e null quando estiver coerente. Usada pelo formulário (alerta + bloqueio) e
+ * pelo serviço (aplicação defensiva da regra antes de gravar).
+ */
+export const validarConsistenciaOcupanteStatus = (
+  ocupanteId: string | boolean | null | undefined,
+  statusInformado?: string | null,
+): string | null => {
+  const temOcupante = !!ocupanteId
+  const statusUpper = (statusInformado || '').toUpperCase()
+  // Somente status explicitamente informado e incompatível com a ocupação é inconsistência.
+  if (temOcupante && statusUpper === 'ABERTA') {
+    return MENSAGEM_REGRA_CONSISTENCIA_STATUS
+  }
+  if (!temOcupante && (statusUpper === 'PREENCHIDA' || statusUpper === 'OCUPADA')) {
+    return MENSAGEM_REGRA_CONSISTENCIA_STATUS
+  }
+  return null
 }
 
 export type LinhaConfigVagas = ConfiguracaoRhLinha
@@ -523,15 +550,17 @@ export async function inserirVagaManual(input: InserirVagaManualInput): Promise<
   payload.vaga_excedente = true // inserção manual = vaga excedente
 
   const statusInformado = input.statusOcupante || input.status
-  let statusFinal = 'ABERTA'
-  if (input.profissionalOcupanteId) {
-    statusFinal = 'OCUPADA'
-  } else if (statusInformado === 'PREENCHIDA' || statusInformado === 'OCUPADA') {
-    statusFinal = 'OCUPADA'
-  } else {
-    statusFinal = 'ABERTA'
+  const inconsistencia = validarConsistenciaOcupanteStatus(
+    input.profissionalOcupanteId,
+    statusInformado,
+  )
+  if (inconsistencia) {
+    throw new ValidacaoVagaError(inconsistencia)
   }
-  payload.status = statusFinal
+  // Regra de consistência aplicada antes de gravar: com ocupante => OCUPADA ("Preenchida");
+  // sem ocupante => ABERTA. Nunca grava silenciosamente em desacordo com o informado na tela.
+  const statusFinal = calcularStatusPorOcupacao(input.profissionalOcupanteId, statusInformado)
+  payload.status = statusFinal === 'PREENCHIDA' ? 'OCUPADA' : statusFinal
 
   if (input.profissionalOcupanteId) {
     const { data: prof } = await supabase
@@ -597,15 +626,16 @@ export async function editarVaga(input: EditarVagaManualInput): Promise<VagaComp
   delete payload.ano_letivo
 
   const statusInformado = input.statusOcupante || input.status
-  let statusFinal = 'ABERTA'
-  if (input.profissionalOcupanteId || input.nomeOcupante) {
-    statusFinal = 'OCUPADA'
-  } else if (statusInformado === 'PREENCHIDA' || statusInformado === 'OCUPADA') {
-    statusFinal = 'OCUPADA'
-  } else {
-    statusFinal = 'ABERTA'
+  // Caminho do drilldown (UnidadeVagasDrilldown): edita apenas nome do ocupante, sem ocupante UUID.
+  const temOcupanteEfetivo = !!input.profissionalOcupanteId || !!input.nomeOcupante
+  const inconsistencia = validarConsistenciaOcupanteStatus(temOcupanteEfetivo, statusInformado)
+  if (inconsistencia) {
+    throw new ValidacaoVagaError(inconsistencia)
   }
-  payload.status = statusFinal
+  // Regra de consistência aplicada antes de gravar: com ocupante => OCUPADA ("Preenchida");
+  // sem ocupante => ABERTA. Nunca grava silenciosamente em desacordo com o informado na tela.
+  const statusFinal = calcularStatusPorOcupacao(temOcupanteEfetivo, statusInformado)
+  payload.status = statusFinal === 'PREENCHIDA' ? 'OCUPADA' : statusFinal
 
   if (input.profissionalOcupanteId) {
     const { data: prof } = await supabase

@@ -25,6 +25,8 @@ import {
   PeriodoVagaOpcao,
   ModalidadeVagaOpcao,
   StatusOcupanteForm,
+  validarConsistenciaOcupanteStatus,
+  MENSAGEM_REGRA_CONSISTENCIA_STATUS,
 } from '@/services/vagas'
 import { ANOS_LETIVOS } from './Etapas'
 import { getUnidadesEscolares } from '@/services/unidades-escolares'
@@ -211,6 +213,8 @@ export const VagasPage: React.FC = () => {
   const [formSequencial, setFormSequencial] = useState<string>('')
   const [formObservacao, setFormObservacao] = useState<string>('')
   const [salvandoFormulario, setSalvandoFormulario] = useState<boolean>(false)
+  // Alerta da regra de consistência entre Profissional Ocupante e Status da Vaga
+  const [exibindoAlertaConsistencia, setExibindoAlertaConsistencia] = useState<boolean>(false)
 
   // Carregar Unidades, Cargos, Funções e Profissionais na montagem
   useEffect(() => {
@@ -535,6 +539,7 @@ export const VagasPage: React.FC = () => {
     setFormOcupanteId('')
     setFormSequencial('')
     setFormObservacao('')
+    setExibindoAlertaConsistencia(false)
     setModalFormularioAberto(true)
   }
 
@@ -577,6 +582,7 @@ export const VagasPage: React.FC = () => {
     setFormSequencial(String(v.numero_sequencial || ''))
     setFormObservacao(v.observacao || '')
 
+    setExibindoAlertaConsistencia(false)
     setModalFormularioAberto(true)
   }
 
@@ -618,6 +624,24 @@ export const VagasPage: React.FC = () => {
       })
       return
     }
+
+    // Regra de consistência entre Profissional Ocupante e Status da Vaga:
+    // a inconsistência é alertada e o salvamento é bloqueado — nada é gravado em desacordo
+    // com o que o usuário vê na tela (evita "parecer salvo" sem registro no banco).
+    const inconsistenciaStatus = validarConsistenciaOcupanteStatus(
+      formOcupanteId,
+      formStatusOcupante,
+    )
+    if (inconsistenciaStatus) {
+      setExibindoAlertaConsistencia(true)
+      toast({
+        title: 'Status da vaga inconsistente com o Profissional Ocupante',
+        description: `${MENSAGEM_REGRA_CONSISTENCIA_STATUS} Corrija o Status da Vaga do Ocupante antes de salvar — a vaga não foi gravada.`,
+        variant: 'destructive',
+      })
+      return
+    }
+    setExibindoAlertaConsistencia(false)
 
     setSalvandoFormulario(true)
     try {
@@ -2459,9 +2483,21 @@ export const VagasPage: React.FC = () => {
               </Label>
               <Select
                 value={formStatusOcupante}
-                onValueChange={(val: StatusOcupanteForm) => setFormStatusOcupante(val)}
+                onValueChange={(val: StatusOcupanteForm) => {
+                  setFormStatusOcupante(val)
+                  // Reavalia o alerta ao corrigir o status
+                  if (!validarConsistenciaOcupanteStatus(formOcupanteId, val)) {
+                    setExibindoAlertaConsistencia(false)
+                  }
+                }}
               >
-                <SelectTrigger className="mt-1 h-9 text-xs bg-white">
+                <SelectTrigger
+                  className={
+                    exibindoAlertaConsistencia
+                      ? 'mt-1 h-9 text-xs bg-white border-amber-500 ring-1 ring-amber-400'
+                      : 'mt-1 h-9 text-xs bg-white'
+                  }
+                >
                   <SelectValue placeholder="Selecione o status do ocupante" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2469,6 +2505,22 @@ export const VagasPage: React.FC = () => {
                   <SelectItem value="PREENCHIDA">Preenchida</SelectItem>
                 </SelectContent>
               </Select>
+              <span className="text-[11px] text-slate-500 mt-1 block">
+                Regra do sistema: com Profissional Ocupante, a vaga fica &quot;Preenchida&quot;; sem
+                ocupante, permanece &quot;Aberta&quot;.
+              </span>
+              {exibindoAlertaConsistencia && (
+                <div className="mt-2 flex items-start gap-2 rounded-md border border-amber-400 bg-amber-50 p-2.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-[11px] text-amber-800">
+                    <p className="font-semibold">Atenção: vaga não gravada.</p>
+                    <p>
+                      {MENSAGEM_REGRA_CONSISTENCIA_STATUS} Corrija o Status da Vaga do Ocupante e
+                      salve novamente.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 9. Profissional Titular e 10. Profissional Ocupante */}
@@ -2671,6 +2723,25 @@ export const VagasPage: React.FC = () => {
           </DialogHeader>
 
           <div className="space-y-4 text-xs text-slate-700 py-2 leading-relaxed">
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg">
+              <h4 className="font-bold text-amber-900 text-sm mb-1 flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                1.1 Regra de Consistência entre Profissional Ocupante e Status da Vaga
+              </h4>
+              <p className="mb-1">
+                <strong>{MENSAGEM_REGRA_CONSISTENCIA_STATUS}</strong>
+              </p>
+              <p>
+                Ao salvar uma vaga com o Status da Vaga do Ocupante incompatível com o Profissional
+                Ocupante (ocupante preenchido com status "Aberta", ou vaga sem ocupante com status
+                "Preenchida"), o sistema <strong>emite um alerta</strong> e{' '}
+                <strong>não grava a vaga</strong> — o usuário deve corrigir o status antes de
+                salvar. Nada é gravado em desacordo com o que a tela informa. A mesma regra vale
+                para os vínculos feitos pelo Cadastro de Profissionais: vaga com ocupante gravada
+                como "Preenchida"; vínculo removido, vaga volta a "Aberta".
+              </p>
+            </div>
+
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <h4 className="font-bold text-blue-900 text-sm mb-1">
                 1. Novo Modelo de Atributos da Vaga
@@ -2712,7 +2783,8 @@ export const VagasPage: React.FC = () => {
                 </li>
                 <li>
                   <strong>Status da Vaga do Ocupante:</strong> opcional com opções "Aberta" e
-                  "Preenchida" (mantendo coerência direta com o preenchimento de ocupante).
+                  "Preenchida", regido pela regra de consistência com o Profissional Ocupante (item
+                  1.1 abaixo).
                 </li>
                 <li>
                   <strong>Profissional Titular:</strong> opcional, vinculado ao Cadastro de
@@ -2898,6 +2970,10 @@ export const VagasPage: React.FC = () => {
                 Todas as operações de geração, regeração, inserção manual, edição e exclusão de
                 vagas são registradas na Auditoria com o usuário responsável, data/hora, valores
                 antigos/novos e o valor do atributo <strong>Vaga Excedente</strong> correspondente.
+                Os registros de inserção e edição refletem o{' '}
+                <strong>status efetivamente gravado</strong>, já coerente com a regra de
+                consistência entre Profissional Ocupante e Status da Vaga (item 1.1) — vaga com
+                ocupante gravada como "Preenchida" e sem ocupante como "Aberta".
               </p>
             </div>
           </div>

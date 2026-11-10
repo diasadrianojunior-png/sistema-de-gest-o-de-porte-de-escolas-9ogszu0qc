@@ -24,6 +24,8 @@ import {
   ResumoVagasAnoOrigem,
   isUuidValido,
   sanitizarFiltroTexto,
+  validarConsistenciaOcupanteStatus,
+  MENSAGEM_REGRA_CONSISTENCIA_STATUS,
 } from './vagas'
 import {
   ConfiguracaoRhCompleta,
@@ -1010,5 +1012,24 @@ describe('Testes Unitários da Etapa 2 — Regras do Usuário', () => {
     expect(sanitizarFiltroTexto(null)).toBeNull()
     expect(sanitizarFiltroTexto('Professor')).toBe('Professor')
     expect(sanitizarFiltroTexto('ABERTA')).toBe('ABERTA')
+  })
+
+  it('validarConsistenciaOcupanteStatus alerta ocupante com status Aberta e vaga sem ocupante com status Preenchida', () => {
+    // Ocupante preenchido + status Aberta = inconsistência (caso relatado pelo usuário)
+    expect(validarConsistenciaOcupanteStatus('prof-1', 'ABERTA')).toBe(
+      MENSAGEM_REGRA_CONSISTENCIA_STATUS,
+    )
+    // Sem ocupante + status Preenchida = inconsistência
+    expect(validarConsistenciaOcupanteStatus(null, 'PREENCHIDA')).toBe(
+      MENSAGEM_REGRA_CONSISTENCIA_STATUS,
+    )
+    expect(validarConsistenciaOcupanteStatus('', 'PREENCHIDA')).toBe(
+      MENSAGEM_REGRA_CONSISTENCIA_STATUS,
+    )
+    // Pares coerentes não retornam mensagem
+    expect(validarConsistenciaOcupanteStatus('prof-1', 'PREENCHIDA')).toBeNull()
+    expect(validarConsistenciaOcupanteStatus(null, 'ABERTA')).toBeNull()
+    expect(validarConsistenciaOcupanteStatus(null, null)).toBeNull()
+    expect(validarConsistenciaOcupanteStatus('prof-1', null)).toBeNull()
   })
 })
