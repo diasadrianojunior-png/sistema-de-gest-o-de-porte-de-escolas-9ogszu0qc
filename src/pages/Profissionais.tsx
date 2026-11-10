@@ -68,7 +68,7 @@ import {
 } from '@/services/profissionais'
 import { exportarProfissionaisExcel } from '@/services/profissionais-export'
 import { getUnidadesEscolares } from '@/services/unidades-escolares'
-import { getCargos } from '@/services/apoio'
+import { getCargos, getFuncoes } from '@/services/apoio'
 import { getEspecializacoes } from '@/services/especializacoes'
 import {
   InscricoesAnoProfissionalSection,
@@ -78,6 +78,7 @@ import {
   Profissional,
   UnidadeEscolar,
   Cargo,
+  Funcao,
   VagaReal,
   ClasseProfissional,
   TipoVinculoVaga,
@@ -99,6 +100,8 @@ export default function Profissionais() {
   const [profissionais, setProfissionais] = useState<Profissional[]>([])
   const [unidades, setUnidades] = useState<UnidadeEscolar[]>([])
   const [cargos, setCargos] = useState<Cargo[]>([])
+  // Funções com seus cargos vinculados (Cadastro de Funções): base do filtro de vagas de função
+  const [funcoes, setFuncoes] = useState<Funcao[]>([])
   // Especializações do cadastro de apoio (Cadastros de Apoio › Especializações)
   const [especializacoes, setEspecializacoes] = useState<Especializacao[]>([])
 
@@ -156,15 +159,18 @@ export default function Profissionais() {
   const carregarDadosIniciais = async () => {
     try {
       setLoading(true)
-      const [profsData, unidadesData, cargosData, especializacoesData] = await Promise.all([
-        getProfissionais(),
-        getUnidadesEscolares(),
-        getCargos(),
-        getEspecializacoes(),
-      ])
+      const [profsData, unidadesData, cargosData, funcoesData, especializacoesData] =
+        await Promise.all([
+          getProfissionais(),
+          getUnidadesEscolares(),
+          getCargos(),
+          getFuncoes(),
+          getEspecializacoes(),
+        ])
       setProfissionais(profsData)
       setUnidades(unidadesData)
       setCargos(cargosData)
+      setFuncoes(funcoesData)
       setEspecializacoes(especializacoesData)
     } catch (err: any) {
       toast({
@@ -354,18 +360,7 @@ export default function Profissionais() {
     // Buscar a vaga selecionada
     const vagaSel = vagasDaUnidade.find((v) => v.id === novaVagaId)
 
-    // Determinar cargo padrão sugerido (se houver apenas 1 cargo permitido, ou cargo da vaga)
-    let cargoPadrao = ''
     if (vagaSel) {
-      if (vagaSel.cargo_id) {
-        cargoPadrao = vagaSel.cargo_id
-      } else {
-        const cargosLinha = vagaSel.configuracao_rh_linha?.cargos || []
-        if (cargosLinha.length === 1 && cargosLinha[0].cargo_id) {
-          cargoPadrao = cargosLinha[0].cargo_id
-        }
-      }
-
       // Verificação real de ocupação: se a vaga estiver OCUPADA por outro profissional
       const estaOcupadaPorOutro =
         vagaSel.status === 'OCUPADA' &&
@@ -385,10 +380,25 @@ export default function Profissionais() {
     setFormVinculos((prev) =>
       prev.map((item, idx) => {
         if (idx !== index) return item
+        // O cargo (Ocupação) é escolhido ANTES da vaga e não é sobrescrito pela seleção;
+        // em vínculos de FUNÇÃO não há cargo ocupado (função não tem titular, só ocupante).
+        let cargoId = item.cargo_id
+        if (item.tipo_vinculo === 'CARGO' && !cargoId && vagaSel) {
+          // Fallback apenas quando o cargo ainda não foi escolhido
+          if (vagaSel.cargo_id) {
+            cargoId = vagaSel.cargo_id
+          } else {
+            const cargosLinha = vagaSel.configuracao_rh_linha?.cargos || []
+            if (cargosLinha.length === 1 && cargosLinha[0].cargo_id) {
+              cargoId = cargosLinha[0].cargo_id
+            }
+          }
+        }
+        if (item.tipo_vinculo === 'FUNCAO') cargoId = ''
         return {
           ...item,
           vaga_id: novaVagaId,
-          cargo_id: cargoPadrao,
+          cargo_id: cargoId,
         }
       }),
     )
@@ -401,10 +411,14 @@ export default function Profissionais() {
     )
   }
 
-  // Alterar cargo/ocupação de uma linha
+  // Alterar cargo/ocupação de uma linha.
+  // Dependência dinâmica: ao mudar o cargo, a vaga selecionada é limpa porque a lista
+  // de vagas de cargo é filtrada pelo cargo escolhido.
   const handleAlterarCargoLinha = (index: number, novoCargoId: string) => {
     setFormVinculos((prev) =>
-      prev.map((item, idx) => (idx === index ? { ...item, cargo_id: novoCargoId } : item)),
+      prev.map((item, idx) =>
+        idx === index ? { ...item, cargo_id: novoCargoId, vaga_id: '' } : item,
+      ),
     )
   }
 
@@ -764,20 +778,24 @@ export default function Profissionais() {
     setPaginaAtual(1)
   }, [search, filtroUnidade, filtroClasse, filtroClassificacao])
 
-  // Obter cargos permitidos para uma vaga específica (baseado na configuracao_rh_linha_cargo)
-  const getCargosPermitidosParaVaga = (vagaId: string): Cargo[] => {
-    if (!vagaId) return cargos
-    const vaga = vagasDaUnidade.find((v) => v.id === vagaId)
-    if (!vaga) return cargos
+  // IDs das funções que possuem ao menos um cargo vinculado no Cadastro de Funções
+  // (tabela funcao_cargos, carregada por getFuncoes)
+  const idsFuncoesComCargosVinculados = useMemo(
+    () => new Set(funcoes.filter((f) => (f.cargos_vinculados || []).length > 0).map((f) => f.id)),
+    [funcoes],
+  )
 
-    const cargosVinculados = vaga.configuracao_rh_linha?.cargos || []
-    if (cargosVinculados.length > 0) {
-      const permitidosIds = new Set(cargosVinculados.map((c) => c.cargo_id))
-      const filtrados = cargos.filter((c) => permitidosIds.has(c.id))
-      return filtrados.length > 0 ? filtrados : cargos
+  // A vaga pertence ao cargo informado? (cargo direto da vaga ou da linha da Configuração de RH)
+  const vagaPertenceAoCargo = (v: VagaReal, cargoId: string): boolean => {
+    if (v.cargo_id) return v.cargo_id === cargoId
+    const linha = v.configuracao_rh_linha
+    if (!linha) return false
+    if (linha.cargo_id) return linha.cargo_id === cargoId
+    const cargosLinha = linha.cargos || []
+    if (cargosLinha.length > 0) {
+      return cargosLinha.some((lc) => lc.cargo_id === cargoId)
     }
-
-    return cargos
+    return false
   }
 
   return (
@@ -1385,12 +1403,39 @@ export default function Profissionais() {
                 ) : (
                   <div className="space-y-3">
                     {formVinculos.map((item, index) => {
-                      const cargosPermitidos = getCargosPermitidosParaVaga(item.vaga_id)
-                      // Vagas compatíveis com o tipo escolhido nesta linha (dependência dinâmica:
-                      // só aparecem opções do cadastro escolhido — Cargo ou Função)
-                      const vagasFiltradasPorTipo = vagasDaUnidade.filter(
-                        (v) => determinarTipoVinculoVaga(v) === item.tipo_vinculo,
-                      )
+                      // Dependência dinâmica: a lista de vagas mostra somente opções compatíveis
+                      // com o tipo escolhido (Cargo/Função), com disponibilidade e cargo/função corretos.
+                      const ocupanteEfetivo = (v: VagaReal) =>
+                        v.profissional_ocupante_id || v.servidor_id || null
+                      const vagasFiltradasPorTipo = vagasDaUnidade.filter((v) => {
+                        if (determinarTipoVinculoVaga(v) !== item.tipo_vinculo) return false
+                        if (item.tipo_vinculo === 'FUNCAO') {
+                          // Vaga de Função: somente ABERTAS (sem ocupante) de funções
+                          // que possuem cargos vinculados no Cadastro de Funções
+                          if (v.status === 'OCUPADA') return false
+                          if (ocupanteEfetivo(v)) return false
+                          return v.funcao_id
+                            ? idsFuncoesComCargosVinculados.has(v.funcao_id)
+                            : false
+                        }
+                        // Vaga de Cargo: disponível (titular vazio OU ocupante vazio)
+                        // e do mesmo cargo escolhido no campo Ocupação
+                        if (!item.cargo_id) return false
+                        const titularVazio = !v.profissional_titular_id
+                        const ocupanteVazio =
+                          !ocupanteEfetivo(v) || ocupanteEfetivo(v) === editingProfissional?.id
+                        if (!(titularVazio || ocupanteVazio)) return false
+                        return vagaPertenceAoCargo(v, item.cargo_id)
+                      })
+                      // Mantém a vaga já vinculada visível no combobox em edições,
+                      // mesmo quando ela sai do filtro atual
+                      const vagaAtualForaDoFiltro =
+                        item.vaga_id && !vagasFiltradasPorTipo.some((v) => v.id === item.vaga_id)
+                          ? vagasDaUnidade.find((v) => v.id === item.vaga_id)
+                          : null
+                      const vagasOpcoes = vagaAtualForaDoFiltro
+                        ? [vagaAtualForaDoFiltro, ...vagasFiltradasPorTipo]
+                        : vagasFiltradasPorTipo
                       return (
                         <div
                           key={item.idTemp || index}
@@ -1451,51 +1496,88 @@ export default function Profissionais() {
                               </p>
                             </div>
 
-                            {/* Seleção da Vaga — lista SOMENTE vagas do tipo escolhido acima */}
+                            {/* Ocupação (Cargo ocupado na vaga) — vem ANTES da seleção da vaga:
+                                o cargo escolhido filtra a lista de vagas de cargo disponíveis */}
+                            {item.tipo_vinculo === 'CARGO' && (
+                              <div className="sm:col-span-2 space-y-1">
+                                <Label className="text-xs font-medium text-slate-700">
+                                  Ocupação (Cargo ocupado na vaga){' '}
+                                  <span className="text-rose-500">*</span>
+                                </Label>
+                                <Select
+                                  value={item.cargo_id || 'nenhum'}
+                                  onValueChange={(val) =>
+                                    handleAlterarCargoLinha(index, val === 'nenhum' ? '' : val)
+                                  }
+                                >
+                                  <SelectTrigger className="bg-white">
+                                    <SelectValue placeholder="Selecione o cargo..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="nenhum">Nenhum cargo específico</SelectItem>
+                                    {cargos.map((cg) => (
+                                      <SelectItem key={cg.id} value={cg.id}>
+                                        {cg.nome}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <p className="text-[10px] text-slate-400">
+                                  Escolha primeiro o cargo: a lista de vagas de cargo mostrará
+                                  somente as vagas disponíveis deste cargo nesta unidade/ano.
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Seleção da Vaga — lista SOMENTE vagas do tipo escolhido acima,
+                                filtradas pela disponibilidade e pelo cargo/função */}
                             <div className="sm:col-span-2">
                               <Label className="text-xs font-medium text-slate-700">
                                 Selecione a Vaga{' '}
                                 {item.tipo_vinculo === 'CARGO' ? 'de Cargo' : 'de Função'}{' '}
                                 <span className="text-rose-500">*</span>
                               </Label>
-                              <Select
-                                value={item.vaga_id}
-                                onValueChange={(val) => handleAlterarVagaLinha(index, val)}
-                              >
-                                <SelectTrigger className="mt-1 bg-white">
-                                  <SelectValue
-                                    placeholder={
-                                      item.tipo_vinculo === 'CARGO'
-                                        ? 'Escolha uma vaga de cargo disponível...'
-                                        : 'Escolha uma vaga de função disponível...'
-                                    }
-                                  />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {vagasFiltradasPorTipo.map((vg) => {
-                                    const jaOcupada =
-                                      vg.status === 'OCUPADA' &&
-                                      vg.servidor_id !== editingProfissional?.id
-                                    return (
-                                      <SelectItem key={vg.id} value={vg.id}>
-                                        {vg.codigo ? `${vg.codigo} - ` : ''}
-                                        {vg.funcao} (Nº {vg.numero_sequencial}
-                                        {vg.periodo ? ` - ${vg.periodo}` : ''})
-                                        {jaOcupada
-                                          ? ` [Ocupada por ${vg.nome_ocupante || 'Outro'}]`
-                                          : ' [Disponível]'}
-                                      </SelectItem>
-                                    )
-                                  })}
-                                  {vagasFiltradasPorTipo.length === 0 && (
-                                    <div className="px-3 py-2 text-xs text-slate-400 italic">
-                                      {item.tipo_vinculo === 'CARGO'
-                                        ? 'Nenhuma vaga de cargo disponível nesta unidade.'
-                                        : 'Nenhuma vaga de função disponível nesta unidade.'}
-                                    </div>
-                                  )}
-                                </SelectContent>
-                              </Select>
+                              {vagasOpcoes.length === 0 ? (
+                                <div className="mt-1 p-3 bg-amber-50 border border-amber-200 rounded-md text-xs text-amber-800">
+                                  {item.tipo_vinculo === 'CARGO'
+                                    ? !item.cargo_id
+                                      ? 'Selecione primeiro a Ocupação (Cargo) acima para listar as vagas de cargo disponíveis desta unidade/ano.'
+                                      : 'Nenhuma vaga de cargo disponível para este cargo nesta unidade/ano. Confirme se existem vagas do tipo CARGO geradas no Cadastro de Vagas.'
+                                    : 'Nenhuma vaga de função disponível: só são listadas vagas ABERTAS (sem ocupante) de funções que possuem cargos vinculados no Cadastro de Funções.'}
+                                </div>
+                              ) : (
+                                <Select
+                                  value={item.vaga_id}
+                                  onValueChange={(val) => handleAlterarVagaLinha(index, val)}
+                                >
+                                  <SelectTrigger className="mt-1 bg-white">
+                                    <SelectValue
+                                      placeholder={
+                                        item.tipo_vinculo === 'CARGO'
+                                          ? 'Escolha uma vaga de cargo disponível...'
+                                          : 'Escolha uma vaga de função disponível...'
+                                      }
+                                    />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {vagasOpcoes.map((vg) => {
+                                      const jaOcupada =
+                                        vg.status === 'OCUPADA' &&
+                                        vg.servidor_id !== editingProfissional?.id
+                                      return (
+                                        <SelectItem key={vg.id} value={vg.id}>
+                                          {vg.codigo ? `${vg.codigo} - ` : ''}
+                                          {vg.funcao} (Nº {vg.numero_sequencial}
+                                          {vg.periodo ? ` - ${vg.periodo}` : ''})
+                                          {jaOcupada
+                                            ? ` [Ocupada por ${vg.nome_ocupante || 'Outro'}]`
+                                            : ' [Disponível]'}
+                                        </SelectItem>
+                                      )
+                                    })}
+                                  </SelectContent>
+                                </Select>
+                              )}
 
                               {/* Alerta contextual quando a vaga selecionada nesta linha já estiver ocupada por outro profissional */}
                               {(() => {
@@ -1557,36 +1639,6 @@ export default function Profissionais() {
                                 onCheckedChange={(val) => handleAlterarTitularLinha(index, val)}
                               />
                             </div>
-
-                            {/* Ocupação / Cargo — apenas para vínculos de CARGO */}
-                            {item.tipo_vinculo === 'CARGO' && (
-                              <div className="space-y-1">
-                                <Label className="text-xs font-medium text-slate-700">
-                                  Ocupação (Cargo ocupado na vaga)
-                                </Label>
-                                <Select
-                                  value={item.cargo_id || 'nenhum'}
-                                  onValueChange={(val) =>
-                                    handleAlterarCargoLinha(index, val === 'nenhum' ? '' : val)
-                                  }
-                                >
-                                  <SelectTrigger className="bg-white">
-                                    <SelectValue placeholder="Selecione o cargo..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="nenhum">Nenhum cargo específico</SelectItem>
-                                    {cargosPermitidos.map((cg) => (
-                                      <SelectItem key={cg.id} value={cg.id}>
-                                        {cg.nome}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <p className="text-[10px] text-slate-400">
-                                  Cargos compatíveis com a função da vaga na Configuração de RH.
-                                </p>
-                              </div>
-                            )}
                           </div>
                         </div>
                       )
@@ -2116,17 +2168,23 @@ export default function Profissionais() {
               </p>
               <ul className="text-xs list-disc list-inside space-y-1.5 text-slate-700 pl-1">
                 <li>
-                  <strong>Vaga de Cargo:</strong> o combobox lista somente as vagas geradas a partir
-                  das linhas de <strong>Cargo</strong> da Configuração de Vagas por Nível.
+                  <strong>Vaga de Cargo:</strong> o campo{' '}
+                  <em>"Ocupação (Cargo ocupado na vaga)"</em> aparece <strong>antes</strong> da
+                  seleção da vaga e <strong>filtra</strong> o combobox, que lista somente as vagas
+                  do tipo <strong>Cargo</strong> da unidade/ano escolhidos que estejam{' '}
+                  <strong>disponíveis</strong> (titular da vaga vazio OU ocupante vazio) e sejam{' '}
+                  <strong>do mesmo cargo</strong> escolhido. Sem candidatas, uma mensagem
+                  explicativa substitui o combobox.
                 </li>
                 <li>
-                  <strong>Vaga de Função:</strong> o combobox lista somente as vagas geradas a
-                  partir das linhas de <strong>Função</strong>.
+                  <strong>Vaga de Função:</strong> o combobox lista somente as vagas{' '}
+                  <strong>ABERTAS (sem ocupante)</strong> das funções que possuem{' '}
+                  <strong>cargos vinculados</strong> no Cadastro de Funções.
                 </li>
                 <li>
-                  <strong>Dependência dinâmica:</strong> trocar a escolha limpa a vaga selecionada e
-                  recarrega as opções do cadastro correspondente — nunca é possível misturar vagas
-                  de cargo com vínculo de função (e vice-versa).
+                  <strong>Dependência dinâmica:</strong> trocar a escolha — ou o cargo — limpa a
+                  vaga selecionada e recarrega as opções compatíveis; nunca é possível misturar
+                  vagas de cargo com vínculo de função (e vice-versa).
                 </li>
                 <li>
                   <strong>Titularidade:</strong> se a escolha for <em>Função</em>, a marcação de
@@ -2135,7 +2193,9 @@ export default function Profissionais() {
                   titularidade continua marcável como antes (Titular/Suplente).
                 </li>
                 <li>
-                  O cargo ocupado na vaga só é solicitado para vínculos de <strong>Cargo</strong>.
+                  <strong>Vaga já ocupada:</strong> a lista ainda pode trazer vagas com titular
+                  preenchido mas ocupante vazio (ou vice-versa); ao selecionar uma vaga ocupada por
+                  outro profissional, o alerta e a confirmação de substituição continuam valendo.
                 </li>
               </ul>
             </div>

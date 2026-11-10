@@ -533,6 +533,11 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
           vaga_id: v.vaga_id,
           titular: v.titular,
           cargo_id: v.cargo_id,
+          // Tipo da vaga (Cargo/Função) para rastreabilidade completa na auditoria
+          tipo_vinculo:
+            (v as any).vaga?.configuracao_rh_linha?.tipo_linha ||
+            (v as any).vaga?.tipo_vinculo ||
+            null,
         })),
         especialidades: (profissionalAnterior.especialidades || []).map(
           (e) => e.especializacao?.nome || e.especializacao_id,

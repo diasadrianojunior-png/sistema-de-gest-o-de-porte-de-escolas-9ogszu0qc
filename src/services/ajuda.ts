@@ -351,6 +351,9 @@ export const AJUDAS_MODULOS: AjudaModulo[] = [
         itens: [
           'O vínculo do profissional com a vaga é titular ou não; o tipo de vínculo (CARGO/FUNCAO) é derivado da linha da Configuração de RH que gerou a vaga.',
           'Vínculos do tipo FUNCAO são sempre gravados como não titulares.',
+          'Vaga de Cargo: antes de escolher a vaga, o campo "Ocupação (Cargo ocupado na vaga)" é preenchido; o combobox lista somente as vagas da unidade/ano escolhidos do tipo CARGO que estejam disponíveis (titular da vaga vazio OU ocupante vazio) e sejam do mesmo cargo escolhido. Sem candidatas, uma mensagem explicativa substitui o combobox ("Nenhuma vaga de cargo disponível para este cargo nesta unidade/ano").',
+          'Vaga de Função: o combobox lista somente as vagas ABERTAS (sem ocupante) das funções que possuem cargos vinculados no Cadastro de Funções (tabela funcao_cargos).',
+          'Vaga já ocupada por outro profissional: ao selecioná-la, o sistema alerta e, ao salvar, exige confirmação explícita de substituição do ocupante (registrada na Auditoria).',
           'A classe pode ser calculada automaticamente a partir da data de admissão (calcularClasseProfissional).',
           'E-mail do Profissional é opcional; quando informado, o formato é validado e o valor é registrado na auditoria (valores antigos → novos) em inclusões e alterações.',
           'Inscrições no Processo Seletivo: o mesmo Ano Letivo não pode se repetir no mesmo profissional; ao salvar, as inscrições anteriores são substituídas pelas informadas no formulário.',
