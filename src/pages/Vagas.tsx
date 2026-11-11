@@ -103,7 +103,8 @@ export const VagasPage: React.FC = () => {
 
   // 1) Atributos principais da tela (conforme instrução do usuário)
   const [anoLetivo, setAnoLetivo] = useState<number>(2026)
-  const [unidadeSelecionadaId, setUnidadeSelecionadaId] = useState<string>('')
+  // Sempre inicia em "Todas as Unidades Escolares" (sem persistência de unidade pré-selecionada)
+  const [unidadeSelecionadaId, setUnidadeSelecionadaId] = useState<string>('TODAS')
 
   // Filtros secundários da listagem
   const [funcaoFiltro, setFuncaoFiltro] = useState<string>('TODAS')
@@ -230,10 +231,8 @@ export const VagasPage: React.FC = () => {
         setCargosGerais(listaCargos)
         setFuncoesGerais(listaFuncoes)
         setProfissionaisGerais(listaProfissionais)
-        // Selecionar a primeira unidade ativa se nenhuma selecionada
-        if (listaEscolas.length > 0 && !unidadeSelecionadaId) {
-          setUnidadeSelecionadaId(listaEscolas[0].id)
-        }
+        // A tela inicia sempre em "Todas as Unidades Escolares" (valor TODAS) —
+        // nenhuma unidade é pré-selecionada automaticamente
       } catch (err: any) {
         console.error('Erro ao carregar dados mestres:', err)
         toast({
@@ -295,9 +294,7 @@ export const VagasPage: React.FC = () => {
 
   useEffect(() => {
     setPaginaAtual(1)
-    if (unidadeSelecionadaId) {
-      recarregarTudo()
-    }
+    recarregarTudo()
   }, [
     anoLetivo,
     unidadeSelecionadaId,

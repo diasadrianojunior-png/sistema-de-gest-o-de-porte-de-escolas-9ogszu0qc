@@ -20,6 +20,34 @@ export const rotuloEscopoImpressao = (
     : 'Todos os módulos (Central de Ajuda completa)'
 
 /**
+ * Registra na auditoria a atualização das ajudas dos módulos (comportamento inicial
+ * do sistema e filtro de Unidade Escolar do Cadastro de Vagas).
+ * Nunca interrompe o fluxo em caso de falha.
+ */
+export const registrarAuditoriaAtualizacaoAjuda = async (): Promise<void> => {
+  try {
+    await registrarAuditoria({
+      entidade: 'Central de Ajuda',
+      acao: 'Edição',
+      registro_codigo: null,
+      descricao:
+        'Atualização da Ajuda e Regras: Painel de Início definido como tela inicial; barra lateral inicia recolhida com grupos fechados; Cadastro de Vagas inicia com "Todas as Unidades Escolares".',
+      detalhes: {
+        topico: 'Comportamento inicial do sistema',
+        modulos_afetados: [
+          'Painel de Início',
+          'Cadastro de Vagas',
+          'Barra lateral / Menu Principal',
+        ],
+        data_hora: new Date().toISOString(),
+      },
+    })
+  } catch (err) {
+    console.warn('Aviso: falha ao registrar auditoria da atualização da ajuda:', err)
+  }
+}
+
+/**
  * Registra na auditoria o acionamento da impressão da Central de Ajuda.
  * Nunca interrompe o fluxo de impressão em caso de falha.
  */

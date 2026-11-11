@@ -30,19 +30,31 @@ import {
   LifeBuoy,
   ListChecks,
 } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { registrarAuditoriaAtualizacaoAjuda } from '@/services/impressao-ajuda'
 
 export default function Layout() {
   const { user, signOut, loading, perfil, isAdmin, canView } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
+  // Registra na auditoria (uma vez por sessão de abertura do sistema) a atualização
+  // da Ajuda/Regras sobre o novo comportamento inicial.
+  const auditoriaAjudaRegistrada = useRef(false)
+  useEffect(() => {
+    if (user && !loading && !auditoriaAjudaRegistrada.current) {
+      auditoriaAjudaRegistrada.current = true
+      registrarAuditoriaAtualizacaoAjuda()
+    }
+  }, [user, loading])
+
   // Controle da sidebar (desktop recolhida vs expandida, mobile drawer)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  // Ao abrir o sistema a barra lateral inicia sempre RECOLHIDA (sem persistência entre sessões)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
-  // Submenus iniciam recolhidos/fechados por padrão ao abrir a aplicação
+  // Grupos de menu iniciam sempre fechados/recolhidos ao abrir a aplicação
   const [cadastrosMestresExpanded, setCadastrosMestresExpanded] = useState(false)
   const [cadastrosApoioExpanded, setCadastrosApoioExpanded] = useState(false)
   const [administracaoExpanded, setAdministracaoExpanded] = useState(false)

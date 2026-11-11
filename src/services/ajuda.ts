@@ -44,6 +44,15 @@ export const AJUDAS_MODULOS: AjudaModulo[] = [
         ],
       },
       {
+        titulo: 'Comportamento inicial do sistema',
+        itens: [
+          'Tela inicial: ao abrir/entrar no sistema (login ou acesso direto à raiz), o usuário cai sempre no Painel de Início.',
+          'Barra lateral (menu): ao abrir o sistema, a sidebar inicia sempre RECOLHIDA — sem persistência da última posição entre sessões.',
+          'Grupos de menu: todos os grupos (Cadastros de Apoio, Cadastros Mestres, Administração do Sistema) iniciam sempre FECHADOS/recolhidos — nenhum grupo fica expandido por padrão.',
+          'Durante a sessão, o operador pode expandir/recolher a sidebar e os grupos à vontade: o estado escolhido vale apenas até fechar/recarregar o sistema.',
+        ],
+      },
+      {
         titulo: 'Regras e dependências',
         itens: [
           'Tela somente de leitura: nenhuma alteração de dados é feita aqui.',
@@ -497,6 +506,7 @@ export const AJUDAS_MODULOS: AjudaModulo[] = [
       {
         titulo: 'Regras e dependências',
         itens: [
+          'Ao abrir a tela, o filtro de Unidade Escolar inicia SEMPRE com a opção "Todas as Unidades Escolares" e a listagem apresenta as vagas de todas as unidades do ano letivo — nenhuma unidade é pré-selecionada automaticamente (nem a última acessada).',
           'Dependência dinâmica estrita: formulário exibe somente o seletor correspondente (Cargo ou Função) e limpa a seleção incompatível para impedir vínculos cruzados.',
           'O mesmo profissional pode figurar simultaneamente como titular e ocupante da vaga.',
           'Vagas manuais são identificadas automaticamente como excedentes (Vaga Excedente: Sim).',
@@ -727,6 +737,8 @@ export const AJUDAS_MODULOS: AjudaModulo[] = [
         itens: [
           'Apresentar as ajuda e regras de todos os módulos do sistema, organizadas pelos grupos do Menu Principal.',
           'A mesma fonte de texto alimenta o botão "Ajuda e Regras" de cada tela — o conteúdo aqui é sempre o mesmo exibido nos módulos.',
+          'Comportamento inicial do sistema: a primeira tela após entrar é o Painel de Início, a barra lateral abre RECOLHIDA e todos os grupos de menu ficam FECHADOS (o operador expande à vontade durante a sessão).',
+          'No Cadastro de Vagas, o filtro de Unidade Escolar inicia sempre com "Todas as Unidades Escolares", listando as vagas de todas as unidades.',
         ],
       },
       {
