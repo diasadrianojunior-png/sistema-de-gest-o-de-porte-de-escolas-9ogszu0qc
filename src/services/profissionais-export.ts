@@ -13,6 +13,10 @@ export function exportarProfissionaisExcel(
     'Identificador',
     'Nome do Profissional',
     'E-mail do Profissional',
+    'Código do Profissional no SAMA',
+    'Matrícula(s)',
+    'Status do Profissional',
+    'Arquivo(s) Comprobatório(s) de Especialidade(s)',
     'Classe',
     'Classificação no Concurso',
     'Especialidade(s)',
@@ -39,6 +43,14 @@ export function exportarProfissionaisExcel(
       p.codigo || '',
       `"${(p.nome || '').replace(/"/g, '""')}"`,
       `"${(p.email_profissional || '').replace(/"/g, '""')}"`,
+      `"${(p.codigo_sama || '').replace(/"/g, '""')}"`,
+      `"${(p.matriculas || []).join(', ').replace(/"/g, '""')}"`,
+      `"${(p.status_profissional || '').replace(/"/g, '""')}"`,
+      `"${`${(p.arquivos_comprobatorios || []).length} arquivo(s): ${(
+        p.arquivos_comprobatorios || []
+      )
+        .map((a) => a.nome)
+        .join(', ')}`.replace(/"/g, '""')}"`,
       `"${(p.classe || 'Antigos na Rede').replace(/"/g, '""')}"`,
       `"${(p.classificacao_concurso || '').replace(/"/g, '""')}"`,
       `"${especialidades.replace(/"/g, '""')}"`,

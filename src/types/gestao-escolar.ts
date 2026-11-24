@@ -620,6 +620,14 @@ export interface Profissional {
   classificacao_concurso?: string | null
   /** E-mail do Profissional: opcional; validado no formato quando preenchido */
   email_profissional?: string | null
+  /** Código do Profissional no SAMA: OBRIGATÓRIO e ÚNICO entre os profissionais */
+  codigo_sama?: string
+  /** Matrícula(s): OBRIGATÓRIO (ao menos uma), múltiplo, sem repetição */
+  matriculas?: string[]
+  /** Status do Profissional: OBRIGATÓRIO — Fixado | PS | PSS */
+  status_profissional?: string
+  /** Arquivo(s) Comprobatório(s) de Especialidade(s): metadados dos anexos no Storage */
+  arquivos_comprobatorios?: ProfissionalArquivoComprobatorio[]
   created_at?: string
   updated_at?: string
   // Relações expandidas
@@ -627,6 +635,13 @@ export interface Profissional {
   vagas_vinculadas?: ProfissionalVaga[]
   especialidades?: ProfissionalEspecializacao[]
   inscricoes_ano?: ProfissionalInscricaoAno[]
+}
+
+/** Metadados de um arquivo comprobatório anexado ao profissional (Storage) */
+export interface ProfissionalArquivoComprobatorio {
+  nome: string
+  caminho: string
+  tamanho: number
 }
 
 /** Inscrição do profissional no Processo Seletivo por Ano Letivo (uma por ano) */

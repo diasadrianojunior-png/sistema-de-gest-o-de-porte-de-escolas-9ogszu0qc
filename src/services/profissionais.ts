@@ -8,6 +8,175 @@ import {
   Especializacao,
 } from '@/types/gestao-escolar'
 import { registrarAuditoria } from './auditoria'
+import {
+  removerArquivoComprobatorio,
+  excluirArquivosDoProfissional,
+} from './profissionais-arquivos'
+
+/** Opções exatas do "Status do Profissional" (decisão do usuário) */
+export const STATUS_PROFISSIONAL = ['Fixado', 'PS', 'PSS'] as const
+export type StatusProfissional = (typeof STATUS_PROFISSIONAL)[number]
+
+export function rotuloStatusProfissional(status?: string | null): string {
+  switch (status) {
+    case 'Fixado':
+      return 'Fixado'
+    case 'PS':
+      return 'PS'
+    case 'PSS':
+      return 'PSS'
+    default:
+      return '—'
+  }
+}
+
+export interface ArquivoComprobatorio {
+  nome: string
+  caminho: string
+  tamanho: number
+}
+
+/**
+ * Normaliza o Código do Profissional no SAMA (remove espaços das bordas).
+ */
+export function normalizarCodigoSama(valor?: string | null): string {
+  return (valor || '').trim().replace(/\s+/g, ' ')
+}
+
+/**
+ * Valida o Código do Profissional no SAMA: campo OBRIGATÓRIO.
+ * Retorna a mensagem amigável ou null quando válido.
+ */
+export function validarCodigoSama(valor?: string | null): string | null {
+  const v = (valor || '').trim()
+  if (!v) {
+    return 'Código do Profissional no SAMA é obrigatório.'
+  }
+  if (v.length > 120) {
+    return 'Código do Profissional no SAMA muito longo (máximo de 120 caracteres).'
+  }
+  return null
+}
+
+/**
+ * Verifica se o Código do Profissional no SAMA já existe em outro profissional
+ * (case-insensitive, ignora espaços das bordas). Usado para bloquear duplicidade
+ * com mensagem amigável ANTES de atingir a constraint UNIQUE do banco.
+ */
+export async function existeCodigoSama(
+  codigoSama: string,
+  profissionalIdAtual?: string | null,
+): Promise<boolean> {
+  const v = (codigoSama || '').trim()
+  if (!v) return false
+
+  let query = db.from('profissionais').select('id').ilike('codigo_sama', v)
+
+  if (profissionalIdAtual) {
+    query = query.neq('id', profissionalIdAtual)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    console.error('Erro ao verificar duplicidade do Código do Profissional no SAMA:', error)
+    // Em caso de erro na verificação, deixa seguir: a constraint UNIQUE do banco é a barreira final
+    return false
+  }
+
+  return (data || []).length > 0
+}
+
+/**
+ * Normaliza a lista de Matrículas: trim, remove vazios e duplicadas.
+ */
+export function normalizarMatriculas(valor?: string[] | null): string[] {
+  const lista = valor || []
+  const vistas = new Set<string>()
+  const resultado: string[] = []
+  for (const item of lista) {
+    const v = (item || '').trim()
+    if (!v) continue
+    const chave = v.toLowerCase()
+    if (vistas.has(chave)) continue
+    vistas.add(chave)
+    resultado.push(v)
+  }
+  return resultado
+}
+
+/**
+ * Valida as Matrículas: campo OBRIGATÓRIO (ao menos uma), sem repetição.
+ * Retorna a mensagem amigável ou null quando válido.
+ */
+export function validarMatriculas(valor?: string[] | null): string | null {
+  const lista = normalizarMatriculas(valor)
+  if (lista.length === 0) {
+    return 'Informe ao menos uma Matrícula para o profissional.'
+  }
+  return null
+}
+
+/**
+ * Verifica se alguma das matrículas já está vinculada a outro profissional.
+ * Retorna a matrícula em conflito ou null quando não há conflito.
+ */
+export async function existeMatriculaProfissional(
+  matriculas: string[],
+  profissionalIdAtual?: string | null,
+): Promise<string | null> {
+  const lista = normalizarMatriculas(matriculas)
+  if (lista.length === 0) return null
+
+  let query = db.from('profissionais').select('id, matriculas')
+  if (profissionalIdAtual) {
+    query = query.neq('id', profissionalIdAtual)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    console.error('Erro ao verificar duplicidade de Matrículas:', error)
+    return null
+  }
+
+  const alvo = new Set(lista.map((m) => m.toLowerCase()))
+  for (const row of (data || []) as { matriculas?: string[] | null }[]) {
+    for (const m of row.matriculas || []) {
+      if (alvo.has((m || '').trim().toLowerCase())) {
+        return m
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Valida o Status do Profissional: OBRIGATÓRIO, uma das opções Fixado | PS | PSS.
+ */
+export function validarStatusProfissional(valor?: string | null): string | null {
+  const v = (valor || '').trim()
+  if (!v) {
+    return 'Status do Profissional é obrigatório.'
+  }
+  if (!STATUS_PROFISSIONAL.includes(v as StatusProfissional)) {
+    return `Status do Profissional inválido: use apenas Fixado, PS ou PSS (recebido "${v}").`
+  }
+  return null
+}
+
+/**
+ * Valida os Arquivos Comprobatórios de Especialidade(s):
+ * obrigatórios SOMENTE quando o profissional tem ao menos uma especialidade.
+ * Retorna a mensagem amigável ou null quando válido.
+ */
+export function validarArquivosComprobatorios(
+  temEspecialidade: boolean,
+  arquivos?: ArquivoComprobatorio[] | null,
+): string | null {
+  if (temEspecialidade && (!arquivos || arquivos.length === 0)) {
+    return 'Arquivo(s) Comprobatório(s) de Especialidade(s) obrigatório(s): anexe ao menos um documento (ex.: Histórico Escolar, Certificado de Conclusão de Curso) porque há especialidade selecionada.'
+  }
+  return null
+}
 
 const db = supabase as any
 
@@ -29,6 +198,14 @@ export interface SalvarProfissionalInput {
   classificacao_concurso?: string | null
   /** E-mail do Profissional: campo opcional; validado no formato quando preenchido */
   email_profissional?: string | null
+  /** Código do Profissional no SAMA: OBRIGATÓRIO e ÚNICO entre os profissionais */
+  codigo_sama?: string
+  /** Matrícula(s): OBRIGATÓRIO (ao menos uma), múltiplo, sem repetição */
+  matriculas?: string[]
+  /** Status do Profissional: OBRIGATÓRIO — Fixado | PS | PSS */
+  status_profissional?: string
+  /** Arquivo(s) Comprobatório(s) de Especialidade(s): metadados dos anexos no Storage */
+  arquivos_comprobatorios?: ArquivoComprobatorio[]
   vagas?: VinculoVagaInput[]
   /** Especialidade(s) do Profissional: ids das Especializações (opcional, multi-seleção) */
   especialidades?: string[]
@@ -215,6 +392,37 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
     ? input.email_profissional.trim()
     : null
 
+  // ===== NOVOS ATRIBUTOS =====
+
+  // Código do Profissional no SAMA: OBRIGATÓRIO e ÚNICO
+  const erroSama = validarCodigoSama(input.codigo_sama)
+  if (erroSama) throw new Error(erroSama)
+  const codigoSamaNormalizado = normalizarCodigoSama(input.codigo_sama)
+  const conflitoSama = await existeCodigoSama(codigoSamaNormalizado, input.id || null)
+  if (conflitoSama) {
+    throw new Error(
+      `Código do Profissional no SAMA já cadastrado: o código "${codigoSamaNormalizado}" pertence a outro profissional. Informe um código diferente.`,
+    )
+  }
+
+  // Matrícula(s): OBRIGATÓRIO (ao menos uma), múltiplo, sem repetição
+  const erroMatriculas = validarMatriculas(input.matriculas)
+  if (erroMatriculas) throw new Error(erroMatriculas)
+  const matriculasNormalizadas = normalizarMatriculas(input.matriculas)
+  const conflitoMatricula = await existeMatriculaProfissional(
+    matriculasNormalizadas,
+    input.id || null,
+  )
+  if (conflitoMatricula) {
+    throw new Error(
+      `Matrícula já vinculada: a matrícula "${conflitoMatricula}" pertence a outro profissional. Cada matrícula só pode ser usada por um profissional.`,
+    )
+  }
+
+  // Status do Profissional: OBRIGATÓRIO (Fixado | PS | PSS)
+  const erroStatus = validarStatusProfissional(input.status_profissional)
+  if (erroStatus) throw new Error(erroStatus)
+
   // Validação: não pode haver dois registros para o mesmo Ano Letivo no mesmo profissional
   const anosInscricaoInformados = (input.inscricoes_ano || []).map((i) => i.ano_letivo)
   if (new Set(anosInscricaoInformados).size !== anosInscricaoInformados.length) {
@@ -238,6 +446,10 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
         classe: classeCalculada,
         classificacao_concurso: classificacaoConcursoNormalizada,
         email_profissional: emailProfissionalNormalizado,
+        codigo_sama: codigoSamaNormalizado,
+        matriculas: matriculasNormalizadas,
+        status_profissional: input.status_profissional,
+        arquivos_comprobatorios: input.arquivos_comprobatorios || [],
         updated_at: new Date().toISOString(),
       })
       .eq('id', input.id)
@@ -261,6 +473,10 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
         classe: classeCalculada,
         classificacao_concurso: classificacaoConcursoNormalizada,
         email_profissional: emailProfissionalNormalizado,
+        codigo_sama: codigoSamaNormalizado,
+        matriculas: matriculasNormalizadas,
+        status_profissional: input.status_profissional,
+        arquivos_comprobatorios: input.arquivos_comprobatorios || [],
       })
       .select('*, unidade_escolar:unidades_escolares(*)')
       .single()
@@ -529,6 +745,10 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
         classe: profissionalAnterior.classe || null,
         classificacao_concurso: profissionalAnterior.classificacao_concurso || null,
         email_profissional: profissionalAnterior.email_profissional || null,
+        codigo_sama: profissionalAnterior.codigo_sama || null,
+        matriculas: profissionalAnterior.matriculas || [],
+        status_profissional: profissionalAnterior.status_profissional || null,
+        arquivos_comprobatorios: profissionalAnterior.arquivos_comprobatorios || [],
         vagas_vinculadas: (profissionalAnterior.vagas_vinculadas || []).map((v) => ({
           vaga_id: v.vaga_id,
           titular: v.titular,
@@ -557,6 +777,10 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
     classe: profissionalSalvo.classe || null,
     classificacao_concurso: profissionalSalvo.classificacao_concurso || null,
     email_profissional: profissionalSalvo.email_profissional || null,
+    codigo_sama: profissionalSalvo.codigo_sama || null,
+    matriculas: profissionalSalvo.matriculas || [],
+    status_profissional: profissionalSalvo.status_profissional || null,
+    arquivos_comprobatorios: profissionalSalvo.arquivos_comprobatorios || [],
     vagas_vinculadas: novosVinculos,
     especialidades: nomesEspecialidadesSalvas,
     inscricoes_ano: inscricoesNormalizadas,
@@ -567,8 +791,8 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
     acao: isEdicao ? 'Edição' : 'Criação',
     registro_codigo: profissionalSalvo.codigo || null,
     descricao: isEdicao
-      ? `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) atualizado. Classe: "${profissionalSalvo.classe}". Classificação no Concurso: "${profissionalSalvo.classificacao_concurso || '-'}". E-mail: "${profissionalSalvo.email_profissional || '-'}". Vagas vinculadas: ${novosVinculos.length}. Especialidades: ${nomesEspecialidadesSalvas.length > 0 ? nomesEspecialidadesSalvas.join(', ') : 'nenhuma'}.`
-      : `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) cadastrado com sucesso. Classe: "${profissionalSalvo.classe}". Classificação no Concurso: "${profissionalSalvo.classificacao_concurso || '-'}". E-mail: "${profissionalSalvo.email_profissional || '-'}". Vagas vinculadas: ${novosVinculos.length}. Especialidades: ${nomesEspecialidadesSalvas.length > 0 ? nomesEspecialidadesSalvas.join(', ') : 'nenhuma'}.`,
+      ? `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) atualizado. Classe: "${profissionalSalvo.classe}". Classificação no Concurso: "${profissionalSalvo.classificacao_concurso || '-'}". E-mail: "${profissionalSalvo.email_profissional || '-'}". Código SAMA: "${profissionalSalvo.codigo_sama || '-'}". Matrículas: ${profissionalSalvo.matriculas?.length ? profissionalSalvo.matriculas.join(', ') : 'nenhuma'}. Status: "${profissionalSalvo.status_profissional || '-'}". Arquivos comprobatórios: ${profissionalSalvo.arquivos_comprobatorios?.length || 0}. Vagas vinculadas: ${novosVinculos.length}. Especialidades: ${nomesEspecialidadesSalvas.length > 0 ? nomesEspecialidadesSalvas.join(', ') : 'nenhuma'}.`
+      : `Profissional "${profissionalSalvo.nome}" (${profissionalSalvo.codigo}) cadastrado com sucesso. Classe: "${profissionalSalvo.classe}". Classificação no Concurso: "${profissionalSalvo.classificacao_concurso || '-'}". E-mail: "${profissionalSalvo.email_profissional || '-'}". Código SAMA: "${profissionalSalvo.codigo_sama || '-'}". Matrículas: ${profissionalSalvo.matriculas?.length ? profissionalSalvo.matriculas.join(', ') : 'nenhuma'}. Status: "${profissionalSalvo.status_profissional || '-'}". Arquivos comprobatórios: ${profissionalSalvo.arquivos_comprobatorios?.length || 0}. Vagas vinculadas: ${novosVinculos.length}. Especialidades: ${nomesEspecialidadesSalvas.length > 0 ? nomesEspecialidadesSalvas.join(', ') : 'nenhuma'}.`,
     detalhes: {
       profissional_id: profissionalId,
       nome: profissionalSalvo.nome,
@@ -579,6 +803,10 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
       classe: profissionalSalvo.classe,
       classificacao_concurso: profissionalSalvo.classificacao_concurso,
       email_profissional: profissionalSalvo.email_profissional || null,
+      codigo_sama: profissionalSalvo.codigo_sama || null,
+      matriculas: profissionalSalvo.matriculas || [],
+      status_profissional: profissionalSalvo.status_profissional || null,
+      arquivos_comprobatorios: profissionalSalvo.arquivos_comprobatorios || [],
       valores_antigos: valoresAntigos,
       valores_novos: valoresNovos,
       especialidades: nomesEspecialidadesSalvas,
@@ -592,6 +820,16 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
       substituicoes_ocupantes: substituicoesOcupantes,
     },
   })
+
+  // Remover arquivos comprobatórios que foram descartados na edição (best-effort)
+  for (const antigo of profissionalAnterior?.arquivos_comprobatorios || []) {
+    if (
+      antigo?.caminho &&
+      !(profissionalSalvo.arquivos_comprobatorios || []).some((a) => a.caminho === antigo.caminho)
+    ) {
+      await removerArquivoComprobatorio(antigo.caminho)
+    }
+  }
 
   // Retornar profissional completo atualizado
   const completo = await getProfissionalPorId(profissionalId)
@@ -765,6 +1003,9 @@ export async function deleteProfissional(id: string): Promise<void> {
   // 1. Detectar vínculos diretos na tabela vaga (titular e/ou ocupante) e liberá-los
   const vinculosVaga = await detectarVinculosVagaProfissional(id)
   await liberarVinculosVaga(prof, vinculosVaga)
+
+  // 1.1 Remover os Arquivos Comprobatórios de Especialidade(s) do Storage (best-effort)
+  await excluirArquivosDoProfissional(prof.arquivos_comprobatorios)
 
   // 2. Excluir o registro do profissional (profissional_vagas é deletada por CASCADE)
   const { error } = await db.from('profissionais').delete().eq('id', id)
