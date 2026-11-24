@@ -52,6 +52,9 @@ import {
   GraduationCap,
   Layers,
   Award,
+  FileText,
+  Upload,
+  File as FileIcon,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
@@ -68,6 +71,25 @@ import {
   VinculoVagaProfissional,
   InscricaoAnoInput,
 } from '@/services/profissionais'
+import {
+  STATUS_PROFISSIONAL,
+  rotuloStatusProfissional,
+  normalizarCodigoSama,
+  normalizarMatriculas,
+  validarCodigoSama,
+  existeCodigoSama,
+  validarMatriculas,
+  existeMatriculaProfissional,
+  validarStatusProfissional,
+  validarArquivosComprobatorios,
+  ArquivoComprobatorio,
+} from '@/services/profissionais'
+import {
+  validarArquivoComprobatorio,
+  uploadArquivoComprobatorio,
+  removerArquivoComprobatorio,
+} from '@/services/profissionais-arquivos'
+import { supabase } from '@/lib/supabase/client'
 import { exportarProfissionaisExcel } from '@/services/profissionais-export'
 import { getUnidadesEscolares } from '@/services/unidades-escolares'
 import { getCargos, getFuncoes } from '@/services/apoio'
@@ -128,6 +150,19 @@ export default function Profissionais() {
   const [formNome, setFormNome] = useState('')
   // E-mail do Profissional: campo opcional, posicionado logo abaixo do Nome do Profissional
   const [formEmailProfissional, setFormEmailProfissional] = useState('')
+  // Código do Profissional no SAMA: OBRIGATÓRIO e ÚNICO entre os profissionais
+  const [formCodigoSama, setFormCodigoSama] = useState('')
+  // Matrícula(s): OBRIGATÓRIO, múltiplo (uma linha por matrícula, sem repetição)
+  const [formMatriculas, setFormMatriculas] = useState<string[]>([''])
+  // Status do Profissional: OBRIGATÓRIO — Fixado | PS | PSS
+  const [formStatus, setFormStatus] = useState<string>('')
+  // Arquivo(s) Comprobatório(s) de Especialidade(s): anexos já salvos + novos a enviar
+  const [formArquivosSalvos, setFormArquivosSalvos] = useState<ArquivoComprobatorio[]>([])
+  const [formNovosArquivos, setFormNovosArquivos] = useState<File[]>([])
+  const [arquivosRemovidos, setArquivosRemovidos] = useState<ArquivoComprobatorio[]>([])
+  const [subindoArquivos, setSubindoArquivos] = useState(false)
+  // Filtro por Status do Profissional na listagem
+  const [filtroStatus, setFiltroStatus] = useState<string>('todos')
   const [formDataAdmissao, setFormDataAdmissao] = useState('')
   const [formDataNascimento, setFormDataNascimento] = useState('')
   const [formClasse, setFormClasse] = useState<ClasseProfissional>('Antigos na Rede')
@@ -255,6 +290,12 @@ export default function Profissionais() {
     setEditingProfissional(null)
     setFormNome('')
     setFormEmailProfissional('')
+    setFormCodigoSama('')
+    setFormMatriculas([''])
+    setFormStatus('')
+    setFormArquivosSalvos([])
+    setFormNovosArquivos([])
+    setArquivosRemovidos([])
     setFormDataAdmissao('')
     setFormDataNascimento('')
     setFormClasse('Antigos na Rede')
@@ -273,6 +314,12 @@ export default function Profissionais() {
     setEditingProfissional(prof)
     setFormNome(prof.nome)
     setFormEmailProfissional(prof.email_profissional || '')
+    setFormCodigoSama(prof.codigo_sama || '')
+    setFormMatriculas(prof.matriculas && prof.matriculas.length > 0 ? [...prof.matriculas] : [''])
+    setFormStatus(prof.status_profissional || '')
+    setFormArquivosSalvos(prof.arquivos_comprobatorios || [])
+    setFormNovosArquivos([])
+    setArquivosRemovidos([])
     const dataAdm = prof.data_admissao || ''
     setFormDataAdmissao(dataAdm)
     setFormDataNascimento(prof.data_nascimento || '')
@@ -441,6 +488,68 @@ export default function Profissionais() {
         ? prev.filter((idEsp) => idEsp !== especializacaoId)
         : [...prev, especializacaoId],
     )
+  }
+
+  // ===== Código SAMA / Matrícula(s) / Status / Arquivos Comprobatórios =====
+
+  // Matrícula(s): altera, adiciona e remove linhas (mínimo de uma linha no formulário)
+  const handleAlterarMatricula = (index: number, valor: string) => {
+    setFormMatriculas((prev) => prev.map((m, idx) => (idx === index ? valor : m)))
+  }
+
+  const handleAdicionarMatricula = () => {
+    setFormMatriculas((prev) => [...prev, ''])
+  }
+
+  const handleRemoverMatricula = (index: number) => {
+    setFormMatriculas((prev) => (prev.length <= 1 ? [''] : prev.filter((_, idx) => idx !== index)))
+  }
+
+  // Arquivo(s) Comprobatório(s): valida tipo/tamanho e adiciona à lista de novos anexos
+  const handleAdicionarNovosArquivos = (novos: FileList | null) => {
+    if (!novos || novos.length === 0) return
+    for (const file of Array.from(novos)) {
+      const erro = validarArquivoComprobatorio(file)
+      if (erro) {
+        toast({
+          title: 'Arquivo não aceito',
+          description: `${file.name}: ${erro}`,
+          variant: 'destructive',
+        })
+        continue
+      }
+      setFormNovosArquivos((prev) => [...prev, file])
+    }
+  }
+
+  const handleRemoverNovoArquivo = (index: number) => {
+    setFormNovosArquivos((prev) => prev.filter((_, idx) => idx !== index))
+  }
+
+  const handleRemoverArquivoSalvo = (indice: number) => {
+    const removido = formArquivosSalvos[indice]
+    if (!removido) return
+    setFormArquivosSalvos((prev) => prev.filter((_, idx) => idx !== indice))
+    setArquivosRemovidos((prev) => [...prev, removido])
+  }
+
+  // Abre (visualiza/download) um arquivo comprobatório do bucket privado via URL assinada
+  const handleAbrirArquivoComprobatorio = async (caminho: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('profissionais-comprobantes')
+        .createSignedUrl(caminho, 600)
+      if (error || !data?.signedUrl) {
+        throw error || new Error('Falha ao gerar o link do arquivo.')
+      }
+      window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+    } catch (e: any) {
+      toast({
+        title: 'Erro ao abrir arquivo',
+        description: e?.message || 'Não foi possível abrir o arquivo comprobatório.',
+        variant: 'destructive',
+      })
+    }
   }
 
   // Adicionar uma linha de inscrição no Processo Seletivo (ano e Sim/Não ainda em branco)
