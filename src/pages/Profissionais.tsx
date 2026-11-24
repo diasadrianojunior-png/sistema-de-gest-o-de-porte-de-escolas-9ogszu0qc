@@ -1370,7 +1370,100 @@ export default function Profissionais() {
                 </p>
               </div>
 
-              {/* Novos campos exigidos posicionados LOGO ABAIXO do Nome do Profissional, nesta ordem exata: */}
+              {/* Código do Profissional no SAMA — OBRIGATÓRIO e ÚNICO, logo após o E-mail */}
+              <div>
+                <Label htmlFor="codigo_sama" className="text-xs font-semibold text-slate-700">
+                  Código do Profissional no SAMA <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  id="codigo_sama"
+                  value={formCodigoSama}
+                  onChange={(e) => setFormCodigoSama(e.target.value)}
+                  placeholder="Ex.: 12345"
+                  className="mt-1 bg-white"
+                  maxLength={120}
+                  autoComplete="off"
+                  required
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Campo obrigatório e único: o salvamento é bloqueado se o código já pertencer a
+                  outro profissional.
+                </p>
+              </div>
+
+              {/* Matrícula(s) — OBRIGATÓRIO, múltiplas por profissional, sem repetição */}
+              <div>
+                <Label htmlFor="matricula-0" className="text-xs font-semibold text-slate-700">
+                  Matrícula(s) do Profissional <span className="text-rose-500">*</span>
+                </Label>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Informe ao menos uma matrícula. Use &quot;Adicionar matrícula&quot; quando o
+                  profissional tiver mais de uma; matrículas repetidas são bloqueadas.
+                </p>
+                <div className="mt-1.5 space-y-2">
+                  {formMatriculas.map((matricula, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Input
+                        id={`matricula-${index}`}
+                        value={matricula}
+                        onChange={(e) => handleAlterarMatricula(index, e.target.value)}
+                        placeholder={`Matrícula ${index + 1}`}
+                        className="bg-white"
+                        autoComplete="off"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoverMatricula(index)}
+                        disabled={formMatriculas.length <= 1}
+                        title="Remover matrícula"
+                        aria-label={`Remover matrícula ${index + 1}`}
+                        className="h-9 w-9 shrink-0 text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAdicionarMatricula}
+                  className="mt-2 h-8 text-xs border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Adicionar matrícula
+                </Button>
+              </div>
+
+              {/* Status do Profissional — OBRIGATÓRIO (Fixado | PS | PSS), logo após as Matrícula(s) */}
+              <div>
+                <Label
+                  htmlFor="status_profissional"
+                  className="text-xs font-semibold text-slate-700"
+                >
+                  Status do Profissional <span className="text-rose-500">*</span>
+                </Label>
+                <Select value={formStatus} onValueChange={setFormStatus}>
+                  <SelectTrigger id="status_profissional" className="mt-1 bg-white">
+                    <SelectValue placeholder="Selecione o status do profissional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_PROFISSIONAL.map((st) => (
+                      <SelectItem key={st} value={st}>
+                        {rotuloStatusProfissional(st)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Campo obrigatório: escolha entre Fixado, PS ou PSS.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* 1. Data de Admissão */}
               <div>
                 <Label
@@ -1876,6 +1969,127 @@ export default function Profissionais() {
                     </p>
                   </>
                 )}
+              </div>
+
+              {/* Arquivo(s) Comprobatório(s) de Especialidade(s) — LOGO APÓS o card Especialidade(s).
+                  Obrigatório SOMENTE quando há especialidade selecionada. */}
+              <div className="pt-2 border-t border-slate-200 space-y-2">
+                <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Paperclip className="w-3.5 h-3.5 text-orange-600" />
+                  Arquivo(s) Comprobatório(s) de Especialidade(s){' '}
+                  {formEspecialidades.length > 0 ? (
+                    <span className="text-rose-500">*</span>
+                  ) : (
+                    <span className="text-slate-400 font-normal">(opcional)</span>
+                  )}
+                </Label>
+                <p className="text-[11px] text-slate-500">
+                  {formEspecialidades.length > 0
+                    ? 'Obrigatório: há especialidade selecionada, anexe ao menos um documento comprobatório (ex.: Histórico Escolar, Certificado de Conclusão de Curso).'
+                    : 'Opcional: anexe documentos comprobatórios somente quando desejar — tornam-se obrigatórios se uma especialidade for selecionada.'}
+                </p>
+
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="novos-arquivos"
+                    type="file"
+                    multiple
+                    accept="application/pdf,image/*"
+                    onChange={(e) => {
+                      handleAdicionarNovosArquivos(e.target.files)
+                      e.currentTarget.value = ''
+                    }}
+                    className="bg-white text-xs file:mr-3 file:rounded-md file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-blue-700"
+                    disabled={saving || subindoArquivos}
+                  />
+                  {subindoArquivos && (
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
+                  )}
+                </div>
+
+                {(formArquivosSalvos.length > 0 || formNovosArquivos.length > 0) && (
+                  <ul className="space-y-1.5">
+                    {formArquivosSalvos.map((arq, indice) => (
+                      <li
+                        key={`salvo-${arq.caminho}`}
+                        className="flex items-center justify-between gap-2 p-2 bg-slate-50 rounded-md border border-slate-200 text-xs"
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <button
+                            type="button"
+                            onClick={() => handleAbrirArquivoComprobatorio(arq.caminho)}
+                            className="text-blue-700 hover:text-blue-900 hover:underline font-medium truncate text-left"
+                            title="Abrir arquivo"
+                          >
+                            {arq.nome}
+                          </button>
+                        </span>
+                        <span className="flex items-center gap-1 shrink-0">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleAbrirArquivoComprobatorio(arq.caminho)}
+                            title="Abrir arquivo"
+                            aria-label={`Abrir arquivo ${arq.nome}`}
+                            className="h-7 w-7 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoverArquivoSalvo(indice)}
+                            title="Remover arquivo"
+                            aria-label={`Remover arquivo ${arq.nome}`}
+                            className="h-7 w-7 text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </span>
+                      </li>
+                    ))}
+                    {formNovosArquivos.map((arq, indice) => (
+                      <li
+                        key={`novo-${indice}-${arq.name}`}
+                        className="flex items-center justify-between gap-2 p-2 bg-blue-50/50 rounded-md border border-blue-200 text-xs"
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span className="font-medium truncate">{arq.name}</span>
+                          <span className="text-[10px] text-slate-500 shrink-0">
+                            (novo · {Math.round(arq.size / 1024)} KB)
+                          </span>
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoverNovoArquivo(indice)}
+                          title="Remover arquivo"
+                          aria-label={`Remover arquivo novo ${arq.name}`}
+                          className="h-7 w-7 shrink-0 text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {formEspecialidades.length > 0 &&
+                  formArquivosSalvos.length === 0 &&
+                  formNovosArquivos.length === 0 && (
+                    <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-md flex items-start gap-2 text-xs text-amber-900">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <span>
+                        Há especialidade selecionada e nenhum arquivo comprobatório anexado: o
+                        salvamento será bloqueado até que você anexe ao menos um documento.
+                      </span>
+                    </div>
+                  )}
               </div>
 
               {/* Inscrição no Processo Seletivo por Ano Letivo — card POR ÚLTIMO no formulário,
