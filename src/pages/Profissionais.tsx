@@ -54,6 +54,7 @@ import {
   Award,
   FileText,
   Upload,
+  Paperclip,
   File as FileIcon,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
@@ -115,6 +116,20 @@ interface LinhaVinculoForm {
   titular: boolean
   cargo_id: string
   tipo_vinculo: TipoVinculoVaga // 'CARGO' | 'FUNCAO'
+}
+
+/** Cor do badge do Status do Profissional na listagem e no detalhe. */
+const corBadgeStatusProfissional = (status?: string | null): string => {
+  switch (status) {
+    case 'Fixado':
+      return 'bg-sky-100 text-sky-800 border-sky-300 hover:bg-sky-100'
+    case 'PS':
+      return 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100'
+    case 'PSS':
+      return 'bg-violet-100 text-violet-800 border-violet-300 hover:bg-violet-100'
+    default:
+      return 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-100'
+  }
 }
 
 /** Rótulo amigável do papel do profissional na vaga (titular/ocupante). */
@@ -598,6 +613,23 @@ export default function Profissionais() {
   const executarGravacaoProfissional = async (vinculosFinal: VinculoVagaInput[]) => {
     try {
       setSaving(true)
+
+      // Arquivos Comprobatórios: os arquivos novos são enviados ao Storage ANTES
+      // de gravar o profissional e mesclados com os anexos já persistidos (os
+      // removidos nesta edição já saíram de formArquivosSalvos).
+      let arquivosFinais: ArquivoComprobatorio[] = [...formArquivosSalvos]
+      if (formNovosArquivos.length > 0) {
+        setSubindoArquivos(true)
+        try {
+          for (const file of formNovosArquivos) {
+            const salvo = await uploadArquivoComprobatorio(editingProfissional?.id ?? null, file)
+            arquivosFinais = [...arquivosFinais, salvo]
+          }
+        } finally {
+          setSubindoArquivos(false)
+        }
+      }
+
       await salvarProfissional({
         id: editingProfissional?.id,
         nome: formNome.trim(),
@@ -614,12 +646,7 @@ export default function Profissionais() {
         codigo_sama: normalizarCodigoSama(formCodigoSama),
         matriculas: normalizarMatriculas(formMatriculas),
         status_profissional: formStatus,
-        arquivos_comprobatorios: [
-          // Anexos já persistidos (menos os removidos nesta edição)...
-          ...formArquivosSalvos,
-          // ...mais os que ainda serão enviados ao Storage (preenchido em subidaArquivos)
-          ...(formArquivosNovos ?? []),
-        ],
+        arquivos_comprobatorios: arquivosFinais,
         inscricoes_ano: formInscricoes
           .filter((l) => l.ano_letivo !== null && l.inscrito !== null)
           .map((l) => ({ ano_letivo: l.ano_letivo as number, inscrito: l.inscrito as boolean })),
@@ -667,6 +694,90 @@ export default function Profissionais() {
       toast({
         title: 'E-mail do Profissional inválido',
         description: erroEmail,
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Código do Profissional no SAMA: OBRIGATÓRIO
+    const erroSama = validarCodigoSama(formCodigoSama)
+    if (erroSama) {
+      toast({
+        title: 'Código do Profissional no SAMA obrigatório',
+        description: erroSama,
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Código do Profissional no SAMA: ÚNICO entre os profissionais (case-insensitive)
+    if (await existeCodigoSama(normalizarCodigoSama(formCodigoSama), editingProfissional?.id)) {
+      toast({
+        title: 'Código do Profissional no SAMA já cadastrado',
+        description: `O código "${normalizarCodigoSama(formCodigoSama)}" já pertence a outro profissional. Informe um código único.`,
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Matrícula(s): OBRIGATÓRIO (ao menos uma)
+    const erroMatriculas = validarMatriculas(formMatriculas)
+    if (erroMatriculas) {
+      toast({
+        title: 'Matrícula(s) do Profissional',
+        description: erroMatriculas,
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Matrícula(s): sem repetição dentro do mesmo profissional
+    const matriculasNormais = normalizarMatriculas(formMatriculas)
+    const matriculasPreenchidas = formMatriculas.map((m) => (m || '').trim()).filter(Boolean)
+    if (matriculasPreenchidas.length !== matriculasNormais.length) {
+      toast({
+        title: 'Matrícula repetida',
+        description:
+          'A mesma matrícula não pode ser informada mais de uma vez para o profissional.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Matrícula(s): cada matrícula pertence a um único profissional
+    const matriculaConflito = await existeMatriculaProfissional(
+      matriculasNormais,
+      editingProfissional?.id,
+    )
+    if (matriculaConflito) {
+      toast({
+        title: 'Matrícula já vinculada a outro profissional',
+        description: `A matrícula "${matriculaConflito}" já está cadastrada para outro profissional.`,
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Status do Profissional: OBRIGATÓRIO (Fixado | PS | PSS)
+    const erroStatus = validarStatusProfissional(formStatus)
+    if (erroStatus) {
+      toast({
+        title: 'Status do Profissional obrigatório',
+        description: erroStatus,
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Arquivo(s) Comprobatório(s): obrigatório quando há especialidade selecionada
+    if (
+      formEspecialidades.length > 0 &&
+      formArquivosSalvos.length + formNovosArquivos.length === 0
+    ) {
+      toast({
+        title: 'Arquivo(s) Comprobatório(s) obrigatório(s)',
+        description:
+          'Há especialidade selecionada: anexe ao menos um documento comprobatório (ex.: Histórico Escolar, Certificado de Conclusão de Curso) antes de salvar.',
         variant: 'destructive',
       })
       return
@@ -893,6 +1004,10 @@ export default function Profissionais() {
       })
     }
 
+    if (filtroStatus && filtroStatus !== 'todos') {
+      lista = lista.filter((p) => (p.status_profissional || '') === filtroStatus)
+    }
+
     if (search.trim()) {
       const term = search.toLowerCase()
       lista = lista.filter((p) => {
@@ -912,7 +1027,7 @@ export default function Profissionais() {
     }
 
     return lista
-  }, [profissionais, filtroUnidade, filtroClasse, filtroClassificacao, search])
+  }, [profissionais, filtroUnidade, filtroClasse, filtroClassificacao, filtroStatus, search])
 
   // Valores distintos de Classificação no Concurso para o filtro
   const classificacoesDisponiveis = useMemo(() => {
@@ -937,7 +1052,7 @@ export default function Profissionais() {
   // Resetar página quando filtros mudarem
   useEffect(() => {
     setPaginaAtual(1)
-  }, [search, filtroUnidade, filtroClasse, filtroClassificacao])
+  }, [search, filtroUnidade, filtroClasse, filtroClassificacao, filtroStatus])
 
   // IDs das funções que possuem ao menos um cargo vinculado no Cadastro de Funções
   // (tabela funcao_cargos, carregada por getFuncoes)
@@ -1018,7 +1133,7 @@ export default function Profissionais() {
       <Card className="border-slate-200 shadow-xs">
         <CardContent className="p-4 sm:p-5">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-            <div className="relative md:col-span-4">
+            <div className="relative md:col-span-3">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <Input
                 placeholder="Buscar por identificador (PRO-0001), nome, escola, classe ou classificação..."
@@ -1057,7 +1172,7 @@ export default function Profissionais() {
               </Select>
             </div>
 
-            <div className="md:col-span-3">
+            <div className="md:col-span-2">
               <Select value={filtroClassificacao} onValueChange={setFiltroClassificacao}>
                 <SelectTrigger className="bg-white">
                   <SelectValue placeholder="Todas as classificações" />
@@ -1070,6 +1185,22 @@ export default function Profissionais() {
                     </SelectItem>
                   ))}
                   <SelectItem value="sem_classificacao">Sem Classificação no Concurso</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="md:col-span-2">
+              <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+                <SelectTrigger className="bg-white" aria-label="Filtrar por status do profissional">
+                  <SelectValue placeholder="Todos os status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os Status</SelectItem>
+                  {STATUS_PROFISSIONAL.map((st) => (
+                    <SelectItem key={st} value={st}>
+                      {rotuloStatusProfissional(st)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1118,7 +1249,8 @@ export default function Profissionais() {
                     <th className="py-3 px-4">Especialidade(s)</th>
                     <th className="py-3 px-4">Unidade Escolar</th>
                     <th className="py-3 px-4">Vagas Vinculadas</th>
-                    <th className="py-3 px-4 w-20 text-center">Status</th>
+                    <th className="py-3 px-4 w-24 text-center">Status Profissional</th>
+                    <th className="py-3 px-4 w-20 text-center">Situação</th>
                     <th className="py-3 px-4 w-28 text-right">Ações</th>
                   </tr>
                 </thead>
@@ -1151,6 +1283,36 @@ export default function Profissionais() {
                             </a>
                           ) : (
                             <span className="text-slate-400 italic text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          {p.codigo_sama ? (
+                            <span className="inline-flex items-center text-xs font-mono bg-slate-50 border border-slate-200 rounded-sm px-2 py-0.5">
+                              {p.codigo_sama}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 italic text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          {(p.matriculas || []).length === 0 ? (
+                            <span className="text-slate-400 italic text-xs">—</span>
+                          ) : (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {p.matriculas!.slice(0, 2).map((m, idx) => (
+                                <span
+                                  key={`${m}-${idx}`}
+                                  className="inline-flex items-center text-[11px] font-mono bg-slate-50 text-slate-700 border border-slate-200 rounded-sm px-2 py-0.5"
+                                >
+                                  {m}
+                                </span>
+                              ))}
+                              {(p.matriculas || []).length > 2 && (
+                                <span className="text-[10px] text-slate-400">
+                                  +{(p.matriculas || []).length - 2} mais
+                                </span>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="py-3 px-4">
@@ -1235,6 +1397,18 @@ export default function Profissionais() {
                                 </span>
                               )}
                             </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {p.status_profissional ? (
+                            <Badge
+                              variant="outline"
+                              className={`${corBadgeStatusProfissional(p.status_profissional)} font-semibold text-xs`}
+                            >
+                              {rotuloStatusProfissional(p.status_profissional)}
+                            </Badge>
+                          ) : (
+                            <span className="text-slate-400 italic text-xs">—</span>
                           )}
                         </td>
                         <td className="py-3 px-4 text-center">
@@ -1536,6 +1710,7 @@ export default function Profissionais() {
                     ? `Calculada automaticamente: ano de admissão (${formDataAdmissao.split('-')[0] || '-'}) comparado ao ano vigente (${new Date().getFullYear()}).`
                     : 'Preenchida automaticamente ao selecionar a Data de Admissão.'}
                 </p>
+              </div>
               </div>
 
               {/* 4. Classificação no Concurso (logo após a Classe do Profissional).
@@ -2196,6 +2371,48 @@ export default function Profissionais() {
                 </div>
                 <div>
                   <span className="text-slate-400 uppercase font-semibold text-[10px] block">
+                    Código do Profissional no SAMA
+                  </span>
+                  <span className="font-mono font-semibold text-slate-800 text-sm">
+                    {viewingProfissional.codigo_sama || '—'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 uppercase font-semibold text-[10px] block">
+                    Status do Profissional
+                  </span>
+                  {viewingProfissional.status_profissional ? (
+                    <Badge
+                      variant="outline"
+                      className={`${corBadgeStatusProfissional(viewingProfissional.status_profissional)} font-semibold text-xs mt-1`}
+                    >
+                      {rotuloStatusProfissional(viewingProfissional.status_profissional)}
+                    </Badge>
+                  ) : (
+                    <span className="text-slate-400 italic text-xs mt-1">Não informado</span>
+                  )}
+                </div>
+                <div className="col-span-2">
+                  <span className="text-slate-400 uppercase font-semibold text-[10px] block">
+                    Matrícula(s)
+                  </span>
+                  {(viewingProfissional.matriculas || []).length === 0 ? (
+                    <span className="text-slate-400 italic text-xs mt-1">Não informada</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {viewingProfissional.matriculas!.map((m, idx) => (
+                        <span
+                          key={`${m}-${idx}`}
+                          className="inline-flex items-center text-xs font-mono bg-slate-100 text-slate-700 border border-slate-200 rounded-sm px-2 py-0.5"
+                        >
+                          {m}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <span className="text-slate-400 uppercase font-semibold text-[10px] block">
                     Data de Admissão
                   </span>
                   <span className="font-medium text-slate-800 text-sm">
@@ -2273,6 +2490,30 @@ export default function Profissionais() {
                         </span>
                       ))}
                     </div>
+                  )}
+                </div>
+                <div className="col-span-2">
+                  <span className="text-slate-400 uppercase font-semibold text-[10px] block">
+                    Arquivo(s) Comprobatório(s) de Especialidade(s)
+                  </span>
+                  {(viewingProfissional.arquivos_comprobatorios || []).length === 0 ? (
+                    <span className="text-slate-400 italic text-xs mt-1">Nenhum anexado</span>
+                  ) : (
+                    <ul className="space-y-1 mt-1">
+                      {viewingProfissional.arquivos_comprobatorios!.map((arq, idx) => (
+                        <li key={`${arq.caminho}-${idx}`}>
+                          <button
+                            type="button"
+                            onClick={() => handleAbrirArquivoComprobatorio(arq.caminho)}
+                            className="inline-flex items-center gap-1.5 text-xs text-blue-700 hover:text-blue-900 hover:underline font-medium text-left"
+                            title="Abrir arquivo comprobatório"
+                          >
+                            <Paperclip className="w-3 h-3 shrink-0" />
+                            <span className="truncate max-w-[320px]">{arq.nome}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
                   )}
                 </div>
                 <div className="col-span-2">
@@ -2425,6 +2666,26 @@ export default function Profissionais() {
                   exportação da listagem (Excel/CSV).
                 </li>
                 <li>
+                  <strong>Código do Profissional no SAMA:</strong> campo posicionado{' '}
+                  <strong>imediatamente após</strong> o E-mail do Profissional, de preenchimento{' '}
+                  <strong>obrigatório</strong> e <strong>único</strong> entre os profissionais — o
+                  salvamento é bloqueado com aviso amigável se ficar vazio ou se o código já
+                  pertencer a outro profissional.
+                </li>
+                <li>
+                  <strong>Matrícula(s) do Profissional:</strong> campo posicionado logo após o
+                  Código SAMA, de preenchimento <strong>obrigatório</strong>. Aceita{' '}
+                  <strong>múltiplas matrículas</strong> por profissional (botão{' '}
+                  <em>"Adicionar matrícula"</em>); matrículas repetidas no mesmo profissional não
+                  são aceitas e cada matrícula pertence a um único profissional.
+                </li>
+                <li>
+                  <strong>Status do Profissional:</strong> campo posicionado logo após as
+                  Matrícula(s), de preenchimento <strong>obrigatório</strong>, com as opções{' '}
+                  <em>Fixado</em>, <em>PS</em> ou <em>PSS</em>. Aparece como etiqueta na listagem
+                  (com filtro próprio), no detalhe do profissional e na exportação.
+                </li>
+                <li>
                   <strong>Data de Admissão:</strong> Data de ingresso do profissional na rede
                   municipal de ensino (obrigatório).
                 </li>
@@ -2467,6 +2728,15 @@ export default function Profissionais() {
                   permitido. Uma especialização que esteja vinculada a algum profissional{' '}
                   <strong>não pode ser excluída</strong> no cadastro de apoio — o sistema bloqueia a
                   exclusão com aviso.
+                </li>
+                <li>
+                  <strong>Arquivo(s) Comprobatório(s) de Especialidade(s):</strong> card posicionado{' '}
+                  <strong>imediatamente após</strong> a Especialidade(s). Aceita vários arquivos
+                  (PDF, PNG, JPG ou WEBP, até 10 MB cada) e é <strong>obrigatório</strong> quando
+                  há especialidade selecionada — o salvamento é bloqueado com aviso até anexar ao
+                  menos um documento (ex.: Histórico Escolar, Certificado de Conclusão de Curso).
+                  Arquivos já salvos podem ser abertos (visualização via link assinado) ou
+                  removidos; no detalhe do profissional, os nomes dos arquivos são clicáveis.
                 </li>
               </ol>
             </div>
