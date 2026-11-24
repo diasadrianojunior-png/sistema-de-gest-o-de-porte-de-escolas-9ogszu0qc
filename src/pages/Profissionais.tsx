@@ -53,9 +53,7 @@ import {
   Layers,
   Award,
   FileText,
-  Upload,
   Paperclip,
-  File as FileIcon,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
@@ -82,7 +80,6 @@ import {
   validarMatriculas,
   existeMatriculaProfissional,
   validarStatusProfissional,
-  validarArquivosComprobatorios,
   ArquivoComprobatorio,
 } from '@/services/profissionais'
 import {
@@ -1244,6 +1241,8 @@ export default function Profissionais() {
                     <th className="py-3 px-4 w-28">Identificador</th>
                     <th className="py-3 px-4">Nome do Profissional</th>
                     <th className="py-3 px-4 w-52">E-mail do Profissional</th>
+                    <th className="py-3 px-4 w-36">Código SAMA</th>
+                    <th className="py-3 px-4 w-40">Matrícula(s)</th>
                     <th className="py-3 px-4 w-36">Classe</th>
                     <th className="py-3 px-4 w-44">Classificação no Concurso</th>
                     <th className="py-3 px-4">Especialidade(s)</th>
@@ -1638,79 +1637,80 @@ export default function Profissionais() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* 1. Data de Admissão */}
-              <div>
-                <Label
-                  htmlFor="data_admissao"
-                  className="text-xs font-semibold text-slate-700 flex items-center gap-1.5"
-                >
-                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                  Data de Admissão <span className="text-rose-500">*</span>
-                </Label>
-                <Input
-                  id="data_admissao"
-                  type="date"
-                  value={formDataAdmissao}
-                  onChange={(e) => handleDataAdmissaoChange(e.target.value)}
-                  className="mt-1 bg-white"
-                  required
-                />
-                <p className="text-[11px] text-slate-500 mt-1">
-                  A data de admissão determina automaticamente a classe do profissional no sistema.
-                </p>
-              </div>
-
-              {/* 2. Data de Nascimento */}
-              <div>
-                <Label
-                  htmlFor="data_nascimento"
-                  className="text-xs font-semibold text-slate-700 flex items-center gap-1.5"
-                >
-                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                  Data de Nascimento <span className="text-rose-500">*</span>
-                </Label>
-                <Input
-                  id="data_nascimento"
-                  type="date"
-                  value={formDataNascimento}
-                  onChange={(e) => setFormDataNascimento(e.target.value)}
-                  className="mt-1 bg-white"
-                  required
-                />
-              </div>
-
-              {/* 3. Classe do Profissional (logo após Data de Nascimento) */}
-              <div>
-                <div className="flex items-center justify-between">
+                {/* 1. Data de Admissão */}
+                <div>
                   <Label
-                    htmlFor="classe"
+                    htmlFor="data_admissao"
                     className="text-xs font-semibold text-slate-700 flex items-center gap-1.5"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    Classe do Profissional <span className="text-rose-500">*</span>
+                    <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                    Data de Admissão <span className="text-rose-500">*</span>
                   </Label>
-                  <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
-                    Classificação Automática
-                  </span>
+                  <Input
+                    id="data_admissao"
+                    type="date"
+                    value={formDataAdmissao}
+                    onChange={(e) => handleDataAdmissaoChange(e.target.value)}
+                    className="mt-1 bg-white"
+                    required
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    A data de admissão determina automaticamente a classe do profissional no
+                    sistema.
+                  </p>
                 </div>
-                <Select
-                  value={formClasse}
-                  onValueChange={(val: ClasseProfissional) => setFormClasse(val)}
-                >
-                  <SelectTrigger id="classe" className="mt-1 bg-white">
-                    <SelectValue placeholder="Selecione a classe" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Antigos na Rede">Antigos na Rede</SelectItem>
-                    <SelectItem value="Novos na Rede">Novos na Rede</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  {formDataAdmissao
-                    ? `Calculada automaticamente: ano de admissão (${formDataAdmissao.split('-')[0] || '-'}) comparado ao ano vigente (${new Date().getFullYear()}).`
-                    : 'Preenchida automaticamente ao selecionar a Data de Admissão.'}
-                </p>
-              </div>
+
+                {/* 2. Data de Nascimento */}
+                <div>
+                  <Label
+                    htmlFor="data_nascimento"
+                    className="text-xs font-semibold text-slate-700 flex items-center gap-1.5"
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                    Data de Nascimento <span className="text-rose-500">*</span>
+                  </Label>
+                  <Input
+                    id="data_nascimento"
+                    type="date"
+                    value={formDataNascimento}
+                    onChange={(e) => setFormDataNascimento(e.target.value)}
+                    className="mt-1 bg-white"
+                    required
+                  />
+                </div>
+
+                {/* 3. Classe do Profissional (logo após Data de Nascimento) */}
+                <div>
+                  <div className="flex items-center justify-between">
+                    <Label
+                      htmlFor="classe"
+                      className="text-xs font-semibold text-slate-700 flex items-center gap-1.5"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      Classe do Profissional <span className="text-rose-500">*</span>
+                    </Label>
+                    <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                      Classificação Automática
+                    </span>
+                  </div>
+                  <Select
+                    value={formClasse}
+                    onValueChange={(val: ClasseProfissional) => setFormClasse(val)}
+                  >
+                    <SelectTrigger id="classe" className="mt-1 bg-white">
+                      <SelectValue placeholder="Selecione a classe" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Antigos na Rede">Antigos na Rede</SelectItem>
+                      <SelectItem value="Novos na Rede">Novos na Rede</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {formDataAdmissao
+                      ? `Calculada automaticamente: ano de admissão (${formDataAdmissao.split('-')[0] || '-'}) comparado ao ano vigente (${new Date().getFullYear()}).`
+                      : 'Preenchida automaticamente ao selecionar a Data de Admissão.'}
+                  </p>
+                </div>
               </div>
 
               {/* 4. Classificação no Concurso (logo após a Classe do Profissional).
@@ -2732,11 +2732,11 @@ export default function Profissionais() {
                 <li>
                   <strong>Arquivo(s) Comprobatório(s) de Especialidade(s):</strong> card posicionado{' '}
                   <strong>imediatamente após</strong> a Especialidade(s). Aceita vários arquivos
-                  (PDF, PNG, JPG ou WEBP, até 10 MB cada) e é <strong>obrigatório</strong> quando
-                  há especialidade selecionada — o salvamento é bloqueado com aviso até anexar ao
-                  menos um documento (ex.: Histórico Escolar, Certificado de Conclusão de Curso).
-                  Arquivos já salvos podem ser abertos (visualização via link assinado) ou
-                  removidos; no detalhe do profissional, os nomes dos arquivos são clicáveis.
+                  (PDF, PNG, JPG ou WEBP, até 10 MB cada) e é <strong>obrigatório</strong> quando há
+                  especialidade selecionada — o salvamento é bloqueado com aviso até anexar ao menos
+                  um documento (ex.: Histórico Escolar, Certificado de Conclusão de Curso). Arquivos
+                  já salvos podem ser abertos (visualização via link assinado) ou removidos; no
+                  detalhe do profissional, os nomes dos arquivos são clicáveis.
                 </li>
               </ol>
             </div>
