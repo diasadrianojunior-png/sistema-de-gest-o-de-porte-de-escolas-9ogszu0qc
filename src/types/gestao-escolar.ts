@@ -72,7 +72,8 @@ export interface Especializacao {
   id: string
   codigo?: string
   nome: string
-  classificacao: string
+  /** Uma especialidade pode ter várias classificações ao mesmo tempo (mínimo 1). */
+  classificacoes: string[]
   created_at?: string
   updated_at?: string
 }

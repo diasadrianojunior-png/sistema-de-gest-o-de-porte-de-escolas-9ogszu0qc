@@ -219,7 +219,8 @@ export const AJUDAS_MODULOS: AjudaModulo[] = [
     titulo: 'Especializações',
     categoria: 'Cadastros de Apoio',
     path: '/cadastros-apoio/especializacoes',
-    resumo: 'Cadastro das especializações/especialidades dos profissionais.',
+    resumo:
+      'Cadastro das especializações/especialidades dos profissionais, com várias classificações por especialidade.',
     secoes: [
       {
         titulo: 'Objetivo',
@@ -232,22 +233,22 @@ export const AJUDAS_MODULOS: AjudaModulo[] = [
         titulo: 'Atributos',
         itens: [
           'Identificador do registro: gerado por gatilho do banco de dados, no padrão ESP-XXXX.',
-          'Descrição da especialização: texto obrigatório.',
-          'Classificação da Especialidade: lista fixa de 5 opções (Graduação, Especialização, Mestrado, Doutorado e Pós-Doutorado), validada no formulário, no serviço e no banco de dados.',
+          'Nome da Especialidade: texto obrigatório e ÚNICO — não são permitidos dois registros com o mesmo nome.',
+          'Classificação da Especialidade: SELEÇÃO MÚLTIPLA — uma mesma especialidade pode ter várias classificações ao mesmo tempo. Lista fixa de 5 opções em checkboxes (Graduação, Pós-Graduação, Mestrado, Doutorado e Pós-Doutorado); obrigatório marcar pelo menos uma, validado no formulário, no serviço e no banco de dados.',
         ],
       },
       {
         titulo: 'Regras e dependências',
         itens: [
           'A especialização é selecionada no Cadastro de Profissionais, no atributo "Especialidade(s) do Profissional" (relação de muitos para muitos).',
-          'Exclusão direta com confirmação — enquanto nenhuma tabela referenciar especializações, não há bloqueio por vínculo.',
+          'Exclusão bloqueada por vínculo: especializações vinculadas a profissionais não podem ser excluídas até que o vínculo seja removido.',
         ],
       },
       {
         titulo: 'Permissões e auditoria',
         itens: [
           'Pode Ver / Pode Editar pela matriz de permissões.',
-          'Inclusões, alterações e exclusões são registradas na Auditoria.',
+          'Inclusões, alterações e exclusões são registradas na Auditoria — nas alterações, as classificações antigas e as novas são registradas.',
         ],
       },
     ],

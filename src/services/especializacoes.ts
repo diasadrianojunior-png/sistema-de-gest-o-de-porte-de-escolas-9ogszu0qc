@@ -4,8 +4,9 @@ import { getUsuarioAtualParaAuditoria, registrarAuditoria } from './auditoria'
 
 /**
  * Opções fixas de "Classificação da Especialidade" exigidas pelo usuário.
- * A obrigatoriedade também é garantida no banco (NOT NULL), mas a lista
- * canônica vive aqui para alimentar o formulário, o filtro e a listagem.
+ * A obrigatoriedade (pelo menos 1) e a lista canônica também são garantidas
+ * no banco (CHECK + constraint de valores), mas a lista vive aqui para
+ * alimentar o formulário (seleção múltipla), o filtro e a listagem.
  */
 export const CLASSIFICACOES_ESPECIALIDADE = [
   'Graduação',
@@ -20,7 +21,8 @@ export type ClassificacaoEspecialidade = (typeof CLASSIFICACOES_ESPECIALIDADE)[n
 export interface SalvarEspecializacaoInput {
   id?: string
   nome: string
-  classificacao: string
+  /** Uma especialidade pode ter VÁRIAS classificações ao mesmo tempo (mínimo 1). */
+  classificacoes: string[]
 }
 
 /**
@@ -42,15 +44,28 @@ export async function contarReferenciasEspecializacao(id: string): Promise<numbe
   return count ?? 0
 }
 
+function normalizarClassificacoes(classificacoes: string[] | undefined | null): string[] {
+  if (!Array.isArray(classificacoes)) return []
+  // remove vazios/duplicatas preservando a ordem
+  return classificacoes
+    .map((c) => (typeof c === 'string' ? c.trim() : ''))
+    .filter((c) => c !== '')
+    .filter((c, i, arr) => arr.indexOf(c) === i)
+}
+
 function validar(input: SalvarEspecializacaoInput): string | null {
   if (!input.nome || input.nome.trim() === '') {
     return 'Informe o Nome da Especialidade.'
   }
-  if (!input.classificacao || input.classificacao.trim() === '') {
-    return 'Selecione a Classificação da Especialidade.'
+  const classificacoes = normalizarClassificacoes(input.classificacoes)
+  if (classificacoes.length === 0) {
+    return 'Selecione pelo menos uma Classificação da Especialidade.'
   }
-  if (!(CLASSIFICACOES_ESPECIALIDADE as readonly string[]).includes(input.classificacao.trim())) {
-    return 'Classificação da Especialidade inválida.'
+  const invalidas = classificacoes.filter(
+    (c) => !(CLASSIFICACOES_ESPECIALIDADE as readonly string[]).includes(c),
+  )
+  if (invalidas.length > 0) {
+    return `Classificação da Especialidade inválida: ${invalidas.join(', ')}.`
   }
   return null
 }
@@ -65,6 +80,26 @@ export async function getEspecializacoes(): Promise<Especializacao[]> {
   return (data ?? []) as Especializacao[]
 }
 
+/**
+ * Valida a unicidade do Nome da Especialidade (case/acento-insensível, igual ao
+ * índice único do banco) antes de gravar, para devolver mensagem amigável em
+ * vez do erro cru de índice.
+ */
+async function validarNomeUnico(nome: string, idEdicao?: string): Promise<string | null> {
+  let query = (supabase as any)
+    .from('especializacoes')
+    .select('id, nome')
+    .ilike('nome', nome.trim())
+  if (idEdicao) query = query.neq('id', idEdicao)
+
+  const { data, error } = await query.limit(1)
+  if (error) throw error
+  if (data && data.length > 0) {
+    return `Já existe uma especialidade cadastrada com o nome "${(data[0] as any).nome}". Informe outro nome.`
+  }
+  return null
+}
+
 export async function salvarEspecializacao(
   input: SalvarEspecializacaoInput,
 ): Promise<Especializacao> {
@@ -73,7 +108,10 @@ export async function salvarEspecializacao(
 
   const usuario = await getUsuarioAtualParaAuditoria()
   const nome = input.nome.trim()
-  const classificacao = input.classificacao.trim()
+  const classificacoes = normalizarClassificacoes(input.classificacoes)
+
+  const erroNomeUnico = await validarNomeUnico(nome, input.id)
+  if (erroNomeUnico) throw new Error(erroNomeUnico)
 
   if (input.id) {
     // Edição: capturar valores antigos para a auditoria
@@ -86,7 +124,7 @@ export async function salvarEspecializacao(
 
     const { data, error } = await (supabase as any)
       .from('especializacoes')
-      .update({ nome, classificacao })
+      .update({ nome, classificacoes })
       .eq('id', input.id)
       .select('*')
       .single()
@@ -96,7 +134,7 @@ export async function salvarEspecializacao(
     await registrarAuditoria({
       registro_codigo: registro.codigo ?? null,
       entidade: 'Especializações',
-      acao: 'EDITAR',
+      acao: 'Edição',
       descricao: `Especialização ${registro.codigo ?? ''} editada`,
       usuario_id: usuario.id,
       usuario_nome: usuario.nome,
@@ -104,9 +142,9 @@ export async function salvarEspecializacao(
       detalhes: {
         valoresAntigos: {
           nome: (anterior as Especializacao)?.nome ?? null,
-          classificacao: (anterior as Especializacao)?.classificacao ?? null,
+          classificacoes: (anterior as Especializacao)?.classificacoes ?? null,
         },
-        valoresNovos: { nome, classificacao },
+        valoresNovos: { nome, classificacoes },
       },
     })
     return registro
@@ -115,7 +153,7 @@ export async function salvarEspecializacao(
   // Criação: o identificador (ESP-XXXX) é gerado por trigger no banco
   const { data, error } = await (supabase as any)
     .from('especializacoes')
-    .insert({ nome, classificacao })
+    .insert({ nome, classificacoes })
     .select('*')
     .single()
   if (error) throw error
@@ -124,14 +162,14 @@ export async function salvarEspecializacao(
   await registrarAuditoria({
     registro_codigo: registro.codigo ?? null,
     entidade: 'Especializações',
-    acao: 'CRIAR',
+    acao: 'Criação',
     descricao: `Especialização ${registro.codigo ?? ''} criada`,
     usuario_id: usuario.id,
     usuario_nome: usuario.nome,
     usuario_email: usuario.email,
     detalhes: {
       valoresAntigos: null,
-      valoresNovos: { nome, classificacao },
+      valoresNovos: { nome, classificacoes },
     },
   })
   return registro
@@ -163,7 +201,7 @@ export async function deleteEspecializacao(id: string): Promise<void> {
   await registrarAuditoria({
     registro_codigo: registro?.codigo ?? null,
     entidade: 'Especializações',
-    acao: 'EXCLUIR',
+    acao: 'Exclusão',
     descricao: `Especialização ${registro?.codigo ?? ''} excluída`,
     usuario_id: usuario.id,
     usuario_nome: usuario.nome,
@@ -171,7 +209,7 @@ export async function deleteEspecializacao(id: string): Promise<void> {
     detalhes: {
       valoresAntigos: {
         nome: registro?.nome ?? null,
-        classificacao: registro?.classificacao ?? null,
+        classificacoes: registro?.classificacoes ?? null,
       },
       valoresNovos: null,
     },

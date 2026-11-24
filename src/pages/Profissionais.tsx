@@ -1064,7 +1064,10 @@ export default function Profissionais() {
                                 <span
                                   key={esp.id || esp.especializacao_id}
                                   className="inline-flex items-center gap-1 text-[11px] font-medium bg-teal-50 text-teal-800 border border-teal-200 rounded-sm px-2 py-0.5"
-                                  title={esp.especializacao?.classificacao || undefined}
+                                  title={
+                                    (esp.especializacao?.classificacoes ?? []).join(', ') ||
+                                    undefined
+                                  }
                                 >
                                   <Award className="w-3 h-3 text-teal-600 shrink-0" />
                                   {esp.especializacao?.nome || esp.especializacao_id}
@@ -1741,7 +1744,7 @@ export default function Profissionais() {
                                 selecionada ? 'text-teal-100' : 'text-slate-400'
                               }`}
                             >
-                              ({esp.classificacao})
+                              ({(esp.classificacoes ?? []).join(', ')})
                             </span>
                           </button>
                         )
@@ -1930,7 +1933,7 @@ export default function Profissionais() {
                         <span
                           key={esp.id || esp.especializacao_id}
                           className="inline-flex items-center gap-1 text-xs font-medium bg-teal-50 text-teal-800 border border-teal-200 rounded-sm px-2 py-0.5"
-                          title={esp.especializacao?.classificacao || undefined}
+                          title={(esp.especializacao?.classificacoes ?? []).join(', ') || undefined}
                         >
                           <Award className="w-3 h-3 text-teal-600" />
                           {esp.especializacao?.nome || esp.especializacao_id}
