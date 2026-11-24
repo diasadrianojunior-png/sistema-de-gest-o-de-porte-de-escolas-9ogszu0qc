@@ -610,6 +610,16 @@ export default function Profissionais() {
         classificacao_concurso: formClassificacaoConcurso,
         vagas: vinculosFinal,
         especialidades: formEspecialidades,
+        // Código SAMA / Matrícula(s) / Status / Arquivos Comprobatórios: os 4 novos atributos
+        codigo_sama: normalizarCodigoSama(formCodigoSama),
+        matriculas: normalizarMatriculas(formMatriculas),
+        status_profissional: formStatus,
+        arquivos_comprobatorios: [
+          // Anexos já persistidos (menos os removidos nesta edição)...
+          ...formArquivosSalvos,
+          // ...mais os que ainda serão enviados ao Storage (preenchido em subidaArquivos)
+          ...(formArquivosNovos ?? []),
+        ],
         inscricoes_ano: formInscricoes
           .filter((l) => l.ano_letivo !== null && l.inscrito !== null)
           .map((l) => ({ ano_letivo: l.ano_letivo as number, inscrito: l.inscrito as boolean })),
