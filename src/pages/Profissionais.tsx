@@ -54,6 +54,7 @@ import {
   Award,
   FileText,
   Paperclip,
+  FileSearch,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
@@ -87,6 +88,7 @@ import {
   uploadArquivoComprobatorio,
   removerArquivoComprobatorio,
 } from '@/services/profissionais-arquivos'
+import { buscarProfissionaisPorConteudoArquivos } from '@/services/profissionais-indice'
 import { supabase } from '@/lib/supabase/client'
 import { exportarProfissionaisExcel } from '@/services/profissionais-export'
 import { getUnidadesEscolares } from '@/services/unidades-escolares'
@@ -149,6 +151,10 @@ export default function Profissionais() {
   const [especializacoes, setEspecializacoes] = useState<Especializacao[]>([])
 
   const [search, setSearch] = useState('')
+  // Filtro "Buscar nos Arquivos Comprobatórios": palavras contidas nos PDFs anexados
+  const [buscaArquivos, setBuscaArquivos] = useState<string>('')
+  const [idsBuscaArquivos, setIdsBuscaArquivos] = useState<string[] | null>(null)
+  const [buscandoArquivos, setBuscandoArquivos] = useState(false)
   const [filtroUnidade, setFiltroUnidade] = useState<string>('todas')
   const [filtroClasse, setFiltroClasse] = useState<string>('todas')
   const [filtroClassificacao, setFiltroClassificacao] = useState<string>('todas')
@@ -619,7 +625,15 @@ export default function Profissionais() {
         setSubindoArquivos(true)
         try {
           for (const file of formNovosArquivos) {
-            const salvo = await uploadArquivoComprobatorio(editingProfissional?.id ?? null, file)
+            const salvo = await uploadArquivoComprobatorio(
+              editingProfissional?.id ?? null,
+              file,
+              // Contexto para a auditoria de indexação: quem é o profissional
+              {
+                profissionalNome: formNome.trim(),
+                profissionalCodigo: editingProfissional?.codigo || null,
+              },
+            )
             arquivosFinais = [...arquivosFinais, salvo]
           }
         } finally {
@@ -1023,8 +1037,23 @@ export default function Profissionais() {
       })
     }
 
+    // Filtro "Buscar nos Arquivos Comprobatórios": mantém só os profissionais
+    // cujos PDFs anexados contêm as palavras buscadas (RPC tsvector pt-BR)
+    if (idsBuscaArquivos !== null) {
+      const ids = new Set(idsBuscaArquivos)
+      lista = lista.filter((p) => ids.has(p.id))
+    }
+
     return lista
-  }, [profissionais, filtroUnidade, filtroClasse, filtroClassificacao, filtroStatus, search])
+  }, [
+    profissionais,
+    filtroUnidade,
+    filtroClasse,
+    filtroClassificacao,
+    filtroStatus,
+    search,
+    idsBuscaArquivos,
+  ])
 
   // Valores distintos de Classificação no Concurso para o filtro
   const classificacoesDisponiveis = useMemo(() => {
@@ -1046,10 +1075,37 @@ export default function Profissionais() {
     return profissionaisFiltrados.slice(inicio, inicio + itensPorPagina)
   }, [profissionaisFiltrados, paginaAtual, itensPorPagina])
 
+  // Filtro "Buscar nos Arquivos Comprobatórios": consulta a RPC
+  // profissionais_busca_por_arquivos (tsvector pt-BR + GIN) e guarda os ids;
+  // null = filtro inativo, [] = nenhum profissional tem as palavras nos anexos.
+  useEffect(() => {
+    const termo = buscaArquivos.trim()
+    if (!termo) {
+      setIdsBuscaArquivos(null)
+      return
+    }
+    setBuscandoArquivos(true)
+    let cancelado = false
+    const timer = setTimeout(async () => {
+      try {
+        const ids = await buscarProfissionaisPorConteudoArquivos(termo)
+        if (!cancelado) setIdsBuscaArquivos(ids)
+      } catch (e) {
+        if (!cancelado) setIdsBuscaArquivos([])
+      } finally {
+        if (!cancelado) setBuscandoArquivos(false)
+      }
+    }, 400)
+    return () => {
+      cancelado = true
+      clearTimeout(timer)
+    }
+  }, [buscaArquivos])
+
   // Resetar página quando filtros mudarem
   useEffect(() => {
     setPaginaAtual(1)
-  }, [search, filtroUnidade, filtroClasse, filtroClassificacao, filtroStatus])
+  }, [search, filtroUnidade, filtroClasse, filtroClassificacao, filtroStatus, idsBuscaArquivos])
 
   // IDs das funções que possuem ao menos um cargo vinculado no Cadastro de Funções
   // (tabela funcao_cargos, carregada por getFuncoes)
@@ -1138,6 +1194,20 @@ export default function Profissionais() {
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 bg-white"
               />
+            </div>
+
+            <div className="relative md:col-span-3">
+              <FileSearch className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Input
+                aria-label="Buscar nos Arquivos Comprobatórios"
+                placeholder="Buscar nos Arquivos Comprobatórios (palavras do PDF)..."
+                value={buscaArquivos}
+                onChange={(e) => setBuscaArquivos(e.target.value)}
+                className="pl-9 bg-white"
+              />
+              {buscandoArquivos && (
+                <Loader2 className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-blue-600" />
+              )}
             </div>
 
             <div className="md:col-span-3">

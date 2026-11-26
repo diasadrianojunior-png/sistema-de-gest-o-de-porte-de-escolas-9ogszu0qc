@@ -827,7 +827,11 @@ export async function salvarProfissional(input: SalvarProfissionalInput): Promis
       antigo?.caminho &&
       !(profissionalSalvo.arquivos_comprobatorios || []).some((a) => a.caminho === antigo.caminho)
     ) {
-      await removerArquivoComprobatorio(antigo.caminho)
+      await removerArquivoComprobatorio(antigo.caminho, {
+        profissionalNome: profissionalSalvo.nome,
+        profissionalCodigo: profissionalSalvo.codigo,
+        motivo: 'substituído',
+      })
     }
   }
 
@@ -1004,8 +1008,12 @@ export async function deleteProfissional(id: string): Promise<void> {
   const vinculosVaga = await detectarVinculosVagaProfissional(id)
   await liberarVinculosVaga(prof, vinculosVaga)
 
-  // 1.1 Remover os Arquivos Comprobatórios de Especialidade(s) do Storage (best-effort)
-  await excluirArquivosDoProfissional(prof.arquivos_comprobatorios)
+  // 1.1 Remover os Arquivos Comprobatórios de Especialidade(s) do Storage (best-effort),
+  // desindexando o conteúdo com auditoria contextualizada ao profissional
+  await excluirArquivosDoProfissional(prof.arquivos_comprobatorios, {
+    profissionalNome: prof.nome,
+    profissionalCodigo: prof.codigo,
+  })
 
   // 2. Excluir o registro do profissional (profissional_vagas é deletada por CASCADE)
   const { error } = await db.from('profissionais').delete().eq('id', id)

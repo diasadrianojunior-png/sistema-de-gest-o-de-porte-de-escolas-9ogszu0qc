@@ -52,10 +52,17 @@ export function validarArquivoComprobatorio(file: File): string | null {
   return null
 }
 
+/** Contexto do profissional (nome/código) para os eventos de auditoria da indexação. */
+export interface ContextoIndexacaoProfissional {
+  profissionalNome?: string | null
+  profissionalCodigo?: string | null
+}
+
 /** Faz o upload de um arquivo para a pasta do profissional e devolve o registro do anexo. */
 export async function uploadArquivoComprobatorio(
   profissionalId: string | null,
   file: File,
+  contexto: ContextoIndexacaoProfissional = {},
 ): Promise<ArquivoComprobatorioSalvo> {
   await garantirBucketComprobantes()
 
@@ -73,7 +80,8 @@ export async function uploadArquivoComprobatorio(
     throw new Error(error.message || 'Falha no upload do arquivo comprobatório.')
   }
 
-  // Indexação do conteúdo: extrai o texto (PDF) e grava no índice com auditoria.
+  // Indexação do conteúdo: extrai o texto (PDF) e grava no índice com auditoria
+  // (evento "indexado" com quem, quando, arquivo, nº de caracteres e profissional).
   // Melhor esforço: falha de extração/índice não impede o upload.
   const textoIndexado = await extrairTextoArquivo(file)
   await indexarArquivoComprobatorio({
@@ -82,6 +90,8 @@ export async function uploadArquivoComprobatorio(
     caminho,
     tipoArquivo: file.type,
     texto: textoIndexado,
+    profissionalNome: contexto.profissionalNome,
+    profissionalCodigo: contexto.profissionalCodigo,
   })
 
   return { nome: file.name, caminho, tamanho: file.size }
@@ -90,19 +100,14 @@ export async function uploadArquivoComprobatorio(
 /** Remove um anexo do bucket e sua entrada no índice de conteúdo (best-effort). */
 export async function removerArquivoComprobatorio(
   caminho: string,
-  contextoIndice?: {
-    profissionalNome?: string | null
-    profissionalCodigo?: string | null
-    motivo?: 'substituído' | 'removido'
-  },
+  contextoIndice?: ContextoIndexacaoProfissional & { motivo?: 'substituído' | 'removido' },
 ): Promise<void> {
-  if (contextoIndice) {
-    await desindexarArquivoComprobatorio(caminho, {
-      profissionalNome: contextoIndice.profissionalNome,
-      profissionalCodigo: contextoIndice.profissionalCodigo,
-      motivo: contextoIndice.motivo ?? 'removido',
-    })
-  }
+  // Sempre desindexa com auditoria (o contexto pode ser parcial: só nome/código se known)
+  await desindexarArquivoComprobatorio(caminho, {
+    profissionalNome: contextoIndice?.profissionalNome,
+    profissionalCodigo: contextoIndice?.profissionalCodigo,
+    motivo: contextoIndice?.motivo ?? 'removido',
+  })
   try {
     await supabase.storage.from(NOME_BUCKET).remove([caminho])
   } catch {
@@ -117,7 +122,7 @@ export async function removerArquivoComprobatorio(
  */
 export async function excluirArquivosDoProfissional(
   arquivos: Array<{ caminho: string }> | null | undefined,
-  contextoIndice?: { profissionalNome?: string | null; profissionalCodigo?: string | null },
+  contextoIndice?: ContextoIndexacaoProfissional,
 ): Promise<void> {
   // Índice de conteúdo: cada comprovante excluído sai do índice com auditoria
   await desindexarArquivosDoProfissional(arquivos, contextoIndice)
