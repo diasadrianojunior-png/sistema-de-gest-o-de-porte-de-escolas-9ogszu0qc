@@ -6,10 +6,15 @@ import { registrarAuditoria } from '@/services/auditoria'
  * Cadastro de Profissionais.
  *
  * Cada comprovante (PDF) tem o texto extraído no navegador com pdf.js
- * (pdfjs-dist) e gravado na tabela `profissionais_arquivos_indice` (migração
- * 20261124200000): texto de até 25 milhões de caracteres, coluna gerada
- * `busca` (tsvector 'portuguese') com índice GIN e RPC
- * `profissionais_busca_por_arquivos(text)` para o filtro da listagem.
+ * (carregado sob demanda via CDN ESM) e gravado na tabela
+ * `profissionais_arquivos_indice` (migração 20261124200000): texto de até 25
+ * milhões de caracteres, coluna gerada `busca` (tsvector 'portuguese') com
+ * índice GIN e RPC `profissionais_busca_por_arquivos(text)` para o filtro da
+ * listagem.
+ *
+ * O pdf.js NÃO é dependência npm (package.json é protegido contra edição): o
+ * módulo ESM e o worker vêm do CDN jsdelivr sob demanda, na primeira extração.
+ * Falha de CDN → o arquivo segue subindo, apenas sem indexação (auditado).
  *
  * Imagens (PNG/JPG/WEBP) não têm OCR na plataforma: ficam indexadas com texto
  * vazio e seguem sem erro (comunicado ao usuário).
@@ -20,33 +25,82 @@ const TABELA_INDICE = 'profissionais_arquivos_indice'
 /** Limite da migração: 25 milhões de caracteres de texto por arquivo. */
 export const LIMITE_CARACTERES_INDICE = 25_000_000
 
-let workerConfigurado = false
+/**
+ * pdf.js carregado sob demanda (lazy) via CDN ESM — SEM dependência npm nem
+ * import estático (o bundler não resolve "pdfjs-dist" no build). O módulo e o
+ * worker vêm do jsdelivr na primeira extração de texto de um PDF.
+ */
+const CDN_PDFJS_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs'
+const CDN_PDFJS_WORKER_URL =
+  'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs'
 
-/** Configura o worker do pdf.js uma única vez (bundled pelo Vite). */
-async function configurarWorkerPdf(): Promise<any> {
-  const pdfjs = await import('pdfjs-dist')
-  if (!workerConfigurado) {
-    try {
-      const workerUrl = await import('pdfjs-dist/build/pdf.worker.min.mjs?url')
-      ;(pdfjs as any).GlobalWorkerOptions.workerSrc = workerUrl.default
-    } catch (e) {
-      console.warn('Worker do pdf.js indisponível; usando execução no thread principal.', e)
-    }
-    workerConfigurado = true
+/** Tipagem mínima local: o módulo CDN não é importado estaticamente. */
+type PdfJs = any
+
+let pdfjsCache: PdfJs | null = null
+/** true quando o último carregamento do CDN falhou (para auditoria/aviso). */
+let ultimoCarregamentoFalhou = false
+
+/** Indica se o último carregamento do leitor de PDF (CDN) falhou. */
+export function carregamentoLeitorFalhou(): boolean {
+  return ultimoCarregamentoFalhou
+}
+
+/** Erro amigável quando o CDN do pdf.js não responde. */
+export class ErroCarregamentoPdfJs extends Error {
+  constructor() {
+    super('Não foi possível carregar o leitor de PDF — verifique a conexão e tente novamente')
+    this.name = 'ErroCarregamentoPdfJs'
   }
-  return pdfjs
+}
+
+/** Carrega o pdf.js do CDN uma única vez e configura o worker (lazy). */
+async function carregarPdfJs(): Promise<PdfJs> {
+  if (pdfjsCache) return pdfjsCache
+  let modulo: PdfJs
+  try {
+    // Import dinâmico de URL externa (variável + @vite-ignore): o bundler deixa
+    // passar sem tentar resolver, e o navegador baixa o módulo em tempo real.
+    const urlCdn = CDN_PDFJS_URL
+    modulo = (await import(/* @vite-ignore */ urlCdn)) as PdfJs
+    ultimoCarregamentoFalhou = false
+  } catch (e) {
+    ultimoCarregamentoFalhou = true
+    console.error('Falha ao carregar o leitor de PDF (CDN):', e)
+    throw new ErroCarregamentoPdfJs()
+  }
+  if (!modulo?.getDocument) {
+    console.error('Módulo pdf.js do CDN sem a API esperada (getDocument).')
+    throw new ErroCarregamentoPdfJs()
+  }
+  try {
+    modulo.GlobalWorkerOptions.workerSrc = CDN_PDFJS_WORKER_URL
+  } catch (e) {
+    console.warn('Worker do pdf.js indisponível; usando execução no thread principal.', e)
+  }
+  pdfjsCache = modulo
+  return modulo
 }
 
 /**
  * Extrai o texto de um PDF no navegador com pdf.js, concatenando o texto de
  * todas as páginas. Sempre devolve texto (string vazia quando o PDF não tem
- * texto extraível — PDF digitalizado) e nunca lança erro que trave o upload.
+ * texto extraível — PDF digitalizado, ou leitor indisponível) e nunca lança
+ * erro que trave o upload: o arquivo continua subindo, apenas sem indexação.
  */
 export async function extrairTextoPdf(file: File): Promise<string> {
+  let pdfjs: PdfJs
   try {
-    const pdfjs = await configurarWorkerPdf()
+    pdfjs = await carregarPdfJs()
+  } catch (e) {
+    // CDN indisponível: o arquivo segue subindo, apenas sem indexação.
+    // O aviso amigável e o registro na auditoria ficam em quem chama
+    // (indexarArquivoComprobatorio / uploadArquivoComprobatorio).
+    return ''
+  }
+  try {
     const buffer = await file.arrayBuffer()
-    const doc = await (pdfjs as any).getDocument({ data: buffer }).promise
+    const doc = await pdfjs.getDocument({ data: buffer }).promise
     let texto = ''
     for (let num = 1; num <= doc.numPages; num++) {
       const page = await doc.getPage(num)
@@ -101,6 +155,10 @@ export interface RegistrarIndiceParams {
 export async function indexarArquivoComprobatorio(params: RegistrarIndiceParams): Promise<void> {
   const { profissionalId, nomeArquivo, caminho, tipoArquivo, texto } = params
   const caracteres = texto.length
+  // PDF sem texto pode ser digitalizado OU leitor (CDN) indisponível: a auditoria
+  // distingue os dois para o usuário saber o que aconteceu.
+  const leitorIndisponivel =
+    tipoArquivo === 'application/pdf' && caracteres === 0 && carregamentoLeitorFalhou()
   try {
     const { error } = await db.from(TABELA_INDICE).upsert(
       {
@@ -120,10 +178,12 @@ export async function indexarArquivoComprobatorio(params: RegistrarIndiceParams)
       entidade: 'Profissionais',
       acao: 'Indexação de Comprovante',
       registro_codigo: params.profissionalCodigo || null,
-      descricao: `Arquivo comprobatório "${nomeArquivo}" indexado para o profissional "${params.profissionalNome || 'Novo profissional'}" — ${caracteres} caractere(s) extraído(s) (limite de 25 milhões por arquivo).`,
+      descricao: leitorIndisponivel
+        ? `Arquivo comprobatório "${nomeArquivo}" do profissional "${params.profissionalNome || 'Novo profissional'}" NÃO pôde ser indexado: ${new ErroCarregamentoPdfJs().message}. O arquivo foi enviado normalmente e fica fora da busca por palavras.`
+        : `Arquivo comprobatório "${nomeArquivo}" indexado para o profissional "${params.profissionalNome || 'Novo profissional'}" — ${caracteres} caractere(s) extraído(s) (limite de 25 milhões por arquivo).`,
       detalhes: {
         tipo_evento: 'indexacao_comprovante',
-        acao: 'indexado',
+        acao: leitorIndisponivel ? 'indexado_sem_leitor' : 'indexado',
         profissional_id: profissionalId,
         profissional_nome: params.profissionalNome || null,
         profissional_codigo: params.profissionalCodigo || null,
