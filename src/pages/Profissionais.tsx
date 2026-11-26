@@ -2741,6 +2741,37 @@ export default function Profissionais() {
               </ol>
             </div>
 
+            {/* Bloco 1.1: Indexação dos Comprovantes e Busca por Palavras */}
+            <div className="p-4 rounded-xl border border-orange-200 bg-orange-50/70 space-y-2">
+              <h4 className="font-semibold text-orange-950 flex items-center gap-2">
+                <Paperclip className="w-4 h-4 text-orange-600" /> Indexação dos Arquivos
+                Comprobatórios e Busca por Palavras
+              </h4>
+              <ul className="text-xs list-disc list-inside space-y-1.5 text-slate-700 pl-1">
+                <li>
+                  <strong>O que é indexado:</strong> ao anexar um comprovante, o{' '}
+                  <strong>texto de cada PDF</strong> é extraído e gravado no índice de conteúdo do
+                  sistema, até o limite de <strong>25 milhões de caracteres</strong> por
+                  profissional. Imagens (PNG, JPG, WEBP) <strong>não são lidas</strong> — o sistema
+                  não possui OCR — e ficam apenas armazenadas.
+                </li>
+                <li>
+                  <strong>Filtro "Buscar nos Arquivos Comprobatórios":</strong> na listagem, digite
+                  uma ou mais palavras para pesquisar <strong>dentro do conteúdo indexado</strong>{' '}
+                  dos comprovantes (o texto é comparado sem acentos). A lista passa a mostrar apenas
+                  os profissionais cujos arquivos contêm as palavras; com o campo vazio, o
+                  comportamento da listagem é o padrão.
+                </li>
+                <li>
+                  <strong>Auditoria da indexação:</strong> cada comprovante sobe é registrado como
+                  <em> indexado</em>; um salvo que sai e outro entra no mesmo salvamento, como{' '}
+                  <em>substituído</em>; um salvo removido, como <em>removido</em> — sempre com o
+                  nome/código do profissional e a quantidade de caracteres indexados. Ao excluir o
+                  profissional, todos os comprovantes dele são desindexados com o nome/código dele.
+                </li>
+              </ul>
+            </div>
+
             {/* Bloco 2: Regra de Classificação Automática pela Data de Admissão */}
             <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/70 space-y-2">
               <h4 className="font-semibold text-amber-950 flex items-center gap-2">
