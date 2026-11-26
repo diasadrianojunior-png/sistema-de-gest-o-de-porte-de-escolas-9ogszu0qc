@@ -1,4 +1,10 @@
 import { supabase } from '@/lib/supabase/client'
+import {
+  extrairTextoArquivo,
+  indexarArquivoComprobatorio,
+  desindexarArquivoComprobatorio,
+  desindexarArquivosDoProfissional,
+} from '@/services/profissionais-indice'
 
 /**
  * Upload dos "Arquivos Comprobatórios de Especialidade(s)" do profissional
@@ -67,11 +73,36 @@ export async function uploadArquivoComprobatorio(
     throw new Error(error.message || 'Falha no upload do arquivo comprobatório.')
   }
 
+  // Indexação do conteúdo: extrai o texto (PDF) e grava no índice com auditoria.
+  // Melhor esforço: falha de extração/índice não impede o upload.
+  const textoIndexado = await extrairTextoArquivo(file)
+  await indexarArquivoComprobatorio({
+    profissionalId,
+    nomeArquivo: file.name,
+    caminho,
+    tipoArquivo: file.type,
+    texto: textoIndexado,
+  })
+
   return { nome: file.name, caminho, tamanho: file.size }
 }
 
-/** Remove um anexo do bucket (best-effort: erro é ignorado para não travar o salvamento). */
-export async function removerArquivoComprobatorio(caminho: string): Promise<void> {
+/** Remove um anexo do bucket e sua entrada no índice de conteúdo (best-effort). */
+export async function removerArquivoComprobatorio(
+  caminho: string,
+  contextoIndice?: {
+    profissionalNome?: string | null
+    profissionalCodigo?: string | null
+    motivo?: 'substituído' | 'removido'
+  },
+): Promise<void> {
+  if (contextoIndice) {
+    await desindexarArquivoComprobatorio(caminho, {
+      profissionalNome: contextoIndice.profissionalNome,
+      profissionalCodigo: contextoIndice.profissionalCodigo,
+      motivo: contextoIndice.motivo ?? 'removido',
+    })
+  }
   try {
     await supabase.storage.from(NOME_BUCKET).remove([caminho])
   } catch {
@@ -86,7 +117,10 @@ export async function removerArquivoComprobatorio(caminho: string): Promise<void
  */
 export async function excluirArquivosDoProfissional(
   arquivos: Array<{ caminho: string }> | null | undefined,
+  contextoIndice?: { profissionalNome?: string | null; profissionalCodigo?: string | null },
 ): Promise<void> {
+  // Índice de conteúdo: cada comprovante excluído sai do índice com auditoria
+  await desindexarArquivosDoProfissional(arquivos, contextoIndice)
   const caminhos = (arquivos || []).map((a) => a?.caminho).filter(Boolean)
   if (caminhos.length === 0) return
   try {
